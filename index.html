@@ -6,35 +6,59 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="stylesheet" href="assets/css/style.css">
 
-  <!-- star-field background -->
+  <!-- star-field background + layout tweaks -->
   <style>
-    body{background-image:url("https://raw.githubusercontent.com/aharris88/retro-assets/main/backgrounds/stars-tile.gif");}
+    body{
+      background-image:url("https://raw.githubusercontent.com/aharris88/retro-assets/main/backgrounds/stars-tile.gif");
+    }
 
     /* three-column wrapper */
     .content-wrapper{
-      display:flex;          /* side-by-side */
+      display:flex;
       gap:24px;
       justify-content:center;
       align-items:flex-start;
-      padding:0 8px;
+      padding:0 16px;                  /* extra space at edges */
     }
 
-    /* middle column wider */
-    .main-column{flex:0 0 600px;}
+    /* centre column wider */
+    .main-column{
+      flex:0 0 600px;
+      margin-top:16px;                 /* align with sidebars */
+    }
 
-    /* 90-s sidebar style (both sides reuse it) */
+    /* shared sidebar look */
     .sidebar{
       flex:0 0 220px;
       padding:8px;
+      margin-top:16px;                 /* align with main */
       background:#000080;
       color:#FFFF00;
       border:4px ridge #C0C0C0;
       font-family:"Courier New",monospace;
     }
-    .sidebar h2{margin-top:0;font-size:1.1rem;text-align:center;}
+    .sidebar h2{margin:0 0 8px;font-size:1.1rem;text-align:center;}
     .sidebar ul{padding-left:1em;margin:0;}
     .sidebar li{margin-bottom:4px;}
     .sidebar a{color:#FFFF00;}
+
+    /* ===== responsive ===== */
+    @media (max-width: 768px){
+      .content-wrapper{
+        flex-direction:column;
+        align-items:stretch;
+      }
+      .main-column,
+      .sidebar{
+        flex:1 1 auto;
+        width:90%;
+        margin:16px auto 0;
+      }
+      /* order: blog (1), projects (2), reading list (3) */
+      .main-column      {order:1;}
+      .projects-sidebar {order:2;}
+      .reading-sidebar  {order:3;}
+    }
   </style>
 </head>
 
@@ -56,23 +80,22 @@
 
 <div class="content-wrapper">
 
-  <!-- ───── LEFT SIDEBAR : READING LIST ───── -->
-  <aside class="sidebar">
+  <!-- ── LEFT : READING LIST ── -->
+  <aside class="sidebar reading-sidebar">
     <h2>Reading List</h2>
     <ul>
       <li><a href="https://slatestarcodex.com/2015/04/21/universal-love-said-the-cactus-person/" target="_blank">“Universal Love, Said the Cactus Person” – SSC</a></li>
-      <li><a href="https://www.youtube.com/watch?v=PK2SMIOHYig" target="_blank">“The answer is not a hut in the woods" - exurb2a</a></li>
+      <li><a href="https://www.youtube.com/watch?v=PK2SMIOHYig" target="_blank">“The answer is not a hut in the woods” – exurb1a</a></li>
       <li><a href="https://www.amazon.ca/Exhalation-Ted-Chiang/dp/1101972084" target="_blank"><em>Exhalation</em> – Ted Chiang</a></li>
     </ul>
   </aside>
 
 
-  <!-- ───── CENTER : BLOG POSTS ───── -->
+  <!-- ── CENTRE : BLOG POSTS ── -->
   <main class="main-column">
     <h2>Blog Posts</h2>
     <ul>
       <li><time datetime="2025-04-30">30 Apr 2025</time> — <a href="posts/deploying-python-apps-databricks.html">Deploying Python Apps on Databricks: What No One Tells You</a></li>
-
       <li><time datetime="2024-11-30">30 Nov 2024</time> — <a href="posts/killing-it-in-cs-part-2.html">Killing It in Computer Science (Part 2)</a></li>
       <li><time datetime="2024-11-25">25 Nov 2024</time> — <a href="posts/ai-mistakes-internship-apps.html">The Worst Ways to Use AI in Internship / Job Apps</a></li>
       <li><time datetime="2024-11-20">20 Nov 2024</time> — <a href="posts/internships-hard-to-get.html">Internships Are Hard to Get – First Tips</a></li>
@@ -91,8 +114,8 @@
   </main>
 
 
-  <!-- ───── RIGHT SIDEBAR : PROJECT LINKS (placeholder) ───── -->
-  <aside class="sidebar">
+  <!-- ── RIGHT : PROJECTS (placeholder) ── -->
+  <aside class="sidebar projects-sidebar">
     <h2>Projects</h2>
     <p>Coming soon…</p>
   </aside>
