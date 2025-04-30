@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Deploying Python Apps on Databricks: What No One Tells You</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link rel="stylesheet" href="../assets/css/style.css">
+  </head>
+  <body>
+    <header>
+      <h1>Deploying Python Apps on Databricks: What No One Tells You</h1>
+      <nav>
+        <a href="../index.html">Home</a>
+        <a href="../about.html">About&nbsp;Me</a>
+      </nav>
+    </header>
+
+    <main>
+      <article>
+        <p><em>30 Apr 2025 • Calgary, AB</em></p>
+
+        <p>
+          I’ve spent the last few weeks deploying Python <strong>Flask</strong> and
+          <strong>Streamlit</strong> apps on <strong>#Databricks</strong>.
+          The experience has been (mostly) great, <strong>but&nbsp;…</strong>
+          the platform is <em>brand new</em> and the docs are thin. Here’s what
+          cost me the most time—so you can skip the pain:
+        </p>
+
+        <h2>1. Beware the Reserved Environment Variables</h2>
+        <p>
+          Databricks reserves certain env-vars <em>and hides the list at the
+          bottom of the docs</em>.
+          Read it (<a href="https://learn.microsoft.com/azure/databricks/_static/apps/reference#reserved-environment-variables" target="_blank" rel="noopener">link</a>)
+          and <code>grep</code> your codebase; rename anything that collides.
+        </p>
+
+        <h2>2. Unity Catalog Volumes</h2>
+        <ol>
+          <li>Deploy the app in the <strong>same workspace</strong> as the volume.</li>
+          <li>
+            Grant volume/catalog permissions to
+            <strong>your app’s service principal</strong> (or the user running it).
+          </li>
+          <li>
+            Use the <strong>Workspace API</strong> for file access—skip the headache of
+            other endpoints.
+          </li>
+        </ol>
+
+        <h2>3. Time Saved</h2>
+        <p>
+          Follow those rules and you’ll ship in <strong>hours, not days</strong>.
+          Good luck—and huge kudos to the Databricks team for such an intuitive
+          feature set!
+        </p>
+      </article>
+    </main>
+  </body>
+</html>
