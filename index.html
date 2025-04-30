@@ -44,21 +44,37 @@
 
     /* ===== responsive ===== */
     @media (max-width: 768px){
-      .content-wrapper{
-        flex-direction:column;
-        align-items:stretch;
+      .content-wrapper {
+        flex-direction: column;
+        align-items: stretch;
       }
+    
       .main-column,
-      .sidebar{
-        flex:1 1 auto;
-        width:90%;
-        margin:16px auto 0;
+      .sidebar {
+        flex: 1 1 auto;
+        width: 90%;
+        margin: 16px auto 0;
       }
-      /* order: blog (1), projects (2), reading list (3) */
-      .main-column      {order:1;}
-      .projects-sidebar {order:2;}
-      .reading-sidebar  {order:3;}
+    
+      .main-column      { order: 1; }
+      .projects-sidebar { order: 2; }
+      .reading-sidebar  { order: 3; }
+    
+      /* Shrink and truncate blog post text */
+      .main-column ul li {
+        font-size: 0.9rem;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    
+      /* Hide Linux button */
+      .buttons88x31 img[alt="Linux Powered"] {
+        display: none;
+      }
     }
+
   </style>
 </head>
 
