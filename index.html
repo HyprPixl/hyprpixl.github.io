@@ -4,12 +4,37 @@
   <meta charset="utf-8">
   <title>Caleb Fedyshen • Blog</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <!-- core 90-s stylesheet -->
   <link rel="stylesheet" href="assets/css/style.css">
 
-  <!-- star-field tile (swap for a local copy if you prefer) -->
+  <!-- star-field background -->
   <style>
     body{background-image:url("https://raw.githubusercontent.com/aharris88/retro-assets/main/backgrounds/stars-tile.gif");}
+
+    /* three-column wrapper */
+    .content-wrapper{
+      display:flex;          /* side-by-side */
+      gap:24px;
+      justify-content:center;
+      align-items:flex-start;
+      padding:0 8px;
+    }
+
+    /* middle column wider */
+    .main-column{flex:0 0 600px;}
+
+    /* 90-s sidebar style (both sides reuse it) */
+    .sidebar{
+      flex:0 0 220px;
+      padding:8px;
+      background:#000080;
+      color:#FFFF00;
+      border:4px ridge #C0C0C0;
+      font-family:"Courier New",monospace;
+    }
+    .sidebar h2{margin-top:0;font-size:1.1rem;text-align:center;}
+    .sidebar ul{padding-left:1em;margin:0;}
+    .sidebar li{margin-bottom:4px;}
+    .sidebar a{color:#FFFF00;}
   </style>
 </head>
 
@@ -17,10 +42,8 @@
 
 <header>
   <h1>Caleb Fedyshen</h1>
-
-  <!-- animated greeting -->
   <marquee behavior="scroll" direction="left" scrollamount="6">
-    Welcome to my blog – your problem, solved with software!
+    Welcome to my super-rad 90s tech blog – your problem, solved with software!
   </marquee>
 
   <nav>
@@ -30,57 +53,54 @@
   </nav>
 </header>
 
-<main>
-  <h2>Blog Posts</h2>
-  <ul>
-    <!-- newest first -->
-    <li>
-      <time datetime="2025-04-30">30 Apr 2025</time> —
-      <a href="posts/deploying-python-apps-databricks.html">
-        Deploying Python Apps on Databricks: What No One Tells You
-      </a>
-    </li>
 
-    <li>
-      <time datetime="2024-11-30">30 Nov 2024</time> —
-      <a href="posts/killing-it-in-cs-part-2.html">
-        Killing It in Computer Science (Part 2)
-      </a>
-    </li>
+<div class="content-wrapper">
 
-    <li>
-      <time datetime="2024-11-25">25 Nov 2024</time> —
-      <a href="posts/ai-mistakes-internship-apps.html">
-        The Worst Ways to Use AI in Internship / Job Apps
-      </a>
-    </li>
+  <!-- ───── LEFT SIDEBAR : READING LIST ───── -->
+  <aside class="sidebar">
+    <h2>Reading List</h2>
+    <ul>
+      <li><a href="https://slatestarcodex.com/2015/04/21/universal-love-said-the-cactus-person/" target="_blank">“Universal Love, Said the Cactus Person” – SSC</a></li>
+      <li><a href="https://paulgraham.com/makersschedule.html" target="_blank">“Maker’s Schedule, Manager’s Schedule” – Paul Graham</a></li>
+      <li><a href="https://hardfork.link" target="_blank">Hard Fork Podcast</a></li>
+      <li><em>Exhalation</em> – Ted Chiang</li>
+      <li><em>The Pragmatic Programmer</em></li>
+      <li><em>Working in Public</em> – Nadia Eghbal</li>
+    </ul>
+  </aside>
 
-    <li>
-      <time datetime="2024-11-20">20 Nov 2024</time> —
-      <a href="posts/internships-hard-to-get.html">
-        Internships Are Hard to Get – First Tips
-      </a>
-    </li>
 
-    <li>
-      <time datetime="2024-11-15">15 Nov 2024</time> —
-      <a href="posts/three-best-strategies-cs-degree.html">
-        Three Strategies for Killing a CS Degree
-      </a>
-    </li>
-  </ul>
+  <!-- ───── CENTER : BLOG POSTS ───── -->
+  <main class="main-column">
+    <h2>Blog Posts</h2>
+    <ul>
+      <li><time datetime="2025-04-30">30 Apr 2025</time> — <a href="posts/deploying-python-apps-databricks.html">Deploying Python Apps on Databricks: What No One Tells You</a></li>
 
-  <!-- ✨ 88 × 31 “button bar” -->
-  <div class="buttons88x31" align="center">
-    <img src="https://raw.githubusercontent.com/vilgacx/88x31/main/gifs/html3.gif" alt="HTML Power">
-    <img src="https://raw.githubusercontent.com/vilgacx/88x31/main/gifs/linux_powered.gif" alt="Linux Powered">
-    <!-- click-through easter-egg -->
-    <a href="https://slatestarcodex.com/2015/04/21/universal-love-said-the-cactus-person/" target="_blank" rel="noopener">
-      <img src="https://raw.githubusercontent.com/vilgacx/88x31/main/gifs/click_here.gif" alt="Click Here">
-    </a>
-    <img src="https://raw.githubusercontent.com/vilgacx/88x31/main/gifs/best_viewed_with_monitor.gif" alt="Best Viewed with Monitor">
-  </div>
-</main>
+      <li><time datetime="2024-11-30">30 Nov 2024</time> — <a href="posts/killing-it-in-cs-part-2.html">Killing It in Computer Science (Part 2)</a></li>
+      <li><time datetime="2024-11-25">25 Nov 2024</time> — <a href="posts/ai-mistakes-internship-apps.html">The Worst Ways to Use AI in Internship / Job Apps</a></li>
+      <li><time datetime="2024-11-20">20 Nov 2024</time> — <a href="posts/internships-hard-to-get.html">Internships Are Hard to Get – First Tips</a></li>
+      <li><time datetime="2024-11-15">15 Nov 2024</time> — <a href="posts/three-best-strategies-cs-degree.html">Three Strategies for Killing a CS Degree</a></li>
+    </ul>
+
+    <!-- 88×31 button bar -->
+    <div class="buttons88x31" align="center">
+      <img src="https://raw.githubusercontent.com/vilgacx/88x31/main/gifs/html3.gif" alt="HTML Power">
+      <img src="https://raw.githubusercontent.com/vilgacx/88x31/main/gifs/linux_powered.gif" alt="Linux Powered">
+      <a href="https://slatestarcodex.com/2015/04/21/universal-love-said-the-cactus-person/" target="_blank" rel="noopener">
+        <img src="https://raw.githubusercontent.com/vilgacx/88x31/main/gifs/click_here.gif" alt="Click Here">
+      </a>
+      <img src="https://raw.githubusercontent.com/vilgacx/88x31/main/gifs/best_viewed_with_monitor.gif" alt="Best Viewed with Monitor">
+    </div>
+  </main>
+
+
+  <!-- ───── RIGHT SIDEBAR : PROJECT LINKS (placeholder) ───── -->
+  <aside class="sidebar">
+    <h2>Projects</h2>
+    <p>Coming soon…</p>
+  </aside>
+
+</div><!-- /content-wrapper -->
 
 </body>
 </html>
