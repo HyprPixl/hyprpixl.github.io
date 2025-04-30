@@ -2,7 +2,7 @@
 
 Your problem, solved with software. Styled like it’s 1997.
 
-This is the code for my [personal blog](https://yourusername.github.io/) where I write about:
+This is the code for my [personal blog](https://hyprpixl.github.io/) where I write about:
 - software development and data architecture
 - university advice for CS students
 - job hunting, internships, and tech careers
