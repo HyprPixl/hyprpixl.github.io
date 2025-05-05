@@ -1,30 +1,18 @@
+<!-- index.html -->
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <title>Launching the Plains Pacesetter Step Challenge</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <link rel="stylesheet" href="../assets/css/style.css">
-  <style>
-    /* new: side-by-side screenshots with matching heights */
-    .screenshot-row {
-      display: flex;
-      gap: 8px;
-      margin: 16px 0;
-    }
-    .screenshot-row img {
-      max-height: 300px; /* ← set this to your Power BI screenshot’s height */
-      width: auto;
-      display: block;
-    }
-  </style>
+  <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
   <header>
     <h1>Launching the Plains Pacesetter Step Challenge: Behind the Scenes</h1>
     <nav>
-      <a href="../index.html">Home</a>
-      <a href="../about.html">About Me</a>
+      <a href="index.html">Home</a>
+      <a href="about.html">About Me</a>
     </nav>
   </header>
 
@@ -32,49 +20,44 @@
     <article>
       <p><em>5 May 2025 • Calgary, AB</em></p>
 
-      <p>A few days ago, Plains kicked off the Pacesetter Step Challenge, a Canada wide initiative designed to build community, support employee wellbeing, and foster a bit of friendly
-        competition. My job was building the data infrastructure that powers the entire program.</p>
+      <p>A few days ago, Plains kicked off the Pacesetter Step Challenge, a Canada-wide initiative designed to build community, support employee wellbeing, and foster a bit of friendly competition. My job was building the data infrastructure that powers the entire program.</p>
 
-      <p>We just started the challenge and already have more than 200 employees tracking their daily step counts, competing as teams, and staying motivated through clear, realtime feedback. 
-        To make this happen, I developed a comprehensive yet streamlined data solution, blending modern Microsoft tools to handle both the user experience and backend analytics.</p>
+      <p>We just started the challenge and already have more than 200 employees tracking their daily step counts, competing as teams, and staying motivated through clear, real-time feedback. To make this happen, I developed a comprehensive yet streamlined data solution, blending modern Microsoft tools to handle both the user experience and backend analytics.</p>
 
       <h2>Key Tech Used</h2>
       <ul>
         <li><strong>Power Apps:</strong> Provided a simple, intuitive way for employees to log steps right inside Teams or via the web.</li>
-        <li><strong>MS Entra ID (formerly Azure AD):</strong> The app doesn't require login or anything, you just open it and it laready knows who you are!</li>
+        <li><strong>MS Entra ID (formerly Azure AD):</strong> The app doesn't require login or anything—you just open it and it already knows who you are!</li>
         <li><strong>Microsoft Fabric SQL Server:</strong> Centralized all step data, team affiliations, and user preferences into a scalable, efficient database.</li>
         <li><strong>Power Automate:</strong> Automated routine database maintenance tasks to keep data clean and ready for reporting.</li>
         <li><strong>Power BI:</strong> Delivered real-time interactive dashboards embedded directly into SharePoint, offering immediate visibility into personal and team performance.</li>
       </ul>
 
       <!-- architecture diagram -->
-      <p><img src="../assets/images/pacesetter_architecture.png" alt="Pacesetter Data Architecture"></p>
+      <p><img src="assets/images/pacesetter_architecture.png" alt="Pacesetter Data Architecture"></p>
 
       <h2>How I Built It</h2>
       <p>I began by creating a Power App designed specifically for easy data entry. Participants simply log their daily steps—no complicated forms or extra steps involved. By connecting this app to MS Entra ID, logging in became seamless.</p>
-      <p>The data entered flows directly into a Microsoft Fabric SQL Server instance. Which is probably overkill but it definitely gets the job done. Absolutely destroys the excel based solution last year's challenge ran on.</p>
+      <p>The data entered flows directly into a Microsoft Fabric SQL Server instance, which is scalable and performant compared to the Excel-based solution used last year.</p>
       <p>On the analytics side, I developed a data model optimized for performance and easy integration with reporting tools. Using Power BI, my teammate Nevin Sangha and I created dashboards that provide live insights into team standings and individual achievements, embedded right in SharePoint.</p>
       <p>To maintain data integrity, I employed Power Automate to automate cleanup tasks and trigger routine data processes, eliminating the need for manual intervention.</p>
 
       <!-- side-by-side screenshots -->
       <div class="screenshot-row">
-        <img src="../assets/images/power_app_screenshot.png" alt="Power App Screenshot">
-        <img src="../assets/images/power_bi_dashboard.png" alt="Power BI Dashboard Screenshot">
+        <img src="assets/images/power_app_screenshot.png" alt="Power App Screenshot">
+        <img src="assets/images/power_bi_dashboard.png" alt="Power BI Dashboard Screenshot">
       </div>
 
       <h2>Lessons Learned</h2>
       <ul>
-        <li><strong>User experience matters:</strong> Making the app as straightforward as possible mkaes it obvoius what the user should do with it, and also makes it run faster, so that's a double win.</li>
-        <li><strong>Fast data = more engagement:</strong> People love checking in with the live dashboard and seeing friends and teammates numbers.</li>
-        <li><strong>Automate whenever possible:</strong> Anticipating and automating routine tasks, particularly in sql, early on saved significant time down the road.</li>
+        <li><strong>User experience matters:</strong> Making the app as straightforward as possible makes it obvious what the user should do, and also improves performance.</li>
+        <li><strong>Fast data = more engagement:</strong> People love checking in with the live dashboard and seeing friends’ and teammates’ numbers.</li>
+        <li><strong>Automate whenever possible:</strong> Anticipating and automating routine tasks, particularly in SQL, early on saved significant time.</li>
       </ul>
 
-      <p>You might be wondering if using power apps was worth the headache instead of just rolling my own solution in Flask or just raw html, css, and js. The answer to that is probably yes, 
-      the integration with Entra ID, and the ability to load the app right in teams were the features that made it worth it, also it saved me from having to worry about performance as much if the app were to be used by thousands of users.</p>
-      
-      <p><strong>TL;DR:</strong> Built the data backbone for Plains' company-wide step challenge, using Power Apps, MS Fabric SQL, Power Automate, and Power BI, resulting in a scalable and user-friendly solution.</p>
+      <p>You might be wondering if using Power Apps was worth the headache instead of rolling your own solution in Flask or raw HTML/CSS/JS. The integration with Entra ID and the Teams embedding made it absolutely worthwhile, especially at scale.</p>
+      <p><strong>TL;DR:</strong> Built the data backbone for Plains’ company-wide step challenge using Power Apps, MS Fabric SQL, Power Automate, and Power BI, resulting in a scalable and user-friendly solution.</p>
       <p>#data #powerapps #powerbi #automation #msfabric</p>
-
     </article>
   </main>
 </body>
