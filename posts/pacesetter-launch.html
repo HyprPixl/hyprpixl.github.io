@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Launching the Plains Pacesetter Step Challenge</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<header>
+  <h1>Launching the Plains Pacesetter Step Challenge: Behind the Scenes</h1>
+  <nav><a href="../index.html">Home</a>  <a href="../about.html">About Me</a></nav>
+</header>
+
+<main><article>
+<p><em>5 May 2025 • Calgary, AB</em></p>
+
+<p>Last week, Plains kicked off the Pacesetter Step Challenge, a Canada-wide initiative designed to build community, support employee wellbeing, and foster a bit of friendly competition. My role? Building the data infrastructure that powers the entire program.</p>
+
+<p>The challenge involves over 200 employees tracking their daily step counts, competing as teams, and staying motivated through clear, real-time feedback. To make this happen, I developed a comprehensive yet streamlined data solution, blending modern Microsoft tools to handle both the user-facing experience and backend analytics.</p>
+
+<h2>Technologies Used</h2>
+<ul>
+  <li><strong>Power Apps:</strong> Provided a simple, intuitive way for employees to log steps daily—right inside Teams or via the web.</li>
+  <li><strong>MS Entra ID (formerly Azure AD):</strong> Leveraged existing corporate login to avoid extra passwords, simplifying the user experience and ensuring security.</li>
+  <li><strong>Dataflow Gen2:</strong> Handled data ingestion from multiple sources, such as employee-submitted steps and team designation spreadsheets.</li>
+  <li><strong>Microsoft Fabric SQL Server:</strong> Centralized all step data, team affiliations, and user preferences into a scalable, efficient database.</li>
+  <li><strong>Power Automate:</strong> Automated routine database maintenance tasks to keep data clean and ready for reporting.</li>
+  <li><strong>Power BI:</strong> Delivered real-time interactive dashboards embedded directly into SharePoint, offering immediate visibility into personal and team performance.</li>
+</ul>
+
+<!-- Insert architecture diagram here -->
+<p><img src="../assets/images/pacesetter_architecture.png" alt="Pacesetter Data Architecture"></p>
+
+<h2>How I Built It</h2>
+<p>I began by creating a Power App designed specifically for easy data entry. Participants simply log their daily steps—no complicated forms or extra steps involved. By connecting this app to MS Entra ID, logging in became seamless.</p>
+
+<p>The data entered flows directly into a Microsoft Fabric SQL Server instance. Before landing there, it passes through a Dataflow Gen2 pipeline, which ensures consistency and automatically resolves common data-entry errors or formatting inconsistencies.</p>
+
+<p>On the analytics side, I developed a data model optimized for performance and easy integration with reporting tools. Using Power BI, I created dashboards that provide live insights into team standings and individual achievements, embedded in SharePoint for universal accessibility.</p>
+
+<p>To maintain data integrity, I employed Power Automate to automate cleanup tasks and trigger routine data processes, eliminating the need for manual intervention.</p>
+
+<!-- Insert screenshot of Power App here -->
+<p><img src="../assets/images/power_app_screenshot.png" alt="Power App Screenshot"></p>
+
+<!-- Insert screenshot of Power BI Dashboard here -->
+<p><img src="../assets/images/power_bi_dashboard.png" alt="Power BI Dashboard Screenshot"></p>
+
+<h2>Lessons Learned</h2>
+<ul>
+  <li><strong>User experience matters:</strong> Making the app as straightforward as possible significantly improved user satisfaction.</li>
+  <li><strong>Real-time insights enhance engagement:</strong> When participants see immediate results, motivation grows stronger.</li>
+  <li><strong>Automate whenever possible:</strong> Anticipating and automating routine tasks early on saved significant time down the road.</li>
+</ul>
+
+<h2>What's Next?</h2>
+<p>I'm currently looking into enhancements, including:</p>
+<ul>
+  <li>Integrating automatic device syncing (Apple Health, Google Fit).</li>
+  <li>Creating daily leaderboards directly within Teams.</li>
+  <li>Developing personalized weekly performance recaps for participants.</li>
+</ul>
+
+<p>Overall, it’s been a rewarding project, demonstrating how thoughtful design, user-centric thinking, and careful technical planning can come together to support a great cause—and keep people excited to move.</p>
+
+<p><strong>TL;DR:</strong> Built the data backbone for Plains' company-wide step challenge, using Power Apps, MS Fabric SQL, Power Automate, and Power BI, resulting in a scalable and user-friendly solution.</p>
+
+<p>#data #powerapps #powerbi #automation #msfabric</p>
+
+</article></main>
+</body>
+</html>
