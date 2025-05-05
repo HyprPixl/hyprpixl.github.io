@@ -76,15 +76,35 @@ main {
   border: 6px ridge #C0C0C0;
 }
 
-/* Content */
 article h2 { margin-top: 1.5rem; }
 
-/* Images in article */
 article img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
 
 /* Side-by-side screenshots */
-.screenshot-row { display: flex; gap: 8px; margin: 16px 0; }
-.screenshot-row img { max-height: 300px; width: auto; display: block; }
+.screenshot-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+.screenshot-row img {
+  max-height: 300px;
+  width: auto;
+  display: block;
+  flex: 1 1 calc(50% - 8px);
+}
+
+/* On narrow screens, stack screenshots */
+@media (max-width: 600px) {
+  .screenshot-row {
+    flex-direction: column;
+  }
+  .screenshot-row img {
+    width: 100%;
+    max-height: none;
+    flex: none;
+  }
+}
 
 /* 90s-style link colors */
 a          { color: #0000EE; }
