@@ -54,6 +54,14 @@ main {
 /* Article headings */
 article h2 { margin-top: 0; }
 
+/* Images */
+article img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1em auto;
+}
+
 /* Code blocks */
 pre, code {
   background: #F0F0F0;
