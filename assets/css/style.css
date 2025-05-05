@@ -1,17 +1,19 @@
-/* ============ Totally 90s theme ============ */
+/* ================================================ */
+/* style.css                                        */
+/* ================================================ */
 
-/* Tile-pattern background (grab a 50×50-ish GIF and save as assets/img/90s-bg.gif) */
+/* reset box-sizing for predictable layouts */
+* {
+  box-sizing: border-box;
+}
+
+/* Tile-pattern background (90s theme) */
 body {
   margin: 0;
   background: #fff url("../img/90s-bg.gif") repeat;
   font-family: "Courier New", Courier, monospace;
   color: #000;
 }
-
-/* Link colours just like the good old days */
-a          { color: #0000EE; }
-a:visited  { color: #551A8B; }
-a:hover    { color: #FF0000; text-decoration: underline; }
 
 /* Header banner—yellow on navy with a chunky double border */
 header {
@@ -20,6 +22,9 @@ header {
   border-bottom: 4px double #FF0000;
   text-align: center;
   padding: 1rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 header h1 {
@@ -30,45 +35,58 @@ header h1 {
   text-shadow: 2px 2px #FF0000;
 }
 
-/* Big old clunky buttons for nav */
-nav { margin-top: 0.5rem; }
+/* Navigation links: wrap on small screens */
+nav {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  overflow-x: auto;
+}
+
 nav a {
-  display: inline-block;
-  margin: 0 0.25rem;
-  padding: 0.25rem 0.75rem;
+  flex: 0 0 auto;
+  padding: 0.5rem 1rem;
   background: #C0C0C0;
   border: 2px outset #FFFFFF;
   text-decoration: none;
   font-weight: bold;
 }
 
+/* Responsive tweaks */
+@media (max-width: 480px) {
+  header h1 {
+    font-size: 1.5rem;
+  }
+  nav a {
+    font-size: 0.9rem;
+    padding: 0.4rem 0.8rem;
+  }
+}
+
 /* Centered content box with a ridged border */
 main {
-  width: 760px;                    /* classic 90s “ideal” width */
+  width: 100%;
+  max-width: 760px;
   margin: 1.5rem auto;
   padding: 1rem;
   background: #FFFFFF;
   border: 6px ridge #C0C0C0;
 }
 
-/* Article headings */
-article h2 { margin-top: 0; }
+/* Content */
+article h2 { margin-top: 1.5rem; }
 
-/* Images */
-article img {
-  max-width: 100%;
-  height: auto;
-  display: block;
-  margin: 1em auto;
-}
+/* Images in article */
+article img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
 
-/* Code blocks */
-pre, code {
-  background: #F0F0F0;
-  border: 1px dashed #000;
-  padding: 0.25em 0.5em;
-  overflow-x: auto;
-}
+/* Side-by-side screenshots */
+.screenshot-row { display: flex; gap: 8px; margin: 16px 0; }
+.screenshot-row img { max-height: 300px; width: auto; display: block; }
 
-/* Optional 88×31 buttons row */
-.buttons88x31 img { margin: 2px; }
+/* 90s-style link colors */
+a          { color: #0000EE; }
+a:visited  { color: #551A8B; }
+a:hover    { color: #FF0000; text-decoration: underline; }
