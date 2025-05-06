@@ -80,31 +80,31 @@ article h2 { margin-top: 1.5rem; }
 
 article img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
 
-/* Side-by-side screenshots */
+/* Side-by-side on desktop: equal height, auto width */
 .screenshot-row {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
-  margin: 16px 0;
-}
-.screenshot-row img {
-  max-height: 300px;
-  width: auto;
-  display: block;
-  flex: 1 1 calc(50% - 8px);
+  align-items: stretch;     /* make children the same height */
 }
 
-/* On narrow screens, stack screenshots */
+.screenshot-row img {
+  height: 300px;            /* lock both to 300px tall */
+  width: auto;              /* preserve aspect ratio */
+  object-fit: contain;      /* ensure no cropping */
+  display: block;
+}
+
+/* Stack and reset sizing on narrow screens */
 @media (max-width: 600px) {
   .screenshot-row {
     flex-direction: column;
   }
   .screenshot-row img {
-    width: 100%;
-    max-height: none;
-    flex: none;
+    height: auto;           /* natural height again */
+    max-width: 100%;        /* fit container */
   }
 }
+
 
 /* 90s-style link colors */
 a          { color: #0000EE; }
