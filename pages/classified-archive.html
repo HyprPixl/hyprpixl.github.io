@@ -5,34 +5,32 @@
   <title>CLASSIFIED ARCHIVE – Caleb Fedyshen</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- 90’s-fantasy vibe fonts -->
+  <!-- retro / fantasy fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Press+Start+2P&display=swap" rel="stylesheet">
 
   <style>
-    /* retro star-field */
+    /* ─────────  BACKGROUND  ───────── */
     body{
       margin:0;color:#fff;
-      font-family:"Press Start 2P", monospace;
-      background:#000 url("https://i.imgur.com/z7Xw1.gif") repeat; /* tiny star gif */
-      animation: scrollStars 60s linear infinite;
+      font-family:"Press Start 2P",monospace;
+      background:#000 url("assets/img/starfield.gif") repeat;
+      animation:scrollStars 60s linear infinite;
     }
     @keyframes scrollStars{
       from{background-position:0 0}
-      to  {background-position:-10000px 5000px}
+      to  {background-position:-8000px 4000px}
     }
 
-    /* stone archway frame */
+    /* ─────────  MAIN FRAME  ───────── */
     .frame{
       max-width:900px;margin:40px auto;padding:24px;
       border:12px double #c0c0c0;
-      background:#111 url("https://i.imgur.com/1g3P7EI.png") center/cover; /* subtle stone */
+      background:#111 url("assets/img/stone.png") center/cover;
       box-shadow:0 0 25px 8px rgba(0,255,255,.4);
       position:relative;
     }
-
-    /* glowing headline */
     h1{
       font-family:"MedievalSharp",cursive;
       text-align:center;
@@ -41,19 +39,18 @@
       text-shadow:0 0 8px #00ffff,0 0 16px #00ffff;
     }
 
-    /* pixel-sword spin */
+    /* ─────────  DECORATIVE SPRITES  ───────── */
     .sword{
       width:64px;height:64px;
-      background:url("https://i.imgur.com/KBS1YmY.png") center/contain no-repeat;
+      background:url("assets/img/sword.png") center/contain no-repeat;
       position:absolute;top:-32px;left:-32px;
       animation:spin 6s linear infinite;
     }
     @keyframes spin{to{transform:rotate(360deg)}}
 
-    /* pulsing crystal */
     .crystal{
       width:48px;height:48px;
-      background:url("https://i.imgur.com/I0vniOW.png") center/contain no-repeat;
+      background:url("assets/img/crystal.png") center/contain no-repeat;
       position:absolute;bottom:-24px;right:-24px;
       animation:pulse 2s ease-in-out infinite;
     }
@@ -62,47 +59,50 @@
       50%     {transform:scale(1.2);filter:drop-shadow(0 0 18px #ff66ff)}
     }
 
-    /* video wrapper – keeps aspect */
-    .video{
-      position:relative;padding-bottom:56.25%;height:0;overflow:hidden;
-      border:4px ridge #00ffff;margin-bottom:24px;
-      box-shadow:0 0 12px 4px rgba(0,255,255,.5);
-    }
-    .video iframe{
-      position:absolute;top:0;left:0;width:100%;height:100%;
-    }
-
-    /* nav link */
-    .return{
-      display:block;text-align:center;margin-top:8px;
-      color:#ff66ff;font-size:0.9rem;text-decoration:none;
-      animation:glow 3s ease-in-out infinite;
+    /* ─────────  LINK BUTTONS  ───────── */
+    .oats-link{
+      display:inline-block;
+      margin:16px auto 24px;
+      padding:10px 18px;
+      border:2px solid #ff66ff;
+      color:#ff66ff;
+      text-decoration:none;
+      font-size:0.8rem;
+      text-align:center;
+      animation:glow 2.5s ease-in-out infinite;
     }
     @keyframes glow{
-      0%,100%{text-shadow:0 0 6px #ff66ff}
-      50%     {text-shadow:0 0 16px #ff66ff}
+      0%,100%{box-shadow:0 0 6px #ff66ff}
+      50%     {box-shadow:0 0 16px #ff66ff}
+    }
+
+    .return{
+      display:block;text-align:center;margin-top:8px;
+      color:#00ffff;font-size:0.8rem;text-decoration:none;
+      text-shadow:0 0 6px #00ffff;
     }
   </style>
 </head>
 
 <body>
   <div class="frame">
-    <div class="sword" aria-hidden="true"></div>
-    <h1>CLASSIFIED&nbsp;ARCHIVE</h1>
+    <div class="sword"   aria-hidden="true"></div>
 
-    <div class="video">
-      <!-- autoplay, mute, loop for ambience -->
-      <iframe src="https://www.youtube-nocookie.com/embed/O7FIiYsVy3U?autoplay=1&mute=1&loop=1&playlist=O7FIiYsVy3U"
-              title="Fantasy Theme"
-              frameborder="0"
-              allow="autoplay; encrypted-media"
-              allowfullscreen></iframe>
-    </div>
+    <h1>CLASSIFIED&nbsp;ARCHIVE</h1>
 
     <p style="font-size:0.8rem;line-height:1.4;text-align:center;padding:0 12px;">
       Within these vaults lie scrolls forgotten,<br>
       code fragments arcane, and whispers of<br>
       projects yet to be forged in pixel-fire. 🜂
+    </p>
+
+    <!-- fancy link to the YouTube track -->
+    <p style="text-align:center">
+      <a class="oats-link"
+         href="https://www.youtube.com/watch?v=O7FIiYsVy3U"
+         target="_blank" rel="noopener">
+        ▶ May I Have Some Oats, Brother?
+      </a>
     </p>
 
     <a class="return" href="index.html">← Return to Surface World</a>
