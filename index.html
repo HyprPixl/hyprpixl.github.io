@@ -179,9 +179,10 @@
       const display = document.getElementById("codeDisplay");
       let input="";
 
-      /* Collect EVERY reading-list item (italic or not) */
-      const initials=[...document.querySelectorAll(".reading-sidebar ul li a")]
-        .map(a=>a.textContent.trim()[0].toUpperCase());
+      /* NEW – grabs the first A-Z letter instead */
+      const initials = [...document.querySelectorAll(".reading-sidebar ul li a")]
+      .map(a => (a.textContent.match(/[A-Za-z]/) || [""])[0].toUpperCase());
+
 
       /* Build ASCII code string */
       const asciiStr = initials.map(ch=>ch.charCodeAt(0)).join("");
