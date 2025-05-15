@@ -107,9 +107,14 @@
       </ul>
 
       <!-- keypad mount point -->
-      <hr><h3>Access Code</h3>
-      <div id="keypad"></div>
-      <p id="codeDisplay"></p>
+      <details style="margin-top:12px;">
+        <summary style="cursor:pointer;font-weight:bold;font-size:1rem;color:#FFFF00;">Classified Archive</summary>
+        <div style="margin-top:8px;">
+          <div id="keypad"></div>
+          <p id="codeDisplay"></p>
+        </div>
+      </details>
+
     </aside>
 
     <!-- ── CENTRE : BLOG POSTS ── -->
@@ -179,9 +184,10 @@
       const display = document.getElementById("codeDisplay");
       let input="";
 
-      /* NEW – grabs the first A-Z letter instead */
       const initials = [...document.querySelectorAll(".reading-sidebar ul li a")]
-      .map(a => (a.textContent.match(/[A-Za-z]/) || [""])[0].toUpperCase());
+        .slice(0, 3)
+        .map(a => (a.textContent.match(/[A-Za-z]/) || [""])[0].toUpperCase());
+
 
 
       /* Build ASCII code string */
