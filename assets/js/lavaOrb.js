@@ -7,7 +7,7 @@ camera.position.z = 3;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
-document.body.appendChild(renderer.domElement);
+document.getElementById("lava-container").appendChild(renderer.domElement);
 
 // — uniforms
 const uniforms = { time: { value: 0 } };
