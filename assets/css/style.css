@@ -156,7 +156,9 @@ a          { color: #0000EE; }
   }
 }
 
-/* lava lamp container sits behind everything */
+/* ────────────────────────────────────────────────── */
+/* lava‐lamp container—lift it above the page bg      */
+/* ────────────────────────────────────────────────── */
 #lava-container {
   position: fixed;
   top: 0;
@@ -164,8 +166,14 @@ a          { color: #0000EE; }
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: -1;
-  background: rgba(255, 0, 0, 0.1);
+  z-index: 0;            /* was -1, now 0 so it’s above the bg */
+}
+
+/* stack all your visible content above the orb */
+header,
+.content-wrapper {
+  position: relative;
+  z-index: 1;
 }
 
 a:visited  { color: #551A8B; }
