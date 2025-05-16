@@ -10,7 +10,7 @@
 /* Tile-pattern background (90s theme) */
 body {
   margin: 0;
-  background: #fff url("../img/90s-bg.gif") repeat;
+  background: #fffbe8; /* light cream */
   font-family: "Courier New", Courier, monospace;
   color: #000;
 }
