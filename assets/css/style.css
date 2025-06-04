@@ -189,3 +189,48 @@ a:hover    { color: #FF0000; text-decoration: underline; }
   text-decoration: underline;
 }
 
+
+/* ────────────────────────────────────────── */
+/* terminal overlay                          */
+/* ────────────────────────────────────────── */
+#terminal-overlay {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  width: 80%;
+  height: 40%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.95);
+  color: #00FF00;
+  font-family: "Courier New", Courier, monospace;
+  padding: 8px;
+  border: 2px solid #00FF00;
+  border-radius: 4px;
+  box-shadow: 0 0 10px #00FF00;
+  overflow-y: auto;
+  z-index: 9999;
+}
+
+#terminal-overlay input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+#terminalLink {
+  position: fixed;
+  bottom: 4px;
+  right: 8px;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.8rem;
+  color: #00FF00;
+  text-decoration: none;
+}
+#terminalLink:hover {
+  color: #00CCFF;
+  text-decoration: underline;
+}
