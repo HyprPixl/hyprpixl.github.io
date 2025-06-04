@@ -10,8 +10,8 @@ This is the code for my [personal blog](https://hyprpixl.github.io/) where I wri
 
 The site uses:
 - GitHub Pages for hosting
-- Plain HTML and CSS (with a strong 90s aesthetic)
-- Tiled backgrounds, `<marquee>`, 88×31 buttons, and no JavaScript
+- Primarily HTML and CSS (with a strong 90s aesthetic), plus small JavaScript files for optional features
+- Tiled backgrounds, `<marquee>`, 88×31 buttons
 
 ## Posts
 
