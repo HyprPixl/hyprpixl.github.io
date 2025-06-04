@@ -18,7 +18,6 @@
   const commands = {
     help() {
       print('Commands: help, quote, clear, ls, cd <link>, exit');
-
     },
     quote() {
       const q = quotes[Math.floor(Math.random() * quotes.length)];
@@ -45,7 +44,6 @@
     },
     exit() {
       toggle();
-
     }
   };
 
@@ -105,7 +103,6 @@
       input.value = '';
     } else if (e.key === 'Escape') {
       toggle();
-
     } else if (e.key === 'Tab') {
       e.preventDefault();
       const current = input.value.trim();
