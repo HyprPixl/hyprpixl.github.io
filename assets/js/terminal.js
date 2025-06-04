@@ -60,13 +60,13 @@
     fortune() {
       const pick = arr => arr[Math.floor(Math.random() * arr.length)];
       const beginnings = ['Soon,', 'In a dream,', 'By the next full moon,', 'One day,', 'In the near future,'];
-      const subjects = ['your code', 'a wandering cat', 'an old bug', 'a rogue AI', 'your rubber duck'];
+      const subjects = ['your code', 'a wandering cat', 'an old bug', 'a rogue AI', 'your rubber duck', 'an old friend', 'a talking cactus person'];
       const endings = [
         'will bring you great fortune.',
         'will test your patience.',
         'will lead you to a surprising discovery.',
-        'will start speaking in ASCII art.',
-        'will open a portal to the 90s web.'
+        'will start making sense.',
+        'will end something you care about.'
       ];
       const msg = `${pick(beginnings)} ${pick(subjects)} ${pick(endings)}`;
       const border = '_'.repeat(msg.length + 2);
