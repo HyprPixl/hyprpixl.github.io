@@ -101,6 +101,8 @@
         }
       }
       input.value = '';
+    } else if (e.key === 'Escape') {
+      toggle();
     } else if (e.key === 'Tab') {
       e.preventDefault();
       const current = input.value.trim();
