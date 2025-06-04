@@ -8,9 +8,12 @@
   const input = overlay.querySelector('#terminal-input');
 
   const quotes = [
-    'Talk is cheap. Show me the code. – Linus Torvalds',
-    'Premature optimization is the root of all evil. – Donald Knuth',
-    'Programs must be written for people to read. – Harold Abelson'
+    'You cannot steer a ship thats not moving.',
+    'There are dumpster fires everywhere for those with the eyes to see.',
+    'There are cathedrals everywhere for those with the eyes to see',
+    'Cynicism and nihilism are memetic traps.'
+    'You never regret a swim',
+    'It may not be your fault, but it is your problem'
   ];
 
   const links = Array.from(document.querySelectorAll('a[href]')).map(a => a.getAttribute('href'));
