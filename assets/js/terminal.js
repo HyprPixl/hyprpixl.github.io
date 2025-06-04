@@ -6,6 +6,12 @@
 
   const output = overlay.querySelector('#terminal-output');
   const input = overlay.querySelector('#terminal-input');
+  const marquee = document.querySelector('marquee');
+  const textFiles = ['bee-movie.txt'];
+
+  if (marquee) {
+    marquee.scrollAmount = 100;
+  }
 
   const quotes = [
     'You cannot steer a ship thats not moving.',
@@ -20,7 +26,11 @@
 
   const commands = {
     help() {
-      print('Commands: help, quote, clear, ls, cd <link>, pwd, date, whoami, echo <text>, fortune, exit');
+      let base = 'Commands: help, quote, clear, ls, cd <link>, pwd, date, whoami, echo <text>, fortune, exit';
+      if (marquee) {
+        base += ', cat [file], speed <amount>';
+      }
+      print(base);
     },
     quote() {
       const q = quotes[Math.floor(Math.random() * quotes.length)];
@@ -79,12 +89,47 @@
       print('................||----w.||');
       print('................||......||');
     },
+    cat(file) {
+      if (!marquee) {
+        print('This command is only available on the index page.');
+        return;
+      }
+      if (!file) {
+        print('Available files: ' + textFiles.join(' '));
+        return;
+      }
+      const fname = file.endsWith('.txt') ? file : file + '.txt';
+      fetch('assets/text/' + fname)
+        .then(r => r.ok ? r.text() : Promise.reject())
+        .then(text => {
+          marquee.textContent = text;
+        })
+        .catch(() => {
+          print('No such file');
+        });
+    },
+    speed(val) {
+      if (!marquee) {
+        print('This command is only available on the index page.');
+        return;
+      }
+      const n = parseInt(val, 10);
+      if (isNaN(n)) {
+        print('Usage: speed <number>');
+        return;
+      }
+      marquee.scrollAmount = n;
+      print('Text speed changed to ' + n);
+    },
     exit() {
       toggle();
     }
   };
 
   commands.quit = commands.exit;
+  if (marquee) {
+    commands.read = commands.cat;
+  }
 
   function longestCommonPrefix(arr) {
     if (!arr.length) return '';
