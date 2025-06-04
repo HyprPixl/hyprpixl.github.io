@@ -17,7 +17,7 @@
 
   const commands = {
     help() {
-      print('Commands: help, quote, clear, ls, cd <link>, exit');
+      print('Commands: help, quote, clear, ls, cd <link>, pwd, date, whoami, echo <text>, fortune, exit');
     },
     quote() {
       const q = quotes[Math.floor(Math.random() * quotes.length)];
@@ -41,6 +41,40 @@
       } else {
         print('No such link');
       }
+    },
+    pwd() {
+      print(window.location.pathname);
+    },
+    date() {
+      print(new Date().toString());
+    },
+    whoami() {
+      print('guest');
+    },
+    echo(text) {
+      print(text || '');
+    },
+    fortune() {
+      const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+      const beginnings = ['Soon,', 'In a dream,', 'By the next full moon,', 'One day,', 'In the near future,'];
+      const subjects = ['your code', 'a wandering cat', 'an old bug', 'a rogue AI', 'your rubber duck'];
+      const endings = [
+        'will bring you great fortune.',
+        'will test your patience.',
+        'will lead you to a surprising discovery.',
+        'will start speaking in ASCII art.',
+        'will open a portal to the 90s web.'
+      ];
+      const msg = `${pick(beginnings)} ${pick(subjects)} ${pick(endings)}`;
+      const border = '_'.repeat(msg.length + 2);
+      print(' ' + border);
+      print('< ' + msg + ' >');
+      print(' ' + '-'.repeat(msg.length + 2));
+      print('        \\   ^__^');
+      print('         \\  (oo)\\_______');
+      print('            (__)\\       )\\/\\');
+      print('                ||----w |');
+      print('                ||     ||');
     },
     exit() {
       toggle();
