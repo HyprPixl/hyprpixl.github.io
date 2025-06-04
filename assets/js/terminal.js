@@ -147,7 +147,7 @@
         if (commands[cmd]) {
           commands[cmd](parts.join(' '));
         } else {
-          print('Unknown command');
+          print('Unknown command, use "help" to see all commands');
         }
       }
       input.value = '';
