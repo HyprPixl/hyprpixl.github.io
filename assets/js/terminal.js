@@ -13,9 +13,11 @@
     'Programs must be written for people to read. – Harold Abelson'
   ];
 
+  const links = Array.from(document.querySelectorAll('a[href]')).map(a => a.getAttribute('href'));
+
   const commands = {
     help() {
-      print('Commands: help, quote, clear');
+      print('Commands: help, quote, clear, ls, cd <link>');
     },
     quote() {
       const q = quotes[Math.floor(Math.random() * quotes.length)];
@@ -23,6 +25,22 @@
     },
     clear() {
       output.innerHTML = '';
+    },
+    ls() {
+      links.forEach(l => print(l));
+    },
+    cd(target) {
+      if (!target) {
+        print('Usage: cd <link>');
+        return;
+      }
+      const match = links.find(l => l === target || l.startsWith(target));
+      if (match) {
+        localStorage.setItem('terminal-open', 'true');
+        window.location.href = match;
+      } else {
+        print('No such link');
+      }
     }
   };
 
@@ -33,14 +51,23 @@
     output.scrollTop = output.scrollHeight;
   }
 
-  function toggle() {
-    if (overlay.style.display === 'block') {
-      overlay.style.display = 'none';
-    } else {
+  function toggle(force) {
+    const shouldShow = force !== undefined ? force : overlay.style.display !== 'block';
+    if (shouldShow) {
       overlay.style.display = 'block';
+      localStorage.setItem('terminal-open', 'true');
       input.focus();
+    } else {
+      overlay.style.display = 'none';
+      localStorage.setItem('terminal-open', 'false');
     }
   }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    if (localStorage.getItem('terminal-open') === 'true') {
+      toggle(true);
+    }
+  });
 
   document.addEventListener('keydown', function(e) {
     if (e.key === '~' && !/input|textarea/i.test(e.target.tagName)) {
@@ -51,11 +78,12 @@
 
   input.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
-      const cmd = input.value.trim();
+      const parts = input.value.trim().split(/\s+/);
+      const cmd = parts.shift();
       if (cmd) {
-        print('> ' + cmd);
+        print('> ' + input.value.trim());
         if (commands[cmd]) {
-          commands[cmd]();
+          commands[cmd](parts.join(' '));
         } else {
           print('Unknown command');
         }
@@ -63,6 +91,25 @@
       input.value = '';
     } else if (e.key === 'Escape') {
       toggle();
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      const current = input.value.trim();
+      const pieces = current.split(/\s+/);
+      if (pieces.length === 1) {
+        const matches = Object.keys(commands).filter(c => c.startsWith(pieces[0]));
+        if (matches.length === 1) {
+          input.value = matches[0] + ' ';
+        }
+      } else if (pieces.length > 1) {
+        const partial = pieces.pop();
+        const matches = links.filter(l => l.startsWith(partial));
+        if (matches.length === 1) {
+          pieces.push(matches[0]);
+          input.value = pieces.join(' ');
+        } else if (matches.length > 1) {
+          print(matches.join(' '));
+        }
+      }
     }
   });
 
