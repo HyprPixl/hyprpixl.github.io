@@ -17,7 +17,8 @@
 
   const commands = {
     help() {
-      print('Commands: help, quote, clear, ls, cd <link>');
+      print('Commands: help, quote, clear, ls, cd <link>, exit');
+
     },
     quote() {
       const q = quotes[Math.floor(Math.random() * quotes.length)];
@@ -41,8 +42,14 @@
       } else {
         print('No such link');
       }
+    },
+    exit() {
+      toggle();
+
     }
   };
+
+  commands.quit = commands.exit;
 
   function print(text) {
     const div = document.createElement('div');
@@ -63,6 +70,10 @@
     }
   }
 
+  overlay.addEventListener('mousedown', function() {
+    input.focus();
+  });
+
   document.addEventListener('DOMContentLoaded', function() {
     if (localStorage.getItem('terminal-open') === 'true') {
       toggle(true);
@@ -71,6 +82,9 @@
 
   document.addEventListener('keydown', function(e) {
     if (e.key === '~' && !/input|textarea/i.test(e.target.tagName)) {
+      e.preventDefault();
+      toggle();
+    } else if (e.key === 'Escape' && overlay.style.display === 'block') {
       e.preventDefault();
       toggle();
     }
@@ -91,6 +105,7 @@
       input.value = '';
     } else if (e.key === 'Escape') {
       toggle();
+
     } else if (e.key === 'Tab') {
       e.preventDefault();
       const current = input.value.trim();
