@@ -17,7 +17,7 @@
     'You cannot steer a ship thats not moving.',
     'There are dumpster fires everywhere for those with the eyes to see.',
     'There are cathedrals everywhere for those with the eyes to see',
-    'Cynicism and nihilism are memetic traps.'
+    'Cynicism and nihilism are memetic traps.',
     'You never regret a swim',
     'It may not be your fault, but it is your problem'
   ];
