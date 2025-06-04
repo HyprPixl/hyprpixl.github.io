@@ -101,7 +101,7 @@
     output.appendChild(div);
     // wait for the DOM to update before scrolling
     setTimeout(() => {
-      output.scrollTop = output.scrollHeight;
+      overlay.scrollTop = overlay.scrollHeight;
     }, 0);
   }
 
@@ -110,6 +110,7 @@
     if (shouldShow) {
       overlay.style.display = 'block';
       localStorage.setItem('terminal-open', 'true');
+      overlay.scrollTop = overlay.scrollHeight;
       input.focus();
     } else {
       overlay.style.display = 'none';
@@ -117,7 +118,7 @@
     }
   }
 
-  overlay.addEventListener('mousedown', function() {
+  overlay.addEventListener('click', function() {
     input.focus();
   });
 
