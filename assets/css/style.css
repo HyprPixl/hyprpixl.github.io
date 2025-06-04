@@ -149,10 +149,12 @@ a          { color: #0000EE; }
 
   .main-column {
     order: 1;
+    flex: 0 0 auto;
   }
 
   .reading-sidebar {
     order: 2;
+    flex: 0 0 auto;
   }
 }
 
@@ -264,5 +266,8 @@ a:hover    { color: #FF0000; text-decoration: underline; }
   #terminal-overlay,
   #terminalLink {
     display: none !important;
+  }
+  .buttons88x31 .linux-button {
+    display: none;
   }
 }
