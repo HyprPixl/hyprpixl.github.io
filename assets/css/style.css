@@ -189,3 +189,38 @@ a:hover    { color: #FF0000; text-decoration: underline; }
   text-decoration: underline;
 }
 
+
+/* ────────────────────────────────────────── */
+/* terminal overlay                          */
+/* ────────────────────────────────────────── */
+#terminal-overlay {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 40%;
+  background: rgba(0,0,0,0.9);
+  color: #00FF00;
+  font-family: "Courier New", Courier, monospace;
+  padding: 8px;
+  overflow-y: auto;
+  z-index: 9999;
+}
+
+#terminal-overlay input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+#terminalLink {
+  position: fixed;
+  bottom: 4px;
+  right: 8px;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.8rem;
+}
