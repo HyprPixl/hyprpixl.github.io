@@ -258,3 +258,11 @@ a:hover    { color: #FF0000; text-decoration: underline; }
   font-family: "Courier New", Courier, monospace;
   font-size: 0.8rem;
 }
+
+/* Hide terminal overlay and link on small screens */
+@media (max-width: 600px) {
+  #terminal-overlay,
+  #terminalLink {
+    display: none !important;
+  }
+}
