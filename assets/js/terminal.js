@@ -49,11 +49,26 @@
 
   commands.quit = commands.exit;
 
+  function longestCommonPrefix(arr) {
+    if (!arr.length) return '';
+    let prefix = arr[0];
+    for (let i = 1; i < arr.length; i++) {
+      while (!arr[i].startsWith(prefix) && prefix) {
+        prefix = prefix.slice(0, -1);
+      }
+      if (!prefix) break;
+    }
+    return prefix;
+  }
+
   function print(text) {
     const div = document.createElement('div');
     div.textContent = text;
     output.appendChild(div);
-    output.scrollTop = output.scrollHeight;
+    // wait for the DOM to update before scrolling
+    setTimeout(() => {
+      output.scrollTop = output.scrollHeight;
+    }, 0);
   }
 
   function toggle(force) {
@@ -108,18 +123,27 @@
       const current = input.value.trim();
       const pieces = current.split(/\s+/);
       if (pieces.length === 1) {
-        const matches = Object.keys(commands).filter(c => c.startsWith(pieces[0]));
-        if (matches.length === 1) {
-          input.value = matches[0] + ' ';
+        const partial = pieces[0];
+        const matches = Object.keys(commands).filter(c => c.startsWith(partial));
+        if (matches.length) {
+          const prefix = longestCommonPrefix(matches);
+          input.value = prefix;
+          if (matches.length === 1) input.value += ' ';
+          if (matches.length > 1 && prefix === partial) {
+            print(matches.join(' '));
+          }
         }
       } else if (pieces.length > 1) {
         const partial = pieces.pop();
         const matches = links.filter(l => l.startsWith(partial));
-        if (matches.length === 1) {
-          pieces.push(matches[0]);
+        if (matches.length) {
+          const prefix = longestCommonPrefix(matches);
+          pieces.push(prefix);
           input.value = pieces.join(' ');
-        } else if (matches.length > 1) {
-          print(matches.join(' '));
+          if (matches.length === 1) input.value += ' ';
+          if (matches.length > 1 && prefix === partial) {
+            print(matches.join(' '));
+          }
         }
       }
     }
