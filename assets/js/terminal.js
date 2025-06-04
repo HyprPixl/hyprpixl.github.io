@@ -17,6 +17,7 @@
   const commands = {
     help() {
       print('Commands: help, quote, clear, date, whoami');
+
     },
     quote() {
       const q = quotes[Math.floor(Math.random() * quotes.length)];
