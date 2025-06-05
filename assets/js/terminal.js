@@ -10,7 +10,7 @@
   const textFiles = ['bee-movie.txt'];
 
   if (marquee) {
-    marquee.scrollAmount = 100;
+    marquee.scrollAmount = 7;
   }
 
   const quotes = [
