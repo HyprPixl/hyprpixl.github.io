@@ -42,6 +42,8 @@ To publish:
 2. Enable GitHub Pages in your repository settings
 3. Push your changes to `main` or a `gh-pages` branch
 
+A GitHub Actions workflow automatically regenerates `sitemap.xml` after each push. You can also run `python3 scripts/generate_sitemap.py` locally if needed.
+
 ## Contact
 
 Built by Caleb Fedyshen  
