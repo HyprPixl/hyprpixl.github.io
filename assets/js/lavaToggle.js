@@ -9,9 +9,11 @@ import { startLava, stopLava } from './lavaOrb.js';
     if (active) {
       startLava();
       btn.textContent = 'Lava Lamp: ON';
+      document.body.classList.add('lava-on');
     } else {
       stopLava();
       btn.textContent = 'Lava Lamp';
+      document.body.classList.remove('lava-on');
     }
   });
 })();
