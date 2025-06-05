@@ -8,7 +8,7 @@ camera.position.z = 3;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
-document.getElementById("lava-container").appendChild(renderer.domElement);
+const container = document.getElementById("lava-container");
 
 // — uniforms
 const uniforms = { time: { value: 0 } };
@@ -51,6 +51,7 @@ window.addEventListener('resize', () => {
 });
 
 // — animation loop
+let animationId = null;
 function animate() {
   uniforms.time.value += 0.01;
 
@@ -64,6 +65,23 @@ function animate() {
   glow.rotation.copy(orb.rotation);
 
   renderer.render(scene, camera);
-  requestAnimationFrame(animate);
+  animationId = requestAnimationFrame(animate);
 }
-animate();
+
+export function startLava() {
+  if (animationId) return;
+  if (!container.contains(renderer.domElement)) {
+    container.appendChild(renderer.domElement);
+  }
+  animate();
+}
+
+export function stopLava() {
+  if (animationId) {
+    cancelAnimationFrame(animationId);
+    animationId = null;
+  }
+  if (container.contains(renderer.domElement)) {
+    container.removeChild(renderer.domElement);
+  }
+}
