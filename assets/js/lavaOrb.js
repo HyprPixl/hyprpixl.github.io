@@ -1,4 +1,5 @@
 // lavaOrb.js
+import * as THREE from './three.module.min.js';
 
 // — init renderer, scene, camera
 const scene    = new THREE.Scene();
