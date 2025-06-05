@@ -28,7 +28,7 @@ On narrow screens, the layout reflows to a vertical stack: blog → projects →
 ## Tools and Assets
 
 - Hosted with GitHub Pages
-- No build process or framework
+- A tiny Python script (`scripts/build.py`) inserts shared HTML snippets
 - Retro assets from:
   - [vilgacx/88x31](https://github.com/vilgacx/88x31)
   - [aharris88/retro-assets](https://github.com/aharris88/retro-assets)
@@ -36,6 +36,14 @@ On narrow screens, the layout reflows to a vertical stack: blog → projects →
 ## Run Locally
 
 You can run this site locally by opening `index.html` in a browser. No server needed.
+If you change `partials/nav.html` or any header section, you can run:
+
+```bash
+python3 scripts/build.py
+```
+
+But you don't have to—the `Build Site` GitHub Action runs this script
+on every push to `main` and commits the updated HTML automatically.
 
 To publish:
 1. Fork or clone the repo
