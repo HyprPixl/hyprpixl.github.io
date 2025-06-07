@@ -171,6 +171,36 @@ a          { color: #0000EE; }
   z-index: 0;            /* was -1, now 0 so it’s above the bg */
 }
 
+/* grain overlay when the lava lamp is active */
+body.lava-on #lava-container::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.25;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAQCAYAAABVv0W1AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAIaSURBVGhD7ZbBcoMwEEXXQUOSAgPdJFkHf0CuDACuQCcQTvwIS8AHZlA9wAEfIFcIecAP4Ao0laA0lcRwSxo2CjCy+L4/s//gIjtiGQxM88ZkK7k34UaA+lADqA1UXPTNeBAuAQoF4haE4T0IWgSdj2k5kAWgQ+G4iXgBziHAGolgi+oyk0XKpKX4zq9fmbU0x6BztPfDhKDgTHPMvZ3Wtdh0ghmoqtcP8jqonSj253b7FfRkkF8FgWkzgfz5+ANRJA5CVuq7qvt70zO3Epfp4Kbq+0H6tBKwHWqQl8c9vXVa1pCCltEQ1AitDi+gsmQUkk0w+XtJr/AOU+AQon2vtB0+mgYcMBU9NU8qvfdQAd0u9QzTXRhfYzKnjouEY0EqqWD+gV0taZciHEjB2kawLr7iHF9k/KG9+KocYWJDhKoVOG9CN+sX1IoxT8x6ZASDTQP1Hsb/pUg5sDMPGgclxZIb+wwcwMJEiLf7n6TYEyJZcavQTqSxD2l2ggvIGouYTmQfaNZwYVykhMn3wSxmPGnnAsvU6IBlZB9uiSsh3SSMUNdvNwr+SEQtw12wUZqMyZHWrI1YFZT4bKJLvaYcKOe3LZcmy9GRaWMi+r2yP8ALq1l7jDy9yQAAAABJRU5ErkJggg==");
+  animation: filmGrain 1s steps(6) infinite;
+}
+
+@keyframes filmGrain {
+  0% { transform: translate(0, 0); }
+  10% { transform: translate(-5%, -5%); }
+  20% { transform: translate(5%, -5%); }
+  30% { transform: translate(-5%, 5%); }
+  40% { transform: translate(5%, 5%); }
+  50% { transform: translate(-5%, 0); }
+  60% { transform: translate(5%, 0); }
+  70% { transform: translate(0, -5%); }
+  80% { transform: translate(0, 5%); }
+  90% { transform: translate(0, -2%); }
+  100% { transform: translate(0, 0); }
+}
+
 /* stack all your visible content above the orb */
 header,
 .content-wrapper {
