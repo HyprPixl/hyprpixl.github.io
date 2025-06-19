@@ -1,10 +1,13 @@
 (function() {
   const overlay = document.createElement('div');
   overlay.id = 'terminal-overlay';
-  overlay.innerHTML = '<div id="terminal-output"></div><input id="terminal-input" type="text" autocomplete="off" />';
+  overlay.innerHTML = '<div id="terminal-output"></div>' +
+    '<div id="terminal-current"><span id="terminal-prompt"></span>' +
+    '<input id="terminal-input" type="text" autocomplete="off" /></div>';
   document.body.appendChild(overlay);
 
   const output = overlay.querySelector('#terminal-output');
+  const promptEl = overlay.querySelector('#terminal-prompt');
   const input = overlay.querySelector('#terminal-input');
   const marquee = document.querySelector('marquee');
   const textFiles = ['bee-movie.txt'];
@@ -44,6 +47,9 @@
   }
 
   const userName = getUserName();
+  if (promptEl) {
+    promptEl.textContent = '[' + userName + ']>';
+  }
 
   const commands = {
     help() {
