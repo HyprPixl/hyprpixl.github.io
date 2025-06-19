@@ -6,7 +6,7 @@ This is the code for my [personal blog](https://hyprpixl.github.io/) where I wri
 - software development and data architecture
 - university advice for CS students
 - job hunting, internships, and tech careers
-- anything else I feel like yelling into the starfield void
+- anything else I feel like yelling into the void
 
 The site uses:
 - GitHub Pages for hosting
