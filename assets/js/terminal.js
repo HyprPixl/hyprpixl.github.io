@@ -74,11 +74,19 @@
         print('Usage: cd <link>');
         return;
       }
+
       const match = links.find(l => l === target || l.startsWith(target));
       if (match) {
         localStorage.setItem('terminal-open', 'true');
         window.location.href = match;
-      } else {
+        return;
+      }
+
+      try {
+        const url = new URL(target, window.location.href);
+        localStorage.setItem('terminal-open', 'true');
+        window.location.href = url.href;
+      } catch (err) {
         print('No such link');
       }
     },
