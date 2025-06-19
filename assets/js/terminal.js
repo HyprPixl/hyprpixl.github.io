@@ -28,7 +28,7 @@
     help() {
       let base = 'Commands: help, quote, clear, ls, cd <link>, pwd, date, whoami, echo <text>, fortune, exit';
       if (marquee) {
-        base += ', cat [file], speed <amount>';
+        base += ', scrolltext [file], speed <amount>';
       }
       print(base);
     },
@@ -89,7 +89,7 @@
       print('................||----w.||');
       print('................||......||');
     },
-    cat(file) {
+    scrolltext(file) {
       if (!marquee) {
         print('This command is only available on the index page.');
         return;
@@ -128,7 +128,7 @@
 
   commands.quit = commands.exit;
   if (marquee) {
-    commands.read = commands.cat;
+    commands.read = commands.scrolltext;
   }
 
   function longestCommonPrefix(arr) {
