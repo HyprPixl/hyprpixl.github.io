@@ -24,6 +24,27 @@
 
   const links = Array.from(document.querySelectorAll('a[href]')).map(a => a.getAttribute('href'));
 
+  function getUserName() {
+    const ua = navigator.userAgent;
+    let os = 'uk';
+    if (/Win/i.test(ua)) os = 'wn';
+    else if (/Mac/i.test(ua)) os = 'mc';
+    else if (/Linux/i.test(ua)) os = 'ln';
+    else if (/Android/i.test(ua)) os = 'an';
+    else if (/iPhone|iPad|iPod/i.test(ua)) os = 'io';
+
+    let br = 'wb';
+    if (/Edg|Edge/i.test(ua)) br = 'ed';
+    else if (/Chrome/i.test(ua)) br = 'ch';
+    else if (/Firefox/i.test(ua)) br = 'ff';
+    else if (/Safari/i.test(ua)) br = 'sf';
+    else if (/OPR|Opera/i.test(ua)) br = 'op';
+
+    return `${os}-${br}`;
+  }
+
+  const userName = getUserName();
+
   const commands = {
     help() {
       let base = 'Commands: help, quote, clear, ls, cd <link>, pwd, date, whoami, echo <text>, fortune, exit';
@@ -62,7 +83,7 @@
       print(new Date().toString());
     },
     whoami() {
-      print('guest');
+      print(userName);
     },
     echo(text) {
       print(text || '');
@@ -191,7 +212,7 @@
       const parts = input.value.trim().split(/\s+/);
       const cmd = parts.shift();
       if (cmd) {
-        print('> ' + input.value.trim());
+        print('[' + userName + ']> ' + input.value.trim());
         if (commands[cmd]) {
           commands[cmd](parts.join(' '));
         } else {
