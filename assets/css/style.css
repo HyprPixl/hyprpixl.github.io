@@ -294,13 +294,22 @@ a:hover    { color: #FF0000; text-decoration: underline; }
   z-index: 9999;
 }
 
-#terminal-overlay input {
-  width: 100%;
+#terminal-current {
+  display: flex;
+}
+
+#terminal-current input {
+  flex: 1;
   background: transparent;
   border: none;
   color: inherit;
   font: inherit;
   outline: none;
+}
+
+#terminal-prompt {
+  margin-right: 4px;
+  white-space: pre;
 }
 
 #terminalLink {
