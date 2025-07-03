@@ -227,6 +227,17 @@ a:hover    { color: #FF0000; text-decoration: underline; }
   text-decoration: underline;
 }
 
+/* match project links to reading list style */
+.projects-sidebar a {
+  color: #FFFF00; /* bright yellow */
+  text-decoration: none;
+}
+
+.projects-sidebar a:hover {
+  color: #FFCC00;
+  text-decoration: underline;
+}
+
 /* keypad styles for the secret archive */
 #keypad {
   display: flex;
@@ -329,7 +340,8 @@ a:hover    { color: #FF0000; text-decoration: underline; }
 /* semi-transparent boxes when lava lamp is on */
 body.lava-on header,
 body.lava-on .main-column,
-body.lava-on .reading-sidebar {
+body.lava-on .reading-sidebar,
+body.lava-on .projects-sidebar {
   opacity: 0.8;
 }
 
