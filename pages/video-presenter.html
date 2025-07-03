@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Video Presenter</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <style>
+    /* Global Styles */
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f4f4f9;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    h4 {
+      margin: 0;
+      font-size: 1.2rem;
+      color: #444;
+    }
+
+    /* Controls Container */
+    #controls {
+      margin: 1.5rem 0;
+      background: #fff;
+      padding: 1rem 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    #controls input[type="file"] {
+      font-size: 0.9rem;
+    }
+
+    button {
+      padding: 0.6rem 1.2rem;
+      border: none;
+      border-radius: 5px;
+      background: #007bff;
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.3s, transform 0.1s;
+    }
+
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    button:not(:disabled):hover {
+      background: #0056b3;
+      transform: translateY(-1px);
+    }
+
+    /* Video Container */
+    #videoContainer {
+      width: 80%;
+      max-width: 1200px;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: height 0.3s ease;
+      position: relative;
+    }
+
+    /* When video loaded: let container resize to content */
+    #videoContainer.loaded {
+      height: auto;
+    }
+
+    /* Full-screen container styling */
+    #videoContainer:fullscreen,
+    #videoContainer:-webkit-full-screen {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: none;
+    }
+
+    /* Video styling: fit container */
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      background: #000;
+    }
+
+    /* Full-screen video cap at 90% */
+    #videoContainer:fullscreen video,
+    #videoContainer:-webkit-full-screen video {
+      width: 90vw;
+      height: 90vh;
+    }
+
+    /* Stops List */
+    #stops {
+      width: 80%;
+      max-width: 1200px;
+      margin: 1rem auto;
+      background: #fff;
+      padding: 1rem 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    #stopList {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    #stopList li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid #eee;
+      font-size: 0.95rem;
+      color: #555;
+    }
+
+    #stopList li:last-child {
+      border-bottom: none;
+    }
+
+    /* Delete button */
+    .delete-btn {
+      background: none;
+      border: none;
+      font-size: 1.2rem;
+      color: #c00;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .delete-btn:hover {
+      color: #800;
+    }
+
+    /* Jump button cursor */
+    .jump-btn {
+      cursor: pointer;
+      flex-grow: 1;
+    }
+    .jump-btn:hover {
+      text-decoration: underline;
+    }
+
+    /* Drag overlay */
+    #videoContainer.dragover::before {
+      content: 'Drop video or timestamps here';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      color: #fff;
+      font-size: 1.2rem;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Video Presenter</h1>
+  <nav>
+  <a href="/index.html">Home</a>
+  <a href="/about.html">About Me</a>
+  <a href="https://www.linkedin.com/in/caleb-fedyshen" target="_blank" rel="noopener">LinkedIn ↗</a>
+</nav>
+</header>
+<main>
+  <div id="controls">
+    <input type="file" id="fileInput" accept="video/*,.txt,text/plain">
+    <button id="addStopBtn" disabled>Add Stop</button>
+    <button id="presentBtn" disabled>Present</button>
+    <button id="downloadBtn" disabled>Download Timestamps</button>
+  </div>
+
+  <div id="videoContainer">
+    <video id="video" controls></video>
+  </div>
+
+  <div id="stops">
+    <h4>Stop Points</h4>
+    <ul id="stopList"></ul>
+  </div>
+</main>
+<script>
+(function() {
+  const fileInput    = document.getElementById('fileInput');
+  const video        = document.getElementById('video');
+  const addStopBtn   = document.getElementById('addStopBtn');
+  const presentBtn   = document.getElementById('presentBtn');
+  const downloadBtn  = document.getElementById('downloadBtn');
+  const stopList     = document.getElementById('stopList');
+  const container    = document.getElementById('videoContainer');
+
+  let stops = [], currentSegment = 0;
+
+  // Handle file input or drag-and-drop
+  async function handleFile(file) {
+    if (!file) return;
+    if (file.type.startsWith('video/')) {
+      video.src = URL.createObjectURL(file);
+      container.classList.add('loaded');
+      stops = [];
+      currentSegment = 0;
+      renderStops();
+      addStopBtn.disabled = presentBtn.disabled = false;
+    } else if (file.name.endsWith('.txt') || file.type === 'text/plain') {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/);
+      stops = lines.map(l => parseFloat(l)).filter(n => !isNaN(n)).sort((a,b)=>a-b);
+      renderStops();
+    }
+  }
+
+  fileInput.addEventListener('change', () => {
+    handleFile(fileInput.files[0]);
+  });
+
+  // Drag and drop
+  ['dragenter','dragover'].forEach(evt => {
+    container.addEventListener(evt, e => {
+      e.preventDefault();
+      container.classList.add('dragover');
+    });
+  });
+  ['dragleave','drop'].forEach(evt => {
+    container.addEventListener(evt, e => {
+      e.preventDefault();
+      container.classList.remove('dragover');
+    });
+  });
+  container.addEventListener('drop', e => {
+    const file = e.dataTransfer.files[0];
+    handleFile(file);
+  });
+
+  // Add stop
+  addStopBtn.addEventListener('click', () => {
+    stops.push(video.currentTime);
+    stops.sort((a,b)=>a-b);
+    renderStops();
+  });
+
+  // Render stop list and toggle download button
+  function renderStops() {
+    stopList.innerHTML = '';
+    stops.forEach((t,i) => {
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <span class="jump-btn" data-index="${i}">#${i+1}: ${formatTime(t)}</span>
+        <button class="delete-btn" data-index="${i}">&times;</button>
+      `;
+      stopList.appendChild(li);
+    });
+    downloadBtn.disabled = stops.length === 0;
+
+    // Attach delete handlers
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const idx = parseInt(e.currentTarget.getAttribute('data-index'));
+        stops.splice(idx, 1);
+        renderStops();
+      });
+    });
+
+    // Attach jump handlers
+    document.querySelectorAll('.jump-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const idx = parseInt(e.currentTarget.getAttribute('data-index'));
+        video.currentTime = stops[idx];
+        video.pause();
+      });
+    });
+  }
+
+  function formatTime(s) {
+    const m = Math.floor(s/60);
+    const sec = (s%60).toFixed(2).padStart(5,'0');
+    return `${m}:${sec}`;
+  }
+
+  // Download timestamps
+  downloadBtn.addEventListener('click', () => {
+    const blob = new Blob([stops.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'timestamps.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // Pause at stops
+  video.addEventListener('timeupdate', () => {
+    const end = stops[currentSegment] ?? video.duration;
+    if (video.currentTime >= end) {
+      video.pause();
+    }
+  });
+
+  // Advance segments
+  function advanceSegment() {
+    if (!video.paused) return;
+    if (currentSegment < stops.length) {
+      currentSegment++;
+      video.play();
+    } else {
+      document.exitFullscreen();
+    }
+  }
+
+  // Present mode
+  presentBtn.addEventListener('click', async () => {
+    video.controls = false;
+    if (container.requestFullscreen) await container.requestFullscreen();
+    currentSegment = 0;
+    video.currentTime = 0;
+    video.play();
+  });
+
+  container.addEventListener('click', () => {
+    if (document.fullscreenElement) advanceSegment();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && document.fullscreenElement) {
+      e.preventDefault(); advanceSegment();
+    }
+  });
+
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) {
+      video.pause(); video.controls = true;
+    }
+  });
+})();
+</script>
+</body>
+</html>
