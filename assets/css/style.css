@@ -136,9 +136,15 @@ a          { color: #0000EE; }
   font-family: "Courier New", monospace;
 }
 
-/* hide the “Projects” sidebar */
+/* projects list box */
 .projects-sidebar {
-  display: none;
+  flex: 0 0 320px;
+  padding: 8px;
+  margin-top: 16px;
+  background: #006400;
+  color: #FFFF00;
+  border: 4px ridge #C0C0C0;
+  font-family: "Courier New", monospace;
 }
 
 @media (max-width: 968px) {
