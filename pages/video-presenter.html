@@ -8,11 +8,11 @@
   <style>
     /* Global Styles */
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: "Courier New", Courier, monospace;
       margin: 0;
       padding: 0;
-      background: #121212;
-      color: #eee;
+      background: #fffbe8;
+      color: #000;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -32,10 +32,9 @@
     /* Controls Container */
     #controls {
       margin: 1.5rem 0;
-      background: #333;
+      background: #C0C0C0;
       padding: 1rem 1.5rem;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      border: 2px outset #FFFFFF;
       display: flex;
       align-items: center;
       gap: 0.75rem;
@@ -45,25 +44,27 @@
       font-size: 0.9rem;
     }
 
+    .intro {
+      color: #000;
+    }
+
     button {
-      padding: 0.6rem 1.2rem;
-      border: none;
-      border-radius: 5px;
-      background: #007bff;
-      color: #fff;
+      padding: 0.4rem 0.6rem;
+      min-width: 140px;
+      border: 2px outset #FFFFFF;
+      background: #C0C0C0;
+      color: #000;
       font-size: 1rem;
       cursor: pointer;
-      transition: background 0.3s, transform 0.1s;
+    }
+
+    button:active {
+      border-style: inset;
     }
 
     button:disabled {
-      background: #ccc;
+      opacity: 0.6;
       cursor: not-allowed;
-    }
-
-    button:not(:disabled):hover {
-      background: #0056b3;
-      transform: translateY(-1px);
     }
 
     /* Video Container */
@@ -122,10 +123,9 @@
       width: 80%;
       max-width: 1200px;
       margin: 1rem auto;
-      background: #222;
+      background: #FFFFFF;
       padding: 1rem 1.5rem;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      border: 2px ridge #C0C0C0;
     }
 
     #stopList {
@@ -141,9 +141,9 @@
       justify-content: space-between;
       align-items: center;
       padding: 0.4rem 0;
-      border-bottom: 1px solid #444;
+      border-bottom: 1px solid #ccc;
       font-size: 0.95rem;
-      color: #ddd;
+      color: #000;
     }
 
     #stopList li:last-child {
