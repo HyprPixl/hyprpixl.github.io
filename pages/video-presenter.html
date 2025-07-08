@@ -323,13 +323,21 @@
     URL.revokeObjectURL(url);
   });
 
-  // Pause at stops
-  video.addEventListener('timeupdate', () => {
+  // Pause exactly at stop points
+  let pauseTimeout;
+  function schedulePause() {
+    clearTimeout(pauseTimeout);
+    if (video.paused) return;
     const end = stops[currentSegment] ?? video.duration;
-    if (video.currentTime >= end) {
+    const delay = Math.max(0, (end - video.currentTime) * 1000);
+    pauseTimeout = setTimeout(() => {
       video.pause();
-    }
-  });
+      video.currentTime = end;
+    }, delay);
+  }
+  video.addEventListener('play', schedulePause);
+  video.addEventListener('seeked', schedulePause);
+  video.addEventListener('pause', () => clearTimeout(pauseTimeout));
 
   // Advance segments
   function advanceSegment() {
