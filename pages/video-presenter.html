@@ -324,7 +324,7 @@
   });
 
   // Pause exactly at stop points
-  let pauseTimeout;
+  let pauseTimeout, reverseInterval;
   function schedulePause() {
     clearTimeout(pauseTimeout);
     if (video.paused) return;
@@ -342,12 +342,47 @@
   // Advance segments
   function advanceSegment() {
     if (!video.paused) return;
+    clearInterval(reverseInterval);
+    reverseInterval = null;
     if (currentSegment < stops.length) {
       currentSegment++;
       video.play();
     } else {
       document.exitFullscreen();
     }
+  }
+
+  // Rewind to previous stop
+  function rewindSegment() {
+    clearInterval(reverseInterval);
+    reverseInterval = null;
+    if (currentSegment === 0) {
+      video.currentTime = 0;
+    } else {
+      currentSegment--;
+      const start = currentSegment === 0 ? 0 : stops[currentSegment - 1];
+      video.currentTime = start;
+    }
+    video.pause();
+  }
+
+  // Play backward to the previous stop
+  function reverseToPrevious() {
+    if (!video.paused) return;
+    if (currentSegment === 0) return;
+    const target = currentSegment === 0 ? 0 : stops[currentSegment - 1];
+    clearInterval(reverseInterval);
+    reverseInterval = setInterval(() => {
+      if (video.currentTime <= target) {
+        clearInterval(reverseInterval);
+        reverseInterval = null;
+        video.currentTime = target;
+        currentSegment--;
+        video.pause();
+      } else {
+        video.currentTime = Math.max(target, video.currentTime - 0.04);
+      }
+    }, 40);
   }
 
   // Present mode
@@ -363,13 +398,23 @@
     if (document.fullscreenElement) advanceSegment();
   });
   document.addEventListener('keydown', e => {
-    if (e.code === 'Space' && document.fullscreenElement) {
-      e.preventDefault(); advanceSegment();
+    if (!document.fullscreenElement) return;
+    if (e.code === 'Space' || e.code === 'ArrowRight') {
+      e.preventDefault();
+      advanceSegment();
+    } else if (e.code === 'ArrowLeft') {
+      e.preventDefault();
+      rewindSegment();
+    } else if (e.code === 'ArrowUp') {
+      e.preventDefault();
+      reverseToPrevious();
     }
   });
 
   document.addEventListener('fullscreenchange', () => {
     if (!document.fullscreenElement) {
+      clearInterval(reverseInterval);
+      reverseInterval = null;
       video.pause(); video.controls = true;
     }
   });
