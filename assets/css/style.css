@@ -148,9 +148,10 @@ a          { color: #0000EE; }
 }
 
 @media (max-width: 1400px) {
-  .main-column       { flex: 0 0 700px; }
+  /* shrink columns so layout fits on mid-size screens */
+  .main-column       { flex: 0 0 540px; }
   .reading-sidebar,
-  .projects-sidebar  { flex: 0 0 260px; }
+  .projects-sidebar  { flex: 0 0 200px; }
 }
 
 @media (max-width: 968px) {
@@ -164,8 +165,13 @@ a          { color: #0000EE; }
     flex: 0 0 auto;
   }
 
-  .reading-sidebar {
+  .projects-sidebar {
     order: 2;
+    flex: 0 0 auto;
+  }
+
+  .reading-sidebar {
+    order: 3;
     flex: 0 0 auto;
   }
 }
