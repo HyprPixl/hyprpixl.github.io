@@ -147,6 +147,12 @@ a          { color: #0000EE; }
   font-family: "Courier New", monospace;
 }
 
+@media (max-width: 1400px) {
+  .main-column       { flex: 0 0 700px; }
+  .reading-sidebar,
+  .projects-sidebar  { flex: 0 0 260px; }
+}
+
 @media (max-width: 968px) {
   .content-wrapper {
     flex-direction: column;
