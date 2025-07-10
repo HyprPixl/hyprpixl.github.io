@@ -182,6 +182,18 @@
       font-size: 1.2rem;
       pointer-events: none;
     }
+
+    /* Mobile warning shown only on narrow screens */
+    .mobile-warning {
+      display: none;
+      color: #800;
+      font-weight: bold;
+      text-align: center;
+      margin-top: 0.5rem;
+    }
+    @media (max-width: 600px) {
+      .mobile-warning { display: block; }
+    }
   </style>
 </head>
 <body>
@@ -199,6 +211,7 @@
     points. Hit <strong>Present</strong> to step through each segment like a
     slideshow. It’s basically PowerPoint, but your slides are a video.
   </p>
+  <p class="mobile-warning">This tool is optimized for desktop screens; it may not display correctly on mobile.</p>
   <div id="controls">
     <input type="file" id="fileInput" accept="video/*,.txt,text/plain">
     <button id="addStopBtn" disabled>Add Stop</button>
