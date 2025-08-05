@@ -246,7 +246,8 @@
     if (file.type.startsWith('video/')) {
       video.src = URL.createObjectURL(file);
       container.classList.add('loaded');
-      stops = [];
+      // Always start with a stop at the beginning of the video
+      stops = [0];
       currentSegment = 0;
       renderStops();
       addStopBtn.disabled = presentBtn.disabled = false;
@@ -340,7 +341,8 @@
   let pauseTimeout, reverseInterval;
   function schedulePause() {
     clearTimeout(pauseTimeout);
-    if (video.paused) return;
+    // Only enforce automatic pauses during presentation (fullscreen)
+    if (video.paused || !document.fullscreenElement) return;
     const end = stops[currentSegment] ?? video.duration;
     const delay = Math.max(0, (end - video.currentTime) * 1000);
     pauseTimeout = setTimeout(() => {
