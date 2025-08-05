@@ -244,7 +244,9 @@
   async function handleFile(file) {
     if (!file) return;
     if (file.type.startsWith('video/')) {
+      video.preload = 'auto';
       video.src = URL.createObjectURL(file);
+      video.load();
       container.classList.add('loaded');
       stops = [];
       currentSegment = 0;
@@ -337,7 +339,7 @@
   });
 
   // Pause exactly at stop points
-  let pauseTimeout, reverseInterval;
+  let pauseTimeout, reversing = false;
   function schedulePause() {
     clearTimeout(pauseTimeout);
     if (video.paused) return;
@@ -355,8 +357,7 @@
   // Advance segments
   function advanceSegment() {
     if (!video.paused) return;
-    clearInterval(reverseInterval);
-    reverseInterval = null;
+    reversing = false;
     if (currentSegment < stops.length) {
       currentSegment++;
       video.play();
@@ -367,8 +368,7 @@
 
   // Rewind to previous stop
   function rewindSegment() {
-    clearInterval(reverseInterval);
-    reverseInterval = null;
+    reversing = false;
     if (currentSegment === 0) {
       video.currentTime = 0;
     } else {
@@ -380,22 +380,20 @@
   }
 
   // Play backward to the previous stop
-  function reverseToPrevious() {
-    if (!video.paused) return;
-    if (currentSegment === 0) return;
+  async function reverseToPrevious() {
+    if (!video.paused || currentSegment === 0 || reversing) return;
     const target = currentSegment === 0 ? 0 : stops[currentSegment - 1];
-    clearInterval(reverseInterval);
-    reverseInterval = setInterval(() => {
-      if (video.currentTime <= target) {
-        clearInterval(reverseInterval);
-        reverseInterval = null;
-        video.currentTime = target;
-        currentSegment--;
-        video.pause();
-      } else {
-        video.currentTime = Math.max(target, video.currentTime - 0.04);
-      }
-    }, 40);
+    reversing = true;
+    while (reversing && video.currentTime > target) {
+      video.currentTime = Math.max(target, video.currentTime - 0.04);
+      await new Promise(r => video.addEventListener('seeked', r, { once: true }));
+    }
+    if (reversing) {
+      currentSegment--;
+      video.currentTime = target;
+      video.pause();
+    }
+    reversing = false;
   }
 
   // Present mode
@@ -426,8 +424,7 @@
 
   document.addEventListener('fullscreenchange', () => {
     if (!document.fullscreenElement) {
-      clearInterval(reverseInterval);
-      reverseInterval = null;
+      reversing = false;
       video.pause(); video.controls = true;
     }
   });
