@@ -353,8 +353,8 @@ function highlightHover(e){
 }
 function resetHover(e){
   const layer = e.target;
-  if(currentId && layer.__id === currentId && layer.__lockedColor){
-    // keep target's color if already solved/missed
+  if(layer.__lockedColor){
+    // keep solved/missed country's color
     layer.setStyle({ weight: 1.3, color: 'rgba(255,255,255,0.9)' });
   }else{
     layer.setStyle(baseStyle());
