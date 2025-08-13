@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Cyberpunk Map Guessing Game</title>
+<title>CartoGuesser - Cyberpunk Map Guessing Game</title>
 
 <!-- Leaflet -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -37,11 +37,11 @@
 
   /* Cyberpunk panel */
   .hud {
-    position: absolute; top: 12px; left: 12px; z-index: 9999;
+    position: absolute; bottom: 12px; left: 12px; z-index: 9999;
     background: linear-gradient(180deg, rgba(10,10,15,0.9), rgba(5,5,10,0.9));
     border: 1px solid rgba(0,255,240,0.35);
-    padding: 12px 12px;
-    width: min(360px, calc(100vw - 24px));
+    padding: 8px 10px;
+    width: min(320px, calc(100vw - 24px));
     border-radius: 12px;
     backdrop-filter: blur(4px);
     box-shadow:
@@ -107,7 +107,7 @@
 <div id="app">
   <div id="map"></div>
   <div class="hud">
-    <h1>Neon GeoGuess</h1>
+    <h1>CartoGuesser</h1>
 
     <div class="row">
       <div class="flagbox" style="flex:1">
@@ -309,27 +309,10 @@ async function loadGeoCountries(){
   throw lastErr || new Error("Failed to load any GeoJSON source");
 }
 
-/* Metadata for ISO2/ISO3 + canonical names for emoji flags and normalization. */
-async function loadCountryMeta(){
-  // This dataset contains cca2, cca3, and name.common
-  const url = "https://cdn.jsdelivr.net/npm/world-countries@4/countries.json";
-  const data = await fetchJSON(url);
-  const nameToCca2 = new Map();
-  const cca3ToCca2 = new Map();
-
-  data.forEach(obj=>{
-    const cca2 = obj.cca2, cca3 = obj.cca3;
-    const common = obj.name?.common, official = obj.name?.official;
-    if(cca3 && cca2) cca3ToCca2.set(cca3.toUpperCase(), cca2.toUpperCase());
-    if(common && cca2) nameToCca2.set(common, cca2.toUpperCase());
-    if(official && cca2) nameToCca2.set(official, cca2.toUpperCase());
-    // add alt spellings
-    (obj.altSpellings||[]).forEach(n=> nameToCca2.set(n, cca2.toUpperCase()));
-  });
-  // add a few manual patches
-  nameFix.forEach((canon, raw)=>{ if(nameToCca2.has(canon)) nameToCca2.set(raw, nameToCca2.get(canon)); });
-
-  return {nameToCca2, cca3ToCca2};
+/* Local ISO3->ISO2 map for flags */
+async function loadIsoMap(){
+  const data = await fetchJSON('../assets/data/iso3to2.json');
+  return new Map(Object.entries(data));
 }
 
 /* =========================
@@ -417,22 +400,8 @@ function getDisplayName(id){
 }
 
 function getEmojiForId(id){
-  // Prefer ISO3 to ISO2 join; many GeoJSONs use ISO_A3 in 'id' or props
-  // Try: id as ISO3, else name to ISO2 lookup.
-  const f = featureById.get(id);
-  let iso2 = null;
-
-  // Try id as ISO3
-  if(id && cca3_to_cca2.has(id.toUpperCase())) iso2 = cca3_to_cca2.get(id.toUpperCase());
-
-  if(!iso2 && f){
-    const props = f.properties || {};
-    const name = nameFix.get(props.name) || props.name || props.ADMIN || props.admin || props.NAME || props.country;
-    if(name && window._NAME_TO_CCA2?.has(name)) iso2 = window._NAME_TO_CCA2.get(name);
-    // also try a few alt props
-    const iso3 = (props.ISO_A3 || props.iso_a3 || props.ADM0_A3 || props.adm0_a3 || props.id || "").toString().toUpperCase();
-    if(!iso2 && iso3 && cca3_to_cca2.has(iso3)) iso2 = cca3_to_cca2.get(iso3);
-  }
+  if(!id) return "🏳️";
+  const iso2 = cca3_to_cca2.get(id.toUpperCase());
   return toEmojiFlag(iso2);
 }
 
@@ -482,20 +451,18 @@ function nextTarget(){
 (async function init(){
   // Map
   map = L.map('map', {
-    zoomControl: true,
+    zoomControl: false,
     minZoom: 2,
     worldCopyJump: true
   }).setView([20, 0], 2);
 
   // No basemap tiles to keep it clean/black. Just countries polygons.
 
-  // Load meta (for flags)
+  // Load code map (for flags)
   try{
-    const {nameToCca2, cca3ToCca2} = await loadCountryMeta();
-    window._NAME_TO_CCA2 = nameToCca2;
-    cca3_to_cca2 = cca3ToCca2;
+    cca3_to_cca2 = await loadIsoMap();
   }catch(e){
-    console.warn("Failed to load meta for flags; emoji may be blank.", e);
+    console.warn("Failed to load ISO map; emoji may be blank.", e);
   }
 
   // Load countries geometry
