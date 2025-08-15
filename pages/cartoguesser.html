@@ -437,6 +437,12 @@ function getRegionIds(path){
    Game flow
 ========================= */
 function setupForRegion(key){
+  // Reset any previous round coloring/highlights
+  countriesLayer.eachLayer(layer=>{
+    layer.setStyle(baseStyle());
+    delete layer.__lockedColor;
+  });
+
   const wanted = new Set(getRegionIds(key).map(i=>i.toUpperCase()));
   const ids = [];
   countriesLayer.eachLayer(layer=>{
