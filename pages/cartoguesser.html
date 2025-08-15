@@ -122,32 +122,42 @@
     <div class="row">
       <select id="region">
         <option value="world">🌍 World</option>
-        <optgroup label="Europe">
-          <option value="europe">Europe (all)</option>
-          <option value="e_europe">Eastern Europe</option>
-          <option value="w_europe">Western Europe</option>
-          <option value="n_europe">Northern Europe</option>
-          <option value="s_europe">Southern Europe</option>
-        </optgroup>
-        <optgroup label="Asia">
-          <option value="w_asia">Middle East (W. Asia)</option>
-          <option value="c_asia">Central Asia</option>
-          <option value="s_asia">South Asia</option>
-          <option value="e_asia">East Asia</option>
-          <option value="se_asia">Southeast Asia</option>
-        </optgroup>
         <optgroup label="Africa">
-          <option value="africa">Africa (all)</option>
-          <option value="n_africa">North Africa</option>
-          <option value="ssa">Sub-Saharan Africa</option>
+          <option value="africa.north">North Africa</option>
+          <option value="africa.west">West Africa</option>
+          <option value="africa.east">East Africa</option>
+          <option value="africa.central">Central Africa</option>
+          <option value="africa.southern">Southern Africa</option>
         </optgroup>
         <optgroup label="Americas">
-          <option value="na">North America</option>
-          <option value="sa">South America</option>
-          <option value="caribbean">Caribbean</option>
-          <option value="central_america">Central America</option>
+          <option value="americas.north">North America</option>
+          <option value="americas.central">Central America</option>
+          <option value="americas.caribbean">Caribbean</option>
+          <option value="americas.south">South America</option>
         </optgroup>
-        <option value="oceania">Oceania</option>
+        <optgroup label="Europe">
+          <option value="europe.northern">Northern Europe</option>
+          <option value="europe.western">Western Europe</option>
+          <option value="europe.eastern">Eastern Europe</option>
+          <option value="europe.southern">Southern Europe</option>
+          <option value="europe.central">Central Europe</option>
+          <option value="europe.balkans">Balkans</option>
+          <option value="europe.british_isles">British Isles</option>
+          <option value="europe.baltics">Baltics</option>
+        </optgroup>
+        <optgroup label="Asia">
+          <option value="asia.middle_east">Middle East</option>
+          <option value="asia.central">Central Asia</option>
+          <option value="asia.south">South Asia</option>
+          <option value="asia.southeast">Southeast Asia</option>
+          <option value="asia.east">East Asia</option>
+        </optgroup>
+        <optgroup label="Oceania">
+          <option value="oceania.australia_new_zealand">Australia &amp; New Zealand</option>
+          <option value="oceania.melanesia">Melanesia</option>
+          <option value="oceania.micronesia">Micronesia</option>
+          <option value="oceania.polynesia">Polynesia</option>
+        </optgroup>
       </select>
       <button id="startBtn">Start</button>
       <button id="skipBtn" title="Mark incorrect and move on">Skip ⏭</button>
@@ -172,30 +182,47 @@
 
 <script>
 /* =========================
-   Region definitions (rough bounding boxes).
-   We use centroids-in-bbox to include countries.
-   [minLon, minLat, maxLon, maxLat]
+   Region definitions using ISO 3166-1 alpha-3 codes.
+   Structure: continent -> subregion -> [ISO3...]
 ========================= */
 const REGIONS = {
-  world:       [[-180,-90, 180,90]],
-  europe:      [[-31, 34, 45, 72]],
-  e_europe:    [[18, 44, 68, 72]],        // Baltic->Russia/Ukraine/Balkans east-ish
-  w_europe:    [[-11, 36, 18, 62]],
-  n_europe:    [[-25, 55, 45, 72]],
-  s_europe:    [[-10, 36, 29, 46]],
-  w_asia:      [[26, 12,  63, 42]],       // Middle East
-  c_asia:      [[46, 35,  90, 56]],
-  s_asia:      [[60,  5,  97, 33]],
-  e_asia:      [[98,  18, 150, 54]],
-  se_asia:     [[92, -12, 135, 28]],
-  africa:      [[-20,-35,  55, 38]],
-  n_africa:    [[-17, 18,  35, 38]],
-  ssa:         [[-20,-35,  55, 18]],
-  na:          [[-170,5, -50, 84]],
-  central_america:[[-93,  5, -76, 20]],
-  caribbean:   [[-90,  8, -57, 28]],
-  sa:          [[-82,-56, -34, 13]],
-  oceania:     [[110,-50, 180, 10]],
+  world: null,
+  africa: {
+    north: ['DZA','EGY','LBY','MAR','SDN','TUN','ESH'],
+    west: ['BEN','BFA','CPV','CIV','GMB','GHA','GIN','GNB','LBR','MLI','MRT','NER','NGA','SEN','SLE','TGO'],
+    east: ['BDI','COM','DJI','ERI','ETH','KEN','MDG','MWI','MUS','MOZ','RWA','SYC','SOM','SSD','TZA','UGA','ZMB','ZWE'],
+    central: ['AGO','CMR','CAF','TCD','COG','COD','GNQ','GAB','STP'],
+    southern: ['BWA','LSO','NAM','ZAF','SWZ']
+  },
+  americas: {
+    north: ['CAN','USA','MEX'],
+    central: ['BLZ','CRI','SLV','GTM','HND','NIC','PAN'],
+    caribbean: ['ATG','BHS','BRB','CUB','DMA','DOM','GRD','HTI','JAM','KNA','LCA','VCT','TTO'],
+    south: ['ARG','BOL','BRA','CHL','COL','ECU','GUY','PRY','PER','SUR','URY','VEN']
+  },
+  europe: {
+    northern: ['DNK','FIN','ISL','NOR','SWE'],
+    western: ['BEL','FRA','LUX','MCO','NLD'],
+    eastern: ['BLR','MDA','RUS','UKR'],
+    southern: ['AND','CYP','ITA','MLT','PRT','SMR','ESP','VAT'],
+    central: ['AUT','CZE','DEU','HUN','LIE','POL','SVK','CHE'],
+    balkans: ['ALB','BIH','BGR','HRV','GRC','MNE','MKD','ROU','SRB','SVN'],
+    british_isles: ['IRL','GBR'],
+    baltics: ['EST','LVA','LTU']
+  },
+  asia: {
+    middle_east: ['ARE','BHR','IRQ','IRN','ISR','JOR','KWT','LBN','OMN','PSE','QAT','SAU','SYR','TUR','YEM'],
+    central: ['KAZ','KGZ','TJK','TKM','UZB'],
+    south: ['AFG','BGD','BTN','IND','LKA','MDV','NPL','PAK'],
+    southeast: ['BRN','KHM','IDN','LAO','MMR','MYS','PHL','SGP','THA','TLS','VNM'],
+    east: ['CHN','JPN','KOR','PRK','MNG','TWN']
+  },
+  oceania: {
+    australia_new_zealand: ['AUS','NZL'],
+    melanesia: ['FJI','PNG','SLB','VUT'],
+    micronesia: ['FSM','KIR','MHL','NRU','PLW'],
+    polynesia: ['TON','TUV','WSM']
+  }
 };
 
 /* =========================
@@ -257,13 +284,6 @@ function fitToIds(ids){
     if(!bounds) bounds = b; else bounds = bounds.extend(b);
   });
   if(bounds) map.fitBounds(bounds.pad(0.1));
-}
-function centroidInBbox(layer, bbox){
-  const center = layer.getBounds().getCenter();
-  return (
-    center.lng >= bbox[0] && center.lat >= bbox[1] &&
-    center.lng <= bbox[2] && center.lat <= bbox[3]
-  );
 }
 function randomChoice(arr){
   return arr[Math.floor(Math.random()*arr.length)];
@@ -405,17 +425,25 @@ function getEmojiForId(id){
   return toEmojiFlag(iso2);
 }
 
+function getRegionIds(path){
+  if(!path || path === 'world') return [];
+  const parts = path.split('.');
+  let node = REGIONS;
+  for(const p of parts){ node = node && node[p]; }
+  return Array.isArray(node) ? node : [];
+}
+
 /* =========================
    Game flow
 ========================= */
 function setupForRegion(key){
-  const boxes = REGIONS[key] || REGIONS.world;
+  const wanted = new Set(getRegionIds(key).map(i=>i.toUpperCase()));
   const ids = [];
   countriesLayer.eachLayer(layer=>{
     const id = layer.__id;
-    let inAny = false;
-    for(const bbox of boxes){ if(centroidInBbox(layer, bbox)) { inAny = true; break; } }
-    if(inAny){ ids.push(id); }
+    if(wanted.size === 0 || wanted.has(id.toUpperCase())){
+      ids.push(id);
+    }
   });
   playableIds = ids;
   remainingIds = shuffle([...playableIds]);
