@@ -17,7 +17,7 @@ class LinkParser(HTMLParser):
 
 def is_external(url):
     parsed = urlparse(url)
-    if parsed.scheme in ("http", "https", "mailto"):
+    if parsed.scheme in ("http", "https", "mailto", "tel"):
         return True
     return False
 

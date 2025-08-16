@@ -1,48 +1,256 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>About • Caleb Fedyshen</title>
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <link rel="stylesheet" href="assets/css/style.css">
-  </head>
-  <body>
-    <header>
-      <h1>About Me</h1>
-<nav>
-  <a href="/index.html">Home</a>
-  <a href="/about.html">About Me</a>
-  <a href="https://www.linkedin.com/in/caleb-fedyshen" target="_blank" rel="noopener">LinkedIn ↗</a>
-</nav>
-    </header>
+<head>
+  <meta charset="utf-8">
+  <title>About • Caleb Fedyshen</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="I replace bloated enterprise software with fast custom apps that pay for themselves. Saved $70k/month replacing legacy software. Flask, Databricks, Azure. Calgary-based.">
+  <link rel="canonical" href="https://cfedyshen.com/about.html">
+  <meta property="og:title" content="About • Caleb Fedyshen">
+  <meta property="og:description" content="I replace bloated enterprise software with fast custom apps that pay for themselves. Saved $70k/month replacing legacy software.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://cfedyshen.com/about.html">
+  <meta name="theme-color" content="#0b0b10">
 
-    <main>
-      <article>
-        <h2>Your problem, solved with software.</h2>
-        <p>
-          I build custom software that <strong>saves businesses time and energy—guaranteed.</strong><br>
-          <a href="mailto:hyprpixlstudios@gmail.com">HyprPixlStudios@gmail.com</a> |
-          <a href="https://www.linkedin.com/in/caleb-fedyshen" target="_blank" rel="noopener">LinkedIn</a>
+  <!-- If you already have a site-wide stylesheet, keep it. These styles are additive. -->
+  <link rel="stylesheet" href="assets/css/style.css">
+  <style>
+    :root {
+      --bg: #0b0b10; --panel: #12131a; --muted: #a5acb8; --text: #e8ecf1; --brand: #6ee7b7;
+      --accent: #60a5fa; --danger: #f87171; --ring: rgba(110,231,183,.35);
+      --radius: 16px;
+    }
+    html, body { background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji"; line-height: 1.6; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    header { max-width: 1100px; margin: 32px auto 0; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; }
+    nav a { margin-left: 16px; font-weight: 600; color: var(--muted); }
+    nav a[aria-current="page"] { color: var(--text); }
+    .wrap { max-width: 1100px; margin: 24px auto 96px; padding: 0 20px; }
+    .hero { background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)); border: 1px solid rgba(255,255,255,.06); padding: 28px; border-radius: var(--radius); display: grid; gap: 18px; }
+    .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .78rem; color: var(--muted); }
+    h1 { font-size: clamp(1.9rem, 4vw, 2.6rem); line-height: 1.2; margin: 0; }
+    .sub { color: var(--muted); max-width: 75ch; }
+    .cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
+    .btn { display: inline-flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 12px; font-weight: 700; border: 1px solid rgba(255,255,255,.12); background: #171922; }
+    .btn--primary { background: linear-gradient(180deg,#10b981,#059669); border-color: transparent; color: #04130f; box-shadow: 0 0 0 6px var(--ring); }
+    .btn:hover { filter: brightness(1.05); text-decoration: none; }
+    .grid { display: grid; gap: 18px; }
+    @media (min-width: 900px){ .grid.cols-3 { grid-template-columns: repeat(3, 1fr);} .grid.cols-2{ grid-template-columns: repeat(2, 1fr);} }
+    .card { background: var(--panel); border: 1px solid rgba(255,255,255,.06); border-radius: var(--radius); padding: 18px; }
+    .card h3 { margin-top: 0; }
+    .stat { display:flex; flex-direction:column; gap:6px; padding:16px; border-radius: 14px; background: #0f1118; border: 1px solid rgba(255,255,255,.06);}
+    .stat .num { font-size: clamp(1.4rem,3vw,1.8rem); font-weight: 900; color: var(--brand); }
+    .kicker { color: var(--muted); font-size: .96rem; }
+    .list { margin: 0; padding-left: 18px; }
+    .list li { margin: 6px 0; }
+    .pill { display:inline-block; padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.12); background:#111421; font-size: .85rem; color: var(--muted); margin: 4px 6px 0 0; }
+    .badge { font-size: .75rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; padding:4px 8px; border-radius:999px; background:#0f1a11; color:#86efac; border:1px solid rgba(134,239,172,.25);}
+    .stack { margin-top: 8px; }
+    .two-col { display:grid; gap:18px; }
+    @media (min-width: 900px){ .two-col { grid-template-columns: 3fr 2fr; } }
+    footer { margin-top: 48px; color: var(--muted); font-size: .95rem; }
+    .hr { border: 0; border-top: 1px solid rgba(255,255,255,.08); margin: 28px 0; }
+    .muted { color: var(--muted); }
+    .success { color: var(--brand); font-weight: 700; }
+    .danger { color: var(--danger); font-weight: 700; }
+    .caps { text-transform: uppercase; letter-spacing: .12em; font-size: .78rem; color: var(--muted); }
+    .logo-line { display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
+    .logo-line span { padding:8px 10px; border:1px solid rgba(255,255,255,.06); border-radius:10px; background:#0f1118; color:#cbd5e1; font-weight:600; font-size:.85rem; }
+    .disclaimer { font-size: .85rem; color: var(--muted); }
+    .img { width:100%; height:auto; border-radius: 12px; border:1px solid rgba(255,255,255,.08); background:#0f1118; }
+    .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+  </style>
+
+  <!-- Structured data for SEO -->
+  <script type="application/ld+json">
+  {
+    "@context":"https://schema.org",
+    "@type":"Person",
+    "name":"Caleb Fedyshen",
+    "jobTitle":"Software Developer / Data Architect",
+    "email":"mailto:cfedyshen@gmail.com",
+    "telephone":"+1-587-830-3754",
+    "url":"https://cfedyshen.com/about.html",
+    "sameAs":[
+      "https://www.linkedin.com/in/caleb-fedyshen",
+      "https://cfedyshen.com/blog"
+    ],
+    "knowsAbout":[ "Python", "Databricks", "Azure", "Flask", "Data Engineering", "Internal Tools", "Automation" ],
+    "alumniOf": { "@type":"CollegeOrUniversity", "name":"University of Calgary" }
+  }
+  </script>
+</head>
+<body>
+  <header>
+    <div><a href="/index.html" class="caps" aria-label="Back to home">← Home</a></div>
+    <nav aria-label="Primary">
+      <a href="/index.html">Work</a>
+      <a href="/about.html" aria-current="page">About</a>
+      <a href="/blog">Blog</a>
+      <a href="mailto:cfedyshen@gmail.com" class="success">Email</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <section class="hero" aria-labelledby="about-headline">
+      <span class="eyebrow">About Caleb</span>
+      <h1 id="about-headline">I replace overpriced enterprise software with fast custom apps that pay for themselves.</h1>
+      <p class="sub">
+        Designer–builder of internal tools, data pipelines, and automation that remove manual work and slash license costs.
+        In one engagement, I replaced a legacy banking image viewer and <strong class="success">saved $70,000 USD per month (~$1.15M CAD/yr)</strong>.
+        If you’re spending big on clunky software—or spending people’s time to work around it—I can fix that.
+      </p>
+      <div class="cta" role="group" aria-label="Primary calls to action">
+        <a class="btn btn--primary" href="mailto:cfedyshen@gmail.com?subject=Project%20fit%20call%20with%20Caleb&body=Hi%20Caleb,%20we're%20considering%20a%20project...">Book a fit call</a>
+        <a class="btn" href="tel:+15878303754">Call 587-830-3754</a>
+        <a class="btn" href="https://www.linkedin.com/in/caleb-fedyshen" target="_blank" rel="noopener">LinkedIn ↗</a>
+      </div>
+    </section>
+
+    <section aria-labelledby="proof" style="margin-top:22px">
+      <h2 id="proof" class="sr-only">Proof</h2>
+      <div class="grid cols-3">
+        <div class="stat"><div class="num">$70k/mo</div><div class="kicker">license spend eliminated</div></div>
+        <div class="stat"><div class="num">9.8M+</div><div class="kicker">bank check images processed</div></div>
+        <div class="stat"><div class="num">2</div><div class="kicker">production Flask apps on Databricks</div></div>
+        <div class="stat"><div class="num">3.9 GPA</div><div class="kicker">4× Dean’s List, UCalgary CS</div></div>
+        <div class="stat"><div class="num">Hundreds</div><div class="kicker">of employees used my Teams-integrated app</div></div>
+        <div class="stat"><div class="num">Dozens</div><div class="kicker">of processes automated end-to-end</div></div>
+      </div>
+    </section>
+
+    <hr class="hr" aria-hidden="true">
+
+    <section class="two-col" aria-labelledby="case-study">
+      <article class="card">
+        <div class="badge">Signature Case Study</div>
+        <h2 id="case-study">Killing a $70,000/month tool with a lean replacement</h2>
+        <p class="muted">
+          A retail bank’s “Image Viewer” let teams retrieve check images. It was being sunset and the replacement was usage-priced—forecasted at
+          <span class="danger">$70k USD/month</span> for Plains. Treasury needed speed, accuracy, and zero vendor lock-in.
         </p>
-
-        <h3>Experience</h3>
-        <ul>
-          <li><strong>Plains Midstream Canada</strong> — Data Architect Intern (Jan 2025 – Present)</li>
-          <li><strong>HyprPixl</strong> — Owner / Programmer (Oct 2023 – Present)</li>
-          <li><strong>CalgaryToSpace</strong> — Software Developer (Oct 2022 – Mar 2024)</li>
-          <li><strong>Suncor</strong> — Data Developer Intern (Jan 2023 – Sep 2023)</li>
+        <h3>What I built</h3>
+        <ul class="list">
+          <li>End-to-end system: <strong>multithreaded extraction</strong> of terabytes from thousands of zips;</li>
+          <li>Parsed <strong>millions of XML entries</strong> into a queryable database with incremental refresh;</li>
+          <li>A fast <strong>Flask</strong> web app deployed as <strong>Databricks App</strong>—search, preview, export, audit trails;</li>
+          <li>Automated the manual steps the legacy tool couldn’t.</li>
         </ul>
+        <h3>Outcome</h3>
+        <ul class="list">
+          <li><strong class="success">$70,000 USD/month saved</strong> vs. the bank’s new pricing (~$1.15M CAD/year).</li>
+          <li>Used by finance leadership; faster retrieval, fewer steps, better visibility.</li>
+        </ul>
+        <div class="stack">
+          <span class="pill">Python</span><span class="pill">Flask</span><span class="pill">Databricks Apps</span><span class="pill">Azure</span><span class="pill">SQL</span><span class="pill">HTML/CSS/JS</span>
+        </div>
+      </article>
+      <aside class="card">
+        <h3>Other wins</h3>
+        <ul class="list">
+          <li><strong>Company-wide Step Challenge</strong> (sponsored by the President): Fabric SQL + Power Automate + PowerApps inside Teams; <em>hundreds</em> of employees participated.</li>
+          <li><strong>AI video understanding</strong> prototype that suggests work automations from screen recordings.</li>
+          <li><strong>Data Lake Explorer</strong> for directors to see/ingest tables; simplified governance & onboarding.</li>
+        </ul>
+        <p class="disclaimer">Work performed during my Data Architect internship at Plains Midstream.</p>
+      </aside>
+    </section>
 
-        <h3>Skills & Certifications</h3>
-        <p>
-          Programming • Data Architecture • Web Applications<br>
-          Microsoft Certified: Azure (Fundamentals, Data, AI) • Power Platform Fundamentals
+    <section class="grid cols-2" style="margin-top:18px" aria-labelledby="services">
+      <article class="card">
+        <h2 id="services">What I do</h2>
+        <ul class="list">
+          <li><strong>Replace expensive licenses</strong> with focused internal tools.</li>
+          <li><strong>Build data products</strong>—ingestion, transformation, search, and friendly UIs.</li>
+          <li><strong>Automate workflows</strong> end-to-end across Azure, Databricks, Power Platform.</li>
+          <li><strong>Make dashboards useful</strong> (not just pretty) with the right operational hooks.</li>
+        </ul>
+        <div class="stack">
+          <span class="pill">Python</span><span class="pill">Flask</span><span class="pill">Databricks</span><span class="pill">Azure Data Factory</span><span class="pill">PowerApps</span><span class="pill">SQL</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2 id="approach">How engagement works</h2>
+        <ol class="list">
+          <li><strong>Fit call (15–30 min):</strong> we verify there’s a path to ROI.</li>
+          <li><strong>One-week sprint:</strong> clickable prototype or a live slice in prod.</li>
+          <li><strong>Scale-up:</strong> productionize, docs, handoff, and support options.</li>
+        </ol>
+        <p class="muted">You keep the code. Security & access handled your way.</p>
+      </article>
+    </section>
+
+    <section class="grid cols-2" style="margin-top:18px" aria-labelledby="selected">
+      <article class="card">
+        <h2 id="selected">Selected projects</h2>
+        <ul class="list">
+          <li><strong>Blaze Invoicing</strong> — full-stack invoicing for an Alberta accounting firm (Supabase, Flask, DigitalOcean).</li>
+          <li><strong>Snow Ops</strong> — task assignment + status for a snow removal company (internal tool).</li>
+          <li><strong>Green Energy Visualizer</strong> — interactive biodigester flow in Godot; ground-up art + animation.</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h2 id="toolbox">Toolbox</h2>
+        <p class="muted"><strong>Languages:</strong> Python, Java, C++, ARMv8, SQL, Haskell, HTML/CSS</p>
+        <p class="muted"><strong>Platforms:</strong> Azure (Databricks, ADF, Data Lake, Fabric SQL), Power Platform, DigitalOcean</p>
+        <p class="muted"><strong>Soft skills:</strong> Safety mindset, teaching, clear comms, relentless problem-solving</p>
+        <div class="logo-line" aria-label="Where I’ve built">
+          <span>Plains Midstream</span><span>Suncor</span><span>HyprPixl</span><span>CalgaryToSpace</span>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid cols-2" style="margin-top:18px" aria-labelledby="bio">
+      <article class="card">
+        <h2 id="bio">A bit about me</h2>
+        <p class="muted">
+          Calgary-based software developer and Data Architect (intern) finishing a B.Sc. in Computer Science at the University of Calgary
+          (<strong>3.9 GPA</strong>, 4× Dean’s List). I like turning messy, slow processes into crisp systems that make teams faster.
         </p>
+        <p class="muted">I’ve attended the Data + AI Summit in San Francisco and I build for the real world: reliability first, aesthetics included.</p>
+      </article>
+      <article class="card">
+        <h2 id="contact">Contact</h2>
+        <p><strong>Caleb Fedyshen</strong><br>
+          <a href="mailto:cfedyshen@gmail.com">cfedyshen@gmail.com</a> · <a href="tel:+15878303754">587-830-3754</a><br>
+          <a href="https://www.linkedin.com/in/caleb-fedyshen" target="_blank" rel="noopener">LinkedIn</a> · <a href="/blog">Blog</a>
+        </p>
+        <p class="disclaimer">References available on request (former leaders at Suncor).</p>
+        <div class="cta">
+          <a class="btn btn--primary" href="mailto:cfedyshen@gmail.com?subject=Project%20fit%20call%20with%20Caleb&body=Hi%20Caleb,%20we're%20considering%20a%20project...">Let’s talk</a>
+          <a class="btn" href="/Caleb-Fedyshen-Resume.pdf">View resume (PDF)</a>
+        </div>
+      </article>
+    </section>
 
-        <h3>Education</h3>
-        <p>B.Sc. Computer Science — University of Calgary (Sep 2020 – Apr 2025)</p>
-  </article>
+    <section class="card" style="margin-top:18px" aria-labelledby="faq">
+      <h2 id="faq">FAQ</h2>
+      <details>
+        <summary><strong>Why custom vs. off-the-shelf?</strong></summary>
+        <p class="muted">Because you pay for a thousand features you’ll never use—and still do manual work. I build the <em>exact</em> thing your process needs, integrate it with your stack, and prove ROI in weeks, not years.</p>
+      </details>
+      <details>
+        <summary><strong>Where do you deploy?</strong></summary>
+        <p class="muted">Your cloud, your rules. Databricks Apps, Azure, or a simple VM—whatever fits your governance and security posture.</p>
+      </details>
+      <details>
+        <summary><strong>How do we start?</strong></summary>
+        <p class="muted">Email me a short description of the problem and any screenshots. I’ll outline a path to ROI and a first sprint plan.</p>
+      </details>
+    </section>
+
+    <footer>
+      <p>© <span id="yr"></span> Caleb Fedyshen • Calgary, AB • Built with Python, discipline, and coffee.</p>
+    </footer>
   </main>
-  <script src="assets/js/terminal.js"></script>
-  </body>
+
+  <script>
+    // small nicety: keep year current
+    document.getElementById('yr').textContent = new Date().getFullYear();
+  </script>
+  <!-- keep your existing script if needed -->
+  <!-- <script src="assets/js/terminal.js"></script> -->
+</body>
 </html>
