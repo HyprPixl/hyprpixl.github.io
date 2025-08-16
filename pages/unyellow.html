@@ -7,7 +7,18 @@
   <link rel="stylesheet" href="../assets/css/style.css">
   <style>
     main{ text-align:center; padding:1rem; }
-    #imageWrapper{ position:relative; display:inline-block; margin-top:1rem; }
+    #uploadBtn{
+      display:inline-block;
+      padding:0.5rem 1rem;
+      background:#C0C0C0;
+      border:2px outset #FFFFFF;
+      font-weight:bold;
+      cursor:pointer;
+      margin-top:0.5rem;
+    }
+    #uploadBtn:active{ border-style:inset; }
+    #imageWrapper{ position:relative; display:inline-block; margin-top:1rem; border:4px dashed #C0C0C0; min-width:200px; min-height:200px; }
+    #imageWrapper.dragover{ background:#FFFFE0; }
     #imageWrapper img,#imageWrapper canvas{ max-width:100%; height:auto; display:block; }
     #imageWrapper img,#imageWrapper canvas{ transition:opacity .8s ease; }
     #imageWrapper canvas,#imageWrapper img{ position:absolute; top:0; left:0; }
@@ -26,13 +37,14 @@
 </header>
 <main>
   <p>Upload a photo with a yellow tint and we'll try to fix the colors.</p>
-  <input type="file" id="fileInput" accept="image/*">
+  <label id="uploadBtn" for="fileInput">Upload Image</label>
+  <input type="file" id="fileInput" accept="image/*" style="display:none;">
   <div id="sliders" style="display:none;">
     <label>Red <input type="range" id="redSlider" min="0" max="2" step="0.01" value="1"></label>
     <label>Green <input type="range" id="greenSlider" min="0" max="2" step="0.01" value="1"></label>
     <label>Blue <input type="range" id="blueSlider" min="0" max="2" step="0.01" value="1"></label>
   </div>
-  <div id="imageWrapper" style="min-width:200px;min-height:200px;">
+  <div id="imageWrapper">
     <img id="original" alt="Original" style="display:none;">
     <canvas id="canvas" style="display:none;"></canvas>
   </div>
@@ -82,8 +94,7 @@ redSlider.addEventListener('input', handleSlider);
 greenSlider.addEventListener('input', handleSlider);
 blueSlider.addEventListener('input', handleSlider);
 
-fileInput.addEventListener('change', e => {
-  const file = e.target.files[0];
+function loadImage(file){
   if(!file) return;
   const url = URL.createObjectURL(file);
   sliders.style.display = 'block';
@@ -125,6 +136,27 @@ fileInput.addEventListener('change', e => {
     });
   };
   original.src = url;
+}
+
+fileInput.addEventListener('change', e => loadImage(e.target.files[0]));
+
+['dragenter','dragover'].forEach(evt => {
+  document.addEventListener(evt, e => {
+    e.preventDefault();
+    wrapper.classList.add('dragover');
+  });
+});
+
+['dragleave','drop'].forEach(evt => {
+  document.addEventListener(evt, e => {
+    e.preventDefault();
+    wrapper.classList.remove('dragover');
+  });
+});
+
+document.addEventListener('drop', e => {
+  const file = e.dataTransfer.files[0];
+  if(file) loadImage(file);
 });
 </script>
 </body>
