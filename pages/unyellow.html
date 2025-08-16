@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Unyellow</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <style>
+    main{ text-align:center; padding:1rem; }
+    #imageWrapper{ position:relative; display:inline-block; margin-top:1rem; }
+    #imageWrapper img,#imageWrapper canvas{ max-width:100%; height:auto; display:block; }
+    #imageWrapper img,#imageWrapper canvas{ transition:opacity .8s ease; }
+    #imageWrapper canvas,#imageWrapper img{ position:absolute; top:0; left:0; }
+    #downloadLink{ display:none; margin-top:1rem; }
+    #sliders label{ display:block; margin-top:.5rem; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Unyellow</h1>
+  <nav>
+  <a href="/index.html">Home</a>
+  <a href="/about.html">About Me</a>
+  <a href="https://www.linkedin.com/in/caleb-fedyshen" target="_blank" rel="noopener">LinkedIn ↗</a>
+</nav>
+</header>
+<main>
+  <p>Upload a photo with a yellow tint and we'll try to fix the colors.</p>
+  <input type="file" id="fileInput" accept="image/*">
+  <div id="sliders" style="display:none;">
+    <label>Red <input type="range" id="redSlider" min="0" max="2" step="0.01" value="1"></label>
+    <label>Green <input type="range" id="greenSlider" min="0" max="2" step="0.01" value="1"></label>
+    <label>Blue <input type="range" id="blueSlider" min="0" max="2" step="0.01" value="1"></label>
+  </div>
+  <div id="imageWrapper" style="min-width:200px;min-height:200px;">
+    <img id="original" alt="Original" style="display:none;">
+    <canvas id="canvas" style="display:none;"></canvas>
+  </div>
+  <a id="downloadLink" download="unyellowed.png">Download corrected image</a>
+</main>
+<script>
+const fileInput = document.getElementById('fileInput');
+const original = document.getElementById('original');
+const canvas = document.getElementById('canvas');
+const link = document.getElementById('downloadLink');
+const wrapper = document.getElementById('imageWrapper');
+const sliders = document.getElementById('sliders');
+const redSlider = document.getElementById('redSlider');
+const greenSlider = document.getElementById('greenSlider');
+const blueSlider = document.getElementById('blueSlider');
+let basePixels, ctx;
+
+function applyGains(rGain,gGain,bGain){
+  const imgData = new ImageData(new Uint8ClampedArray(basePixels), canvas.width, canvas.height);
+  const data = imgData.data;
+  for(let i=0;i<data.length;i+=4){
+    data[i] = Math.min(255, data[i]*rGain);
+    data[i+1] = Math.min(255, data[i+1]*gGain);
+    data[i+2] = Math.min(255, data[i+2]*bGain);
+  }
+  ctx.putImageData(imgData,0,0);
+  link.href = canvas.toDataURL('image/png');
+}
+
+function animateSlider(slider, target){
+  const start = parseFloat(slider.value);
+  const duration = 500;
+  const startTime = performance.now();
+  function step(now){
+    const t = Math.min(1,(now-startTime)/duration);
+    slider.value = (start + (target-start)*t).toFixed(2);
+    if(t<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+function handleSlider(){
+  applyGains(parseFloat(redSlider.value), parseFloat(greenSlider.value), parseFloat(blueSlider.value));
+}
+
+redSlider.addEventListener('input', handleSlider);
+greenSlider.addEventListener('input', handleSlider);
+blueSlider.addEventListener('input', handleSlider);
+
+fileInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const url = URL.createObjectURL(file);
+  sliders.style.display = 'block';
+  redSlider.value = greenSlider.value = blueSlider.value = 1;
+  original.onload = () => {
+    const w = original.naturalWidth;
+    const h = original.naturalHeight;
+    canvas.width = w;
+    canvas.height = h;
+    wrapper.style.width = w + 'px';
+    wrapper.style.height = h + 'px';
+    ctx = canvas.getContext('2d');
+    ctx.drawImage(original,0,0,w,h);
+    const imgData = ctx.getImageData(0,0,w,h);
+    const data = imgData.data;
+    basePixels = new Uint8ClampedArray(data);
+    let r=0,g=0,b=0;
+    for(let i=0;i<data.length;i+=4){
+      r+=data[i];
+      g+=data[i+1];
+      b+=data[i+2];
+    }
+    const pixels = data.length/4;
+    r/=pixels; g/=pixels; b/=pixels;
+    const avg = (r+g+b)/3;
+    const rGain = avg/r; const gGain = avg/g; const bGain = avg/b;
+    applyGains(rGain,gGain,bGain);
+    original.style.display = canvas.style.display = 'block';
+    original.style.opacity = 1;
+    canvas.style.opacity = 0;
+    link.style.display = 'inline-block';
+    animateSlider(redSlider,Math.min(2,rGain));
+    animateSlider(greenSlider,Math.min(2,gGain));
+    animateSlider(blueSlider,Math.min(2,bGain));
+    // Trigger crossfade
+    requestAnimationFrame(()=>{
+      canvas.style.opacity = 1;
+      original.style.opacity = 0;
+    });
+  };
+  original.src = url;
+});
+</script>
+</body>
+</html>
