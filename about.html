@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <title>About • Caleb Fedyshen</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="I replace bloated enterprise software with fast custom apps that pay for themselves. Saved $70k/month replacing legacy software. Flask, Databricks, Azure. Calgary-based.">
+  <meta name="description" content="I replace bloated enterprise software with fast custom apps that pay for themselves. Saved $1.14M+/yr replacing legacy software. Flask, Databricks, Azure. Calgary-based.">
   <link rel="canonical" href="https://cfedyshen.com/about.html">
   <meta property="og:title" content="About • Caleb Fedyshen">
-  <meta property="og:description" content="I replace bloated enterprise software with fast custom apps that pay for themselves. Saved $70k/month replacing legacy software.">
+  <meta property="og:description" content="I replace bloated enterprise software with fast custom apps that pay for themselves. Saved $1.14M+/yr replacing legacy software.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://cfedyshen.com/about.html">
   <meta name="theme-color" content="#0b0b10">
@@ -20,16 +20,14 @@
       --accent: #60a5fa; --danger: #f87171; --ring: rgba(110,231,183,.35);
       --radius: 16px;
     }
-    html, body { background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji"; line-height: 1.6; }
+    html, body { background: var(--bg); color: var(--text); line-height: 1.6; }
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
-    header { max-width: 1100px; margin: 32px auto 0; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; }
-    nav a { margin-left: 16px; font-weight: 600; color: var(--muted); }
-    nav a[aria-current="page"] { color: var(--text); }
+    header { font-family: "Courier New", Courier, monospace; }
     .wrap { max-width: 1100px; margin: 24px auto 96px; padding: 0 20px; }
     .hero { background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)); border: 1px solid rgba(255,255,255,.06); padding: 28px; border-radius: var(--radius); display: grid; gap: 18px; }
-    .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .78rem; color: var(--muted); }
-    h1 { font-size: clamp(1.9rem, 4vw, 2.6rem); line-height: 1.2; margin: 0; }
+    .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .78rem; color: var(--text); font-weight: 700; }
+    #about-headline { font-size: clamp(1.9rem, 4vw, 2.6rem); line-height: 1.2; margin: 0; font-weight: 800; }
     .sub { color: var(--muted); max-width: 75ch; }
     .cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
     .btn { display: inline-flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 12px; font-weight: 700; border: 1px solid rgba(255,255,255,.12); background: #171922; }
@@ -83,13 +81,15 @@
 </head>
 <body>
   <header>
-    <div><a href="/index.html" class="caps" aria-label="Back to home">← Home</a></div>
-    <nav aria-label="Primary">
-      <a href="/index.html">Work</a>
-      <a href="/about.html" aria-current="page">About</a>
-      <a href="/blog">Blog</a>
-      <a href="mailto:cfedyshen@gmail.com" class="success">Email</a>
-    </nav>
+    <h1 class="wink">Caleb Fedyshen</h1>
+    <marquee behavior="scroll" direction="left" scrollamount="7">
+      Welcome to my blogthing – I heard all the best programmers have the most retro looking websites. There are many secrets on this site, many more on the desktop version of the site than mobile. Have fun! I hope you're having a great day.
+    </marquee>
+    <nav>
+  <a href="/index.html">Home</a>
+  <a href="/about.html">About Me</a>
+  <a href="https://www.linkedin.com/in/caleb-fedyshen" target="_blank" rel="noopener">LinkedIn ↗</a>
+</nav>
   </header>
 
   <main class="wrap">
@@ -98,7 +98,7 @@
       <h1 id="about-headline">I replace overpriced enterprise software with fast custom apps that pay for themselves.</h1>
       <p class="sub">
         Designer–builder of internal tools, data pipelines, and automation that remove manual work and slash license costs.
-        In one engagement, I replaced a legacy banking image viewer and <strong class="success">saved $70,000 USD per month (~$1.15M CAD/yr)</strong>.
+        In one engagement, I replaced a legacy banking image viewer and <strong class="success">saved over $1.14M USD per year</strong>.
         If you’re spending big on clunky software—or spending people’s time to work around it—I can fix that.
       </p>
       <div class="cta" role="group" aria-label="Primary calls to action">
@@ -111,9 +111,9 @@
     <section aria-labelledby="proof" style="margin-top:22px">
       <h2 id="proof" class="sr-only">Proof</h2>
       <div class="grid cols-3">
-        <div class="stat"><div class="num">$70k/mo</div><div class="kicker">license spend eliminated</div></div>
+        <div class="stat"><div class="num">$1.14M+/yr</div><div class="kicker">license spend eliminated</div></div>
         <div class="stat"><div class="num">9.8M+</div><div class="kicker">bank check images processed</div></div>
-        <div class="stat"><div class="num">2</div><div class="kicker">production Flask apps on Databricks</div></div>
+        <div class="stat"><div class="num">5+</div><div class="kicker">apps delivered</div></div>
         <div class="stat"><div class="num">3.9 GPA</div><div class="kicker">4× Dean’s List, UCalgary CS</div></div>
         <div class="stat"><div class="num">Hundreds</div><div class="kicker">of employees used my Teams-integrated app</div></div>
         <div class="stat"><div class="num">Dozens</div><div class="kicker">of processes automated end-to-end</div></div>
@@ -251,6 +251,6 @@
     document.getElementById('yr').textContent = new Date().getFullYear();
   </script>
   <!-- keep your existing script if needed -->
-  <!-- <script src="assets/js/terminal.js"></script> -->
+  <script src="assets/js/terminal.js"></script>
 </body>
 </html>
