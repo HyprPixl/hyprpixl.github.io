@@ -8,22 +8,24 @@
   <style>
     main{ text-align:center; padding:1rem; }
     #uploadBtn{
-      display:inline-block;
+      display:block;
       padding:0.5rem 1rem;
       background:#C0C0C0;
       border:2px outset #FFFFFF;
       font-weight:bold;
       cursor:pointer;
-      margin-top:0.5rem;
+      margin:0.5rem auto 0;
     }
     #uploadBtn:active{ border-style:inset; }
-    #imageWrapper{ position:relative; display:inline-block; margin-top:1rem; border:4px dashed #C0C0C0; min-width:200px; min-height:200px; }
+    #imageWrapper{ position:relative; display:block; margin:1rem auto; border:4px dashed #C0C0C0; min-width:200px; min-height:200px; max-width:90vw; }
     #imageWrapper.dragover{ background:#FFFFE0; }
-    #imageWrapper img,#imageWrapper canvas{ max-width:100%; height:auto; display:block; }
+    #imageWrapper img,#imageWrapper canvas{ width:100%; height:100%; display:block; }
     #imageWrapper img,#imageWrapper canvas{ transition:opacity .8s ease; }
     #imageWrapper canvas,#imageWrapper img{ position:absolute; top:0; left:0; }
     #downloadLink{ display:none; margin-top:1rem; }
+    #sliders{ margin:1rem auto; }
     #sliders label{ display:block; margin-top:.5rem; }
+    #sliders input[type="range"]{ width:100%; }
   </style>
 </head>
 <body>
@@ -104,8 +106,15 @@ function loadImage(file){
     const h = original.naturalHeight;
     canvas.width = w;
     canvas.height = h;
-    wrapper.style.width = w + 'px';
-    wrapper.style.height = h + 'px';
+    const maxWidth = Math.min(window.innerWidth*0.9, 600);
+    const scale = Math.min(1, maxWidth / w);
+    const displayWidth = w * scale;
+    const displayHeight = h * scale;
+    wrapper.style.width = displayWidth + 'px';
+    wrapper.style.height = displayHeight + 'px';
+    sliders.style.width = displayWidth + 'px';
+    canvas.style.width = original.style.width = '100%';
+    canvas.style.height = original.style.height = '100%';
     ctx = canvas.getContext('2d');
     ctx.drawImage(original,0,0,w,h);
     const imgData = ctx.getImageData(0,0,w,h);
