@@ -120,7 +120,7 @@
     </div>
 
     <div class="row">
-      <select id="region">
+      <select id="region" multiple title="Ctrl/Cmd+click to select multiple regions">
         <option value="world">🌍 World</option>
         <optgroup label="Africa">
           <option value="africa.north">North Africa</option>
@@ -233,6 +233,7 @@ let countriesLayer;
 let layerById = new Map();      // iso3-or-id -> Leaflet layer
 let featureById = new Map();    // id -> GeoJSON feature
 let playableIds = [];           // ids for current region
+let activeIdSet = new Set();    // uppercase ids for current regions
 let remainingIds = [];          // queue to play
 let clearedCount = 0;
 let attempts = 0;
@@ -268,6 +269,10 @@ let nameFix = new Map();        // name normalizations for lookups
    Utility
 ========================= */
 const el = id => document.getElementById(id);
+function getSelectedRegions(){
+  const sel = el('region');
+  return Array.from(sel.selectedOptions).map(o=>o.value);
+}
 function setMsg(t){ const m=el('msg'); m.textContent = t; m.classList.add('blink'); setTimeout(()=>m.classList.remove('blink'), 900); }
 function toEmojiFlag(iso2){
   if(!iso2 || iso2.length!==2) return "🏳️";
@@ -349,19 +354,26 @@ function baseStyle(){
   };
 }
 
+function resetLayerStyle(layer){
+  if(layer.__lockedColor){
+    layer.setStyle({ weight: 1.3, color: 'rgba(255,255,255,0.9)' });
+  }else{
+    const style = baseStyle();
+    if(activeIdSet.has(layer.__id.toUpperCase())){
+      style.fillColor = getCSS('var(--accent)');
+      style.fillOpacity = 0.35;
+    }
+    layer.setStyle(style);
+  }
+}
+
 function highlightHover(e){
   const layer = e.target;
   layer.setStyle({ weight: 1.3, color: 'rgba(255,0,234,0.6)' }); // magenta glow
   if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) layer.bringToFront();
 }
 function resetHover(e){
-  const layer = e.target;
-  if(layer.__lockedColor){
-    // keep solved/missed country's color when moving cursor away
-    layer.setStyle({ weight: 1.3, color: 'rgba(255,255,255,0.9)' });
-  } else {
-    layer.setStyle(baseStyle());
-  }
+  resetLayerStyle(e.target);
 }
 
 function countryClicked(e){
@@ -399,7 +411,7 @@ function countryClicked(e){
       setMsg(`Nope, that's ${getDisplayName(clickedId)}. Try again…`);
       // brief wrong-click flash
       layer.setStyle({ fillOpacity: 0.5, fillColor: "rgba(255,0,0,0.35)" });
-      setTimeout(()=> layer.setStyle(baseStyle()), 350);
+      setTimeout(()=> resetLayerStyle(layer), 350);
     }
     el('attemptsLabel').textContent = `Attempts: ${Math.min(attempts,3)} / 3`;
   }
@@ -426,6 +438,14 @@ function getEmojiForId(id){
 }
 
 function getRegionIds(path){
+  if(Array.isArray(path)){
+    if(path.length === 0 || path.includes('world')) return [];
+    const set = new Set();
+    path.forEach(p=>{
+      getRegionIds(p).forEach(id=>set.add(id));
+    });
+    return [...set];
+  }
   if(!path || path === 'world') return [];
   const parts = path.split('.');
   let node = REGIONS;
@@ -433,15 +453,15 @@ function getRegionIds(path){
   return Array.isArray(node) ? node : [];
 }
 
-function previewRegion(key){
+function previewRegion(keys){
   // reset previous preview styles
   countriesLayer.eachLayer(layer=>{
     layer.setStyle(baseStyle());
     delete layer.__lockedColor;
   });
-
-  const ids = getRegionIds(key).map(i=>i.toUpperCase());
-  if(key === 'world' || ids.length === 0){
+  activeIdSet.clear();
+  const ids = getRegionIds(keys).map(i=>i.toUpperCase());
+  if(ids.length === 0){
     countriesLayer.eachLayer(layer=>{
       layer.setStyle({ fillColor: getCSS('var(--accent)'), fillOpacity: 0.5 });
     });
@@ -459,22 +479,25 @@ function previewRegion(key){
 /* =========================
    Game flow
 ========================= */
-function setupForRegion(key){
+function setupForRegion(keys){
   // Reset any previous round coloring/highlights
   countriesLayer.eachLayer(layer=>{
     layer.setStyle(baseStyle());
     delete layer.__lockedColor;
   });
 
-  const wanted = new Set(getRegionIds(key).map(i=>i.toUpperCase()));
+  const wanted = new Set(getRegionIds(keys).map(i=>i.toUpperCase()));
   const ids = [];
   countriesLayer.eachLayer(layer=>{
     const id = layer.__id;
-    if(wanted.size === 0 || wanted.has(id.toUpperCase())){
+    const up = id.toUpperCase();
+    if(wanted.size === 0 || wanted.has(up)){
       ids.push(id);
+      layer.setStyle({ fillColor: getCSS('var(--accent)'), fillOpacity: 0.35 });
     }
   });
   playableIds = ids;
+  activeIdSet = new Set(ids.map(i=>i.toUpperCase()));
   remainingIds = shuffle([...playableIds]);
   clearedCount = 0;
   el('cleared').textContent = "0";
@@ -558,10 +581,10 @@ function nextTarget(){
 
     // Controls
     el('region').addEventListener('change', ()=>{
-      previewRegion(el('region').value);
+      previewRegion(getSelectedRegions());
     });
     el('startBtn').addEventListener('click', ()=>{
-      setupForRegion(el('region').value);
+      setupForRegion(getSelectedRegions());
       nextTarget();
     });
   el('skipBtn').addEventListener('click', ()=>{
@@ -578,7 +601,7 @@ function nextTarget(){
 
     // Initial fit
     fitToIds([...layerById.keys()]);
-    previewRegion(el('region').value);
+    previewRegion(getSelectedRegions());
     setMsg("Pick a region and hit Start.");
   })();
 </script>
