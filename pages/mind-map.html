@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mind Map</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        height: 98vh;
+        margin: 0;
+        background-color: #333;
+        color: #ccc;
+      }
+      #editor-buttons {
+        width: 50px;
+        height: 100%;
+        background-color: #444;
+        border-right: 1px solid #555;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      #mindmap {
+        width: calc(100% - 50px);
+        height: 100%;
+        background-color: #222;
+      }
+      .node {
+        cursor: pointer;
+        stroke: #a34f00;
+        stroke-width: 1.5px;
+      }
+      .selected-node {
+        filter: brightness(60%);
+      }
+      .node text {
+        font-size: 12px;
+        pointer-events: none;
+        text-anchor: middle;
+        fill: #fff !important;
+      }
+      line {
+        stroke: #999;
+        stroke-width: 2;
+      }
+      #export-btn,
+      #import-btn {
+        width: 80%;
+        margin-top: 10px;
+        padding: 8px;
+        background-color: #666;
+        color: #ccc;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      #export-btn:hover,
+      #import-btn:hover {
+        background-color: #888;
+      }
+      #import-file {
+        display: none;
+      }
+      .temp-link {
+        stroke: gray;
+        stroke-dasharray: 5, 5;
+      }    #instructions-popup {
+        position: fixed;
+        bottom: 10px; /* Adjust as needed */
+        left: 60px; /* Adjust based on button position */
+        background-color: #444;
+        color: #ccc;
+        padding: 15px;
+        border-radius: 5px;
+        display: none;
+        z-index: 10;
+    }
+
+    #instructions-popup::before { /* Little triangle pointing up */
+        content: "";
+        position: absolute;
+        bottom: -10px;
+        left: 10px; /* Adjust horizontally as needed */
+        border-width: 10px 10px 0;
+        border-style: solid;
+        border-color: #444 transparent transparent transparent;
+    }
+
+    .instructions-btn {
+        cursor: pointer;
+        color: #ccc;
+        font-size: 20px;
+        margin-top: 20px;
+    }
+
+    #shortcut-hint {
+        position: fixed;
+        bottom: 10px;
+        left: 60px;
+        background-color: #444;
+        color: #ccc;
+        padding: 5px 10px;
+        border-radius: 5px;
+        z-index: 10;
+        opacity: 0.8;
+    }
+    </style>
+</head>
+<body>
+    <div id="editor-buttons">
+       <button id="export-btn">&#8681;</button>
+       <button id="import-btn">&#8679;</button>
+       <input type="file" id="import-file" title="Import mind map file" />
+       <div class="instructions-btn" onclick="toggleInstructions()">?</div> 
+    </div>
+    <div id="instructions-popup">
+        <h4>Mind Map Instructions</h4>
+        <ul>
+          <li><b>Arrow Keys:</b> Create a new node and focus on it in the specified direction.</li>
+          <li><b>Ctrl/Cmd + Arrow Keys:</b> Navigate the map quickly. </li>
+          <li><b>` :</b> ~top left keyboard button~ Change the color of a node.</li>
+          <li><b>Ctrl/Cmd + Click and Drag:</b> Create new connections between nodes.</li>
+          <li><b>Click and Drag:</b> to move nodes.</li>
+          <li><b>Type:</b> to add or edit text in a node.</li>
+          <li><b>Enter:</b> Create a line break within a node.</li>
+          <li><b>Backspace:</b> Delete a node (if empty) or text.</li>
+          <li><b>Ctrl/Cmd + C/V:</b> Copy/Paste node text.</li>
+          <li><b>Press ?:</b> Toggle this instructions panel.</li>
+          <li><b>Above are Upload and download buttons</b> </li>
+        </ul>
+    </div>
+    <div id="shortcut-hint">Press ? for shortcuts</div>
+    <div id="mindmap"></div>
+    
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+      function toggleInstructions() {
+        const popup = document.getElementById("instructions-popup");
+        const hint = document.getElementById("shortcut-hint");
+        if (popup.style.display === "none" || popup.style.display === "") {
+          popup.style.display = "block";
+          if (hint) hint.style.display = "none";
+        } else {
+          popup.style.display = "none";
+        }
+      }
+
+      setTimeout(() => {
+        const hint = document.getElementById("shortcut-hint");
+        if (hint) hint.style.display = "none";
+      }, 5000);
+      const width = document.getElementById("mindmap").clientWidth;
+      const height = document.getElementById("mindmap").clientHeight;
+
+      const svg = d3
+        .select("#mindmap")
+        .append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+      const edgesLayer = svg.append("g"); // Layer for edges
+      const nodesLayer = svg.append("g"); // Layer for nodes
+
+      let nodes = [
+        { id: 0, x: width / 2, y: height / 2, text: "", color: "#1f77b4" },
+      ];
+      let links = [];
+      let selectedNode = nodes[0];
+
+      const simulation = d3
+        .forceSimulation(nodes)
+        .force("charge", d3.forceManyBody())
+        .force("center", d3.forceCenter(width / 2, height / 2))
+        .force("attractAllToCenter", (alpha) => attractAllToCenter(alpha))
+        .force(
+          "link",
+          d3
+            .forceLink(links)
+            .distance((d) => calculateLinkDistance(d))
+            .iterations(2)
+        )
+        .on("tick", ticked);
+
+      function calculateChargeStrength(node) {
+        const baseStrength = -100; // Base strength for nodes with no text
+        const strengthPerCharacter = -20; // Additional strength per character
+        const maxStrength = -1000; // Limit the maximum strength
+        const textLength = node.text.length;
+
+        return Math.max(
+          baseStrength + textLength * strengthPerCharacter,
+          maxStrength
+        );
+      }
+      function calculateLinkDistance(link) {
+        const baseDistance = 25;
+        const distancePerCharacter = 3;
+        const maxDistance = 60;
+
+        // Find the length of the longest line before a newline
+        const sourceLongestLine = link.source.text
+          .split("\n")
+          .reduce((max, line) => Math.max(max, line.length), 0);
+        const targetLongestLine = link.target.text
+          .split("\n")
+          .reduce((max, line) => Math.max(max, line.length), 0);
+        const longestLine = Math.max(sourceLongestLine, targetLongestLine);
+
+        return Math.min(
+          baseDistance + longestLine * distancePerCharacter,
+          maxDistance
+        );
+      }
+      function updateChargeStrengths() {
+        simulation.force("charge").strength((d) => calculateChargeStrength(d));
+
+        // Update link distances and notify the simulation
+        links.forEach((link) => {
+          link.distance = calculateLinkDistance(link);
+        });
+        simulation.force("link").links(links); // Update the simulation's links
+
+        simulation.alpha(0.3).restart();
+      }
+
+      // Edge Creation with Ctrl/Cmd-Drag
+      let draggingEdge = false;
+      let tempLink = null;
+
+      svg.on("mousedown", (event) => {
+        if ((event.ctrlKey || event.metaKey) && selectedNode) {
+          draggingEdge = true;
+          const transform = d3.zoomTransform(svg.node());
+          const [x, y] = transform.invert([event.x, event.y]);
+          tempLink = {
+            source: selectedNode,
+            target: { x, y },
+          };
+          ticked(); // Render the temporary link immediately
+        }
+      });
+      function findNearestNodeToCoordinates(x, y) {
+            let closestNode = null;
+            let minDistance = Infinity;
+            nodes.forEach((node) => {
+                const distance = Math.sqrt((node.x - x) ** 2 + (node.y - y) ** 2);
+                if (distance < minDistance) {
+                    closestNode = node;
+                    minDistance = distance;
+                }
+            });
+
+            // Threshold for nearness
+            const thresholdDistance = 50; // You can adjust this value
+            return minDistance <= thresholdDistance ? closestNode : null;
+        }
+
+        svg.on("mousemove", (event) => {
+            if (draggingEdge) {
+                const transform = d3.zoomTransform(svg.node());
+                const [x, y] = transform.invert([event.x, event.y]);
+                tempLink.target = { x, y }; // Update the end point continuously
+                ticked(); // Re-render on every mouse move
+            }
+        });
+
+        svg.on("mouseup", (event) => {
+            if (draggingEdge) {
+                draggingEdge = false;
+                const transform = d3.zoomTransform(svg.node());
+                const [x, y] = transform.invert([event.x, event.y]); // Account for zoom
+                const targetNode = findNearestNodeToCoordinates(x, y);
+
+                if (targetNode && targetNode !== tempLink.source) {
+                    links.push({ source: tempLink.source, target: targetNode });
+                    simulation.force("link").links(links);
+                    updateChargeStrengths(); // Recalculate forces after adding a link
+                    simulation.alpha(1).restart(); // Give a higher alpha to settle faster
+                }
+            }
+            tempLink = null; // Clear tempLink after mouseup
+            ticked();
+        });
+      function ticked() {
+        // Update edges
+        const link = edgesLayer
+          .selectAll("line")
+          .data(links)
+          .join("line")
+          .attr("x1", (d) => d.source.x)
+          .attr("y1", (d) => d.source.y)
+          .attr("x2", (d) => d.target.x)
+          .attr("y2", (d) => d.target.y);
+
+        // Update nodes
+        const node = nodesLayer
+          .selectAll(".node-group")
+          .data(nodes, (d) => d.id)
+          .join("g")
+          .attr("class", "node-group")
+          .attr("transform", (d) => `translate(${d.x},${d.y})`)
+          .call(
+            d3
+              .drag()
+              .on("start", (event, d) => {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+                selectedNode = d;
+                updateNodeSelection();
+              })
+              .on("drag", dragged)
+              .on("end", dragended)
+          );
+
+        // Remove existing rectangles and text
+        node.selectAll("rect").remove();
+        node.selectAll("text").remove();
+
+        // Add rectangles
+        const rect = node
+          .append("rect")
+          .attr("class", (d) =>
+            d === selectedNode ? "node selected-node" : "node"
+          )
+          .attr("fill", (d) => d.color)
+          .attr("stroke", "#a34f00")
+          .attr("stroke-width", "2px");
+
+        // Add text
+        const text = node
+          .append("text")
+          .attr("text-anchor", "middle")
+          .selectAll("tspan")
+          .data((d) => d.text.split("\n"))
+          .join("tspan")
+          .attr("x", 0)
+          .attr("dy", (d, i) => (i ? "1.2em" : 0))
+          .attr("fill", "#fff")
+          .text((d) => d);
+
+        // Adjust rectangle size based on text
+        rect.each(function (d) {
+          const bbox = this.parentNode.getBBox();
+          const textHeight = bbox.height;
+          const textWidth = bbox.width;
+
+          d3.select(this)
+            .attr("x", -textWidth / 2 - 10)
+            .attr("y", -15)
+            .attr("width", textWidth + 20)
+            .attr("height", Math.max(textHeight + 3, 20))
+            .attr("rx", 10)
+            .attr("ry", 10);
+
+          // Add width and height to the node data
+          d.width = textWidth + 20;
+          d.height = Math.max(textHeight + 3, 20);
+        });
+
+        // Update link positions
+        link
+          .attr("x1", (d) => d.source.x)
+          .attr("y1", (d) => d.source.y)
+          .attr("x2", (d) => d.target.x)
+          .attr("y2", (d) => d.target.y);
+
+        // Apply collision detection
+        applyCollisions();
+
+        // Handle temporary link
+        if (tempLink) {
+          edgesLayer
+            .selectAll(".temp-link")
+            .data([tempLink])
+            .join("line")
+            .attr("class", "temp-link")
+            .attr("x1", (d) => d.source.x)
+            .attr("y1", (d) => d.source.y)
+            .attr("x2", (d) => d.target.x)
+            .attr("y2", (d) => d.target.y);
+        } else {
+          edgesLayer.selectAll(".temp-link").remove();
+        }
+
+        // Log the number of links for debugging
+        console.log("Number of links:", links.length);
+      }
+
+      function applyCollisions() {
+        const padding = 15; // Add some padding between nodes
+        const maxIterations = 10; // Limit iterations to avoid infinite loops
+
+        for (let iteration = 0; iteration < maxIterations; iteration++) {
+          let collisionDetected = false;
+
+          for (let i = 0; i < nodes.length; i++) {
+            for (let j = i + 1; j < nodes.length; j++) {
+              const nodeA = nodes[i];
+              const nodeB = nodes[j];
+
+              // Calculate distance and overlap
+              const dx = nodeA.x - nodeB.x;
+              const dy = nodeA.y - nodeB.y;
+              const distance = Math.sqrt(dx * dx + dy * dy);
+              const minDistance = (nodeA.width + nodeB.width) / 2 + padding;
+              const overlap = minDistance - distance;
+
+              if (overlap > 0) {
+                collisionDetected = true;
+                const nx = dx / distance;
+                const ny = dy / distance;
+
+                // Move nodes apart based on overlap
+                nodeA.x += (overlap * nx) / 2;
+                nodeA.y += (overlap * ny) / 2;
+                nodeB.x -= (overlap * nx) / 2;
+                nodeB.y -= (overlap * ny) / 2;
+              }
+            }
+          }
+          if (!collisionDetected) break; // Stop if no collisions in this iteration
+        }
+      }
+
+      function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+      }
+
+      function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+      }
+      // Add this function to find the N closest neighbors
+      function findNClosestNeighbors(node, n) {
+        return nodes
+          .filter((d) => d !== node)
+          .map((d) => ({
+            node: d,
+            distance: Math.sqrt(
+              Math.pow(d.x - node.x, 2) + Math.pow(d.y - node.y, 2)
+            ),
+          }))
+          .sort((a, b) => a.distance - b.distance)
+          .slice(0, n)
+          .map((d) => d.node);
+      }
+      function updateNodeSelection() {
+        nodesLayer
+          .selectAll("rect")
+          .classed("selected-node", (d) => d === selectedNode);
+
+        // Calculate the bounding box for the selected node and its immediate neighbors
+        const neighbors = links
+          .filter((l) => l.source === selectedNode || l.target === selectedNode)
+          .map((l) => (l.source === selectedNode ? l.target : l.source));
+
+        const nodesToInclude = [selectedNode, ...neighbors];
+
+        const bbox = {
+          left: Math.min(...nodesToInclude.map((d) => d.x - d.width / 2)),
+          right: Math.max(...nodesToInclude.map((d) => d.x + d.width / 2)),
+          top: Math.min(...nodesToInclude.map((d) => d.y - d.height / 2)),
+          bottom: Math.max(...nodesToInclude.map((d) => d.y + d.height / 2)),
+        };
+
+        const padding = 150; // Reduced padding for tighter focus
+        const dx = bbox.right - bbox.left + padding * 2;
+        const dy = bbox.bottom - bbox.top + padding * 2;
+        const x = (bbox.left + bbox.right) / 2;
+        const y = (bbox.top + bbox.bottom) / 2;
+
+        // Calculate the scale to fit the nodes, but don't zoom in too much
+        const scale = Math.min(width / dx, height / dy, 2); // Limit max zoom to 2x
+
+        svg
+          .transition()
+          .duration(750)
+          .call(
+            zoom.transform,
+            d3.zoomIdentity
+              .translate(width / 2, height / 2)
+              .scale(scale)
+              .translate(-x, -y)
+          );
+      }
+      function findClosestNode(direction) {
+        let closestNode = null;
+        let closestDistance = Infinity;
+
+        nodes.forEach((node) => {
+          if (node !== selectedNode) {
+            let distance;
+            switch (direction) {
+              case "ArrowRight":
+                if (node.x > selectedNode.x) {
+                  distance = Math.sqrt(
+                    Math.pow(node.x - selectedNode.x, 2) +
+                      Math.pow(node.y - selectedNode.y, 2)
+                  );
+                  if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestNode = node;
+                  }
+                }
+                break;
+              case "ArrowLeft":
+                if (node.x < selectedNode.x) {
+                  distance = Math.sqrt(
+                    Math.pow(selectedNode.x - node.x, 2) +
+                      Math.pow(node.y - selectedNode.y, 2)
+                  );
+                  if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestNode = node;
+                  }
+                }
+                break;
+              case "ArrowUp":
+                if (node.y < selectedNode.y) {
+                  distance = Math.sqrt(
+                    Math.pow(selectedNode.x - node.x, 2) +
+                      Math.pow(selectedNode.y - node.y, 2)
+                  );
+                  if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestNode = node;
+                  }
+                }
+                break;
+              case "ArrowDown":
+                if (node.y > selectedNode.y) {
+                  distance = Math.sqrt(
+                    Math.pow(selectedNode.x - node.x, 2) +
+                      Math.pow(node.y - selectedNode.y, 2)
+                  );
+                  if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestNode = node;
+                  }
+                }
+                break;
+            }
+          }
+        });
+
+        return closestNode;
+      }
+
+      function createNewNode(direction) {
+        const newNode = {
+          id: nodes.length,
+          x: selectedNode.x,
+          y: selectedNode.y,
+          text: "",
+          color: "#1f77b4", // Default color
+        };
+
+        // Adjust position based on direction
+        const offset = Math.max(selectedNode.width, selectedNode.height) + 20;
+        switch (direction) {
+          case "ArrowRight":
+            newNode.x += offset;
+            break;
+          case "ArrowLeft":
+            newNode.x -= offset;
+            break;
+          case "ArrowDown":
+            newNode.y += offset;
+            break;
+          case "ArrowUp":
+            newNode.y -= offset;
+            break;
+        }
+
+        return newNode;
+      }
+
+      function cycleColor(node) {
+        const colors = ["#ff0000", "#00ff00", "#1f77b4"];
+        node.color = colors[(colors.indexOf(node.color) + 1) % colors.length];
+        console.log(`Node color changed to: ${node.color}`);
+      }
+      let typingTimer;
+      const typingDelay = 100; // Delay in ms before resuming simulation after typing
+
+      document.addEventListener("keydown", (event) => {
+        console.log(`Key pressed: ${event.key}`);
+        if (
+          (event.key === "?" || (event.shiftKey && event.key === "/")) &&
+          !event.ctrlKey &&
+          !event.metaKey
+        ) {
+          toggleInstructions();
+          event.preventDefault();
+          return;
+        }
+        if (event.ctrlKey || event.metaKey) {
+          if (event.key === "c" || event.key === "C") {
+            // Copy text to clipboard
+            if (selectedNode) {
+              navigator.clipboard
+                .writeText(selectedNode.text)
+                .then(() => console.log("Text copied to clipboard"))
+                .catch((err) => console.error("Failed to copy text: ", err));
+            }
+          } else if (event.key === "v" || event.key === "V") {
+            // Paste text from clipboard
+            if (selectedNode) {
+              navigator.clipboard
+                .readText()
+                .then((text) => {
+                  selectedNode.text += text;
+                  ticked();
+                  updateChargeStrengths();
+                })
+                .catch((err) =>
+                  console.error("Failed to read clipboard contents: ", err)
+                );
+            }
+          } else {
+            const closestNode = findClosestNode(event.key);
+            if (closestNode) {
+              selectedNode = closestNode;
+              updateNodeSelection();
+            }
+          }
+        } else if (
+          event.key === "ArrowRight" ||
+          event.key === "ArrowLeft" ||
+          event.key === "ArrowUp" ||
+          event.key === "ArrowDown"
+        ) {
+          const newNode = createNewNode(event.key);
+          nodes.push(newNode);
+          links.push({ source: selectedNode, target: newNode });
+
+          // Update simulation with new node and link
+          simulation.nodes(nodes);
+          simulation.force("link").links(links);
+
+          // Run the simulation for a few ticks to allow the new node to find its position
+          for (let i = 0; i < 20; ++i) simulation.tick();
+
+          // Update the selected node
+          selectedNode = newNode;
+
+          // Force an immediate update of the node positions
+          ticked();
+
+          // Update the view to focus on the new node
+          updateNodeSelection();
+
+          // Restart the simulation with a low alpha to allow for smooth transitions
+          simulation.alpha(0.3).restart();
+
+          event.preventDefault(); // Prevent default arrow key behavior
+        } else if (event.key === "`" || event.key === "Backquote") {
+          console.log("Backquote key detected");
+          if (selectedNode) {
+            cycleColor(selectedNode);
+            updateNodeSelection();
+            ticked(); // Call ticked() to update the visualization
+            event.preventDefault();
+          }
+        } else {
+          if (selectedNode) {
+            if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
+              selectedNode.text += event.key;
+              //handleTyping();
+            } else if (event.key === "Backspace") {
+              if (selectedNode.text.length === 0) {
+                deleteNode(selectedNode);
+              } else {
+                selectedNode.text = selectedNode.text.slice(0, -1);
+                //handleTyping();
+              }
+            } else if (event.key === "Enter") {
+              selectedNode.text += "\n";
+              //handleTyping();
+            }
+            ticked();
+            updateChargeStrengths();
+          }
+        }
+      });
+      function handleTyping() {
+        // Pause the simulation
+        simulation.stop();
+
+        // Fix the position of the selected node
+        selectedNode.fx = selectedNode.x;
+        selectedNode.fy = selectedNode.y;
+
+        // Clear any existing timer
+        clearTimeout(typingTimer);
+
+        // Set a new timer to resume the simulation after typing stops
+        typingTimer = setTimeout(() => {
+          // Gradually release the fixed position
+          selectedNode.fx = null;
+          selectedNode.fy = null;
+
+          // Restart the simulation with a low alpha
+          simulation.alpha(0.1).restart();
+
+          // Ensure the selected node stays in view
+          updateNodeSelection();
+        }, typingDelay);
+      }
+
+      function deleteNode(node) {
+        if (nodes.length > 1) {
+          // Find a connected node before deletion
+          let connectedNode = links.find(
+            (l) => l.source.id === node.id || l.target.id === node.id
+          );
+          connectedNode = connectedNode
+            ? connectedNode.source.id === node.id
+              ? connectedNode.target
+              : connectedNode.source
+            : null;
+
+          nodes = nodes.filter((n) => n.id !== node.id);
+          links = links.filter(
+            (l) => l.source.id !== node.id && l.target.id !== node.id
+          );
+
+          // Reconnect any broken chains
+          const incomingLinks = links.filter((l) => l.target.id === node.id);
+          const outgoingLinks = links.filter((l) => l.source.id === node.id);
+
+          incomingLinks.forEach((incomingLink) => {
+            outgoingLinks.forEach((outgoingLink) => {
+              links.push({
+                source: incomingLink.source,
+                target: outgoingLink.target,
+              });
+            });
+          });
+
+          // Update the simulation and rendering
+          selectedNode = connectedNode || nodes[0];
+          updateNodeSelection();
+          simulation.nodes(nodes);
+          simulation.force("link").links(links);
+          simulation.alpha(1).restart();
+        } else {
+          console.warn("Cannot delete the last remaining node.");
+        }
+      }
+      function generateFileNameFromNodes(nodes) {
+        // Combine all text from nodes
+        const allText = nodes.map((node) => node.text).join(" ");
+
+        // Remove special characters and split into words
+        const words = allText
+          .toLowerCase()
+          .replace(/[^\w\s]/g, "")
+          .split(/\s+/);
+
+        // Count word frequencies
+        const wordFreq = words.reduce((acc, word) => {
+          acc[word] = (acc[word] || 0) + 1;
+          return acc;
+        }, {});
+
+        // Sort words by frequency, then by length
+        const sortedWords = Object.keys(wordFreq).sort((a, b) => {
+          if (wordFreq[b] !== wordFreq[a]) {
+            return wordFreq[b] - wordFreq[a];
+          }
+          return b.length - a.length;
+        });
+
+        // Select the top two words
+        const topTwoWords = sortedWords.slice(0, 2);
+
+        // Join the words and add a timestamp
+        const timestamp = new Date()
+          .toISOString()
+          .replace(/[-:]/g, "")
+          .slice(0, 14);
+        const fileName = `${topTwoWords.join("_")}.json`;
+
+        return fileName;
+      }
+
+      document
+        .getElementById("export-btn")
+        .addEventListener("click", function () {
+          const data = {
+            nodes: nodes,
+            links: links,
+          };
+          const jsonData = JSON.stringify(data, null, 2);
+          const blob = new Blob([jsonData], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.style.display = "none";
+          a.href = url;
+
+          // Generate a file name based on the nodes' text
+          const fileName = generateFileNameFromNodes(nodes);
+          a.download = fileName;
+
+          document.body.appendChild(a);
+          a.click();
+          URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+        });
+
+      document
+        .getElementById("import-btn")
+        .addEventListener("click", function () {
+          document.getElementById("import-file").click();
+        });
+
+      document
+        .getElementById("import-file")
+        .addEventListener("change", function (event) {
+          const file = event.target.files[0];
+          if (!file) return;
+
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            try {
+              const importedData = JSON.parse(e.target.result);
+              if (importedData && importedData.nodes && importedData.links) {
+                // Update nodes and links
+                nodes = importedData.nodes.map((node) => ({ ...node }));
+                links = importedData.links.map((link) => ({
+                  source: nodes.find(
+                    (node) =>
+                      node.id === link.source.id || node.id === link.source
+                  ),
+                  target: nodes.find(
+                    (node) =>
+                      node.id === link.target.id || node.id === link.target
+                  ),
+                }));
+
+                // Reset simulation
+                simulation.stop();
+                simulation.nodes(nodes);
+                simulation.force("link").links(links);
+
+                // Update charge strengths and link distances
+                updateChargeStrengths();
+
+                // Restart simulation with high alpha
+                simulation.alpha(1).restart();
+
+                // Force re-render
+                ticked();
+
+                // Update selected node
+                selectedNode = nodes[0];
+                updateNodeSelection();
+              } else {
+                console.error("Invalid JSON format for mind map data.");
+              }
+            } catch (error) {
+              console.error("Error parsing JSON file:", error);
+            }
+          };
+
+          reader.readAsText(file);
+        });
+      function attractAllToCenter(alpha) {
+        nodes.forEach((node) => {
+          const kx = 0.1 * alpha;
+          const ky = 0.1 * alpha;
+
+          node.vx += (width / 2 - node.x) * kx;
+          node.vy += (height / 2 - node.y) * ky;
+        });
+      }
+      // Zoom Functionality
+      let zoom = d3
+        .zoom()
+        .scaleExtent([0.2, 3]) // Set min/max zoom levels
+        .on("zoom", zoomed);
+
+      svg.call(zoom); // Enable zoom behavior on the SVG
+
+      function zoomed(event) {
+        nodesLayer.attr("transform", event.transform);
+        edgesLayer.attr("transform", event.transform);
+      }
+    </script>
+  </body>
+</html>
