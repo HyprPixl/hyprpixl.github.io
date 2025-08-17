@@ -5,7 +5,9 @@ BASE_URL = "https://hyprpixl.github.io"
 
 def gather_html_files(root="."):
     files = []
+    exclude = {"partials", "scripts", "assets"}
     for dirpath, dirs, filenames in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in exclude]
         for name in filenames:
             if name.endswith(".html"):
                 rel_path = os.path.relpath(os.path.join(dirpath, name), root)
