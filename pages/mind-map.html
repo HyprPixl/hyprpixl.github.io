@@ -589,8 +589,8 @@
         node.color = colors[(colors.indexOf(node.color) + 1) % colors.length];
         console.log(`Node color changed to: ${node.color}`);
       }
-      let typingTimer;
-      const typingDelay = 100; // Delay in ms before resuming simulation after typing
+      let inertialTimer;
+      const inertialDelay = 300; // Duration of inertial damper in ms
 
       document.addEventListener("keydown", (event) => {
         console.log(`Key pressed: ${event.key}`);
@@ -615,16 +615,17 @@
           } else if (event.key === "v" || event.key === "V") {
             // Paste text from clipboard
             if (selectedNode) {
-              navigator.clipboard
-                .readText()
-                .then((text) => {
-                  selectedNode.text += text;
-                  ticked();
-                  updateChargeStrengths();
-                })
-                .catch((err) =>
-                  console.error("Failed to read clipboard contents: ", err)
-                );
+                navigator.clipboard
+                  .readText()
+                  .then((text) => {
+                    selectedNode.text += text;
+                    ticked();
+                    updateChargeStrengths();
+                    applyInertialDamper();
+                  })
+                  .catch((err) =>
+                    console.error("Failed to read clipboard contents: ", err)
+                  );
             }
           } else {
             const closestNode = findClosestNode(event.key);
@@ -659,8 +660,8 @@
           // Update the view to focus on the new node
           updateNodeSelection();
 
-          // Restart the simulation with a low alpha to allow for smooth transitions
-          simulation.alpha(0.3).restart();
+            // Apply inertial damper after adding a node
+            applyInertialDamper();
 
           event.preventDefault(); // Prevent default arrow key behavior
         } else if (event.key === "`" || event.key === "Backquote") {
@@ -672,49 +673,43 @@
             event.preventDefault();
           }
         } else {
-          if (selectedNode) {
-            if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
-              selectedNode.text += event.key;
-              //handleTyping();
-            } else if (event.key === "Backspace") {
-              if (selectedNode.text.length === 0) {
-                deleteNode(selectedNode);
-              } else {
-                selectedNode.text = selectedNode.text.slice(0, -1);
-                //handleTyping();
+            if (selectedNode) {
+              if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
+                selectedNode.text += event.key;
+              } else if (event.key === "Backspace") {
+                if (selectedNode.text.length === 0) {
+                  deleteNode(selectedNode);
+                } else {
+                  selectedNode.text = selectedNode.text.slice(0, -1);
+                }
+              } else if (event.key === "Enter") {
+                selectedNode.text += "\n";
               }
-            } else if (event.key === "Enter") {
-              selectedNode.text += "\n";
-              //handleTyping();
+              ticked();
+              updateChargeStrengths();
+              applyInertialDamper();
             }
-            ticked();
-            updateChargeStrengths();
-          }
         }
       });
-      function handleTyping() {
-        // Pause the simulation
+      function applyInertialDamper() {
+        // Pause the simulation and fix all node positions
         simulation.stop();
-
-        // Fix the position of the selected node
-        selectedNode.fx = selectedNode.x;
-        selectedNode.fy = selectedNode.y;
+        nodes.forEach((n) => {
+          n.fx = n.x;
+          n.fy = n.y;
+        });
 
         // Clear any existing timer
-        clearTimeout(typingTimer);
+        clearTimeout(inertialTimer);
 
-        // Set a new timer to resume the simulation after typing stops
-        typingTimer = setTimeout(() => {
-          // Gradually release the fixed position
-          selectedNode.fx = null;
-          selectedNode.fy = null;
-
-          // Restart the simulation with a low alpha
-          simulation.alpha(0.1).restart();
-
-          // Ensure the selected node stays in view
-          updateNodeSelection();
-        }, typingDelay);
+        // Resume the simulation after the damper duration
+        inertialTimer = setTimeout(() => {
+          nodes.forEach((n) => {
+            n.fx = null;
+            n.fy = null;
+          });
+          simulation.alpha(0.3).restart();
+        }, inertialDelay);
       }
 
       function deleteNode(node) {
