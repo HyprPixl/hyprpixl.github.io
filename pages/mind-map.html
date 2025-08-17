@@ -590,9 +590,7 @@
         console.log(`Node color changed to: ${node.color}`);
       }
       let inertialTimer;
-      let resumeTimer;
       const inertialDelay = 300; // Duration of inertial damper in ms
-      const resumeDuration = 300; // Time for simulation to ramp up after damper
 
       document.addEventListener("keydown", (event) => {
         console.log(`Key pressed: ${event.key}`);
@@ -703,7 +701,6 @@
 
         // Clear any existing timers
         clearTimeout(inertialTimer);
-        clearTimeout(resumeTimer);
 
         // Resume the simulation after the damper duration
         inertialTimer = setTimeout(() => {
@@ -711,11 +708,8 @@
             n.fx = null;
             n.fy = null;
           });
-          // Gradually ramp the simulation back up for a smooth resume
-          simulation.alpha(0).alphaTarget(0.3).restart();
-          resumeTimer = setTimeout(() => {
-            simulation.alphaTarget(0);
-          }, resumeDuration);
+          // Restart the simulation with a lower alpha to avoid squeezing
+          simulation.alphaTarget(0).alpha(0.05).restart();
         }, inertialDelay);
       }
 
@@ -879,8 +873,8 @@
         });
       function attractAllToCenter(alpha) {
         nodes.forEach((node) => {
-          const kx = 0.1 * alpha;
-          const ky = 0.1 * alpha;
+          const kx = 0.05 * alpha;
+          const ky = 0.05 * alpha;
 
           node.vx += (width / 2 - node.x) * kx;
           node.vy += (height / 2 - node.y) * ky;
