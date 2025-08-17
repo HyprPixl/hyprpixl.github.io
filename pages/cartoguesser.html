@@ -319,6 +319,8 @@ async function fetchText(url){
    We prefer one that carries ISO3 in feature.id or properties. */
 async function loadGeoCountries(){
   const sources = [
+    // 0) Local copy bundled with the site
+    "../assets/data/countries.geojson",
     // 1) Widely-used world countries GeoJSON (Natural Earth via GitHub)
     "https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json",
     // 2) Alternative jsDelivr mirror (may 404, left as fallback examples)
@@ -551,7 +553,7 @@ function nextTarget(){
     geo = await loadGeoCountries();
   }catch(e){
     console.error("Failed to load countries GeoJSON", e);
-    setMsg("Could not load country shapes. Check your internet connection and reload.");
+    setMsg("Could not load country shapes. Ensure the local countries.geojson exists or check your internet connection, then reload.");
     return;
   }
 
