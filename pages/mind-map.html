@@ -590,7 +590,9 @@
         console.log(`Node color changed to: ${node.color}`);
       }
       let inertialTimer;
+      let resumeTimer;
       const inertialDelay = 300; // Duration of inertial damper in ms
+      const resumeDuration = 300; // Time for simulation to ramp up after damper
 
       document.addEventListener("keydown", (event) => {
         console.log(`Key pressed: ${event.key}`);
@@ -699,8 +701,9 @@
           n.fy = n.y;
         });
 
-        // Clear any existing timer
+        // Clear any existing timers
         clearTimeout(inertialTimer);
+        clearTimeout(resumeTimer);
 
         // Resume the simulation after the damper duration
         inertialTimer = setTimeout(() => {
@@ -708,7 +711,11 @@
             n.fx = null;
             n.fy = null;
           });
-          simulation.alpha(0.3).restart();
+          // Gradually ramp the simulation back up for a smooth resume
+          simulation.alpha(0).alphaTarget(0.3).restart();
+          resumeTimer = setTimeout(() => {
+            simulation.alphaTarget(0);
+          }, resumeDuration);
         }, inertialDelay);
       }
 
