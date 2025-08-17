@@ -166,6 +166,7 @@
     <div class="row statline">
       <div class="chip">Remaining: <span id="remaining">—</span></div>
       <div class="chip">Cleared: <span id="cleared">0</span></div>
+      <div class="chip">Time: <span id="elapsedTime">0.0s</span></div>
       <div class="sep"></div>
       <div class="legend">
         <span class="item"><span class="dot" style="background:var(--good)"></span>1st</span>
@@ -240,6 +241,8 @@ let attempts = 0;
 let currentId = null;
 let cca3_to_cca2 = new Map();   // for emoji
 let nameFix = new Map();        // name normalizations for lookups
+let startTime = 0;              // ms timestamp when round starts
+let elapsedTime = 0;            // ms elapsed during current round
 
 /* Some common name fixes for joining if needed */
 [
@@ -299,6 +302,10 @@ function shuffle(a){
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+function formatTime(ms){
+  return (ms/1000).toFixed(1) + 's';
 }
 
 /* =========================
@@ -502,19 +509,27 @@ function setupForRegion(keys){
   activeIdSet = new Set(ids.map(i=>i.toUpperCase()));
   remainingIds = shuffle([...playableIds]);
   clearedCount = 0;
+  startTime = performance.now();
+  elapsedTime = 0;
   el('cleared').textContent = "0";
+  el('elapsedTime').textContent = formatTime(0);
   el('remaining').textContent = String(remainingIds.length);
   fitToIds(remainingIds);
 }
 
 function nextTarget(){
+  if(startTime){
+    elapsedTime = performance.now() - startTime;
+    el('elapsedTime').textContent = formatTime(elapsedTime);
+  }
   attempts = 0;
   el('attemptsLabel').textContent = `Attempts: 0 / 3`;
   if(remainingIds.length === 0){
     currentId = null;
     el('countryName').textContent = "🎉 Region complete!";
     el('flag').textContent = "🏁";
-    setMsg("All done! Pick another region to keep going.");
+    const finalTime = formatTime(elapsedTime);
+    setMsg(`All done in ${finalTime}! Cleared ${clearedCount}/${playableIds.length}. Pick another region to keep going.`);
     return;
   }
   currentId = remainingIds.pop();
