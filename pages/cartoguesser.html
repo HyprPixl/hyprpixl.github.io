@@ -433,6 +433,29 @@ function getRegionIds(path){
   return Array.isArray(node) ? node : [];
 }
 
+function previewRegion(key){
+  // reset previous preview styles
+  countriesLayer.eachLayer(layer=>{
+    layer.setStyle(baseStyle());
+    delete layer.__lockedColor;
+  });
+
+  const ids = getRegionIds(key).map(i=>i.toUpperCase());
+  if(key === 'world' || ids.length === 0){
+    countriesLayer.eachLayer(layer=>{
+      layer.setStyle({ fillColor: getCSS('var(--accent)'), fillOpacity: 0.5 });
+    });
+    return;
+  }
+
+  const wanted = new Set(ids);
+  countriesLayer.eachLayer(layer=>{
+    if(wanted.has(layer.__id.toUpperCase())){
+      layer.setStyle({ fillColor: getCSS('var(--accent)'), fillOpacity: 0.5 });
+    }
+  });
+}
+
 /* =========================
    Game flow
 ========================= */
@@ -531,13 +554,16 @@ function nextTarget(){
         mouseout: resetHover
       });
     }
-  }).addTo(map);
+    }).addTo(map);
 
-  // Controls
-  el('startBtn').addEventListener('click', ()=>{
-    setupForRegion(el('region').value);
-    nextTarget();
-  });
+    // Controls
+    el('region').addEventListener('change', ()=>{
+      previewRegion(el('region').value);
+    });
+    el('startBtn').addEventListener('click', ()=>{
+      setupForRegion(el('region').value);
+      nextTarget();
+    });
   el('skipBtn').addEventListener('click', ()=>{
     if(!currentId) return;
     // Mark as missed (red) and continue
@@ -550,10 +576,11 @@ function nextTarget(){
     setTimeout(nextTarget, 600);
   });
 
-  // Initial fit
-  fitToIds([...layerById.keys()]);
-  setMsg("Pick a region and hit Start.");
-})();
+    // Initial fit
+    fitToIds([...layerById.keys()]);
+    previewRegion(el('region').value);
+    setMsg("Pick a region and hit Start.");
+  })();
 </script>
 </body>
 </html>
