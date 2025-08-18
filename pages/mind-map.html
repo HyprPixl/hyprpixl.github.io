@@ -48,7 +48,8 @@
         stroke-width: 2;
       }
       #export-btn,
-      #import-btn {
+      #import-btn,
+      #clear-btn {
         width: 80%;
         margin-top: 10px;
         padding: 8px;
@@ -61,7 +62,8 @@
         align-items: center;
       }
       #export-btn:hover,
-      #import-btn:hover {
+      #import-btn:hover,
+      #clear-btn:hover {
         background-color: #888;
       }
       #import-file {
@@ -117,7 +119,8 @@
        <button id="export-btn">&#8681;</button>
        <button id="import-btn">&#8679;</button>
        <input type="file" id="import-file" title="Import mind map file" />
-       <div class="instructions-btn" onclick="toggleInstructions()">?</div> 
+       <button id="clear-btn">&#10006;</button>
+       <div class="instructions-btn" onclick="toggleInstructions()">?</div>
     </div>
     <div id="instructions-popup">
         <h4>Mind Map Instructions</h4>
@@ -171,6 +174,9 @@
         { id: 0, x: width / 2, y: height / 2, text: "", color: "#1f77b4" },
       ];
       let links = [];
+
+      loadFromLocalStorage();
+
       let selectedNode = nodes[0];
 
       const simulation = d3
@@ -391,6 +397,42 @@
 
         // Log the number of links for debugging
         console.log("Number of links:", links.length);
+        scheduleSave();
+      }
+
+      function saveToLocalStorage() {
+        const data = { nodes: nodes, links: links };
+        localStorage.setItem("mindmap-data", JSON.stringify(data));
+      }
+
+      let saveTimeout;
+      function scheduleSave() {
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(saveToLocalStorage, 500);
+      }
+
+      function loadFromLocalStorage() {
+        const saved = localStorage.getItem("mindmap-data");
+        if (saved) {
+          try {
+            const data = JSON.parse(saved);
+            if (data.nodes && data.links) {
+              nodes = data.nodes;
+              links = data.links.map((link) => ({
+                source:
+                  nodes.find(
+                    (n) => n.id === (link.source.id ?? link.source)
+                  ) || link.source,
+                target:
+                  nodes.find(
+                    (n) => n.id === (link.target.id ?? link.target)
+                  ) || link.target,
+              }));
+            }
+          } catch (e) {
+            console.error("Failed to load mind map from local storage", e);
+          }
+        }
       }
 
       function applyCollisions() {
@@ -870,6 +912,29 @@
           };
 
           reader.readAsText(file);
+        });
+      document
+        .getElementById("clear-btn")
+        .addEventListener("click", function () {
+          if (confirm("Clear the mind map?")) {
+            nodes = [
+              {
+                id: 0,
+                x: width / 2,
+                y: height / 2,
+                text: "",
+                color: "#1f77b4",
+              },
+            ];
+            links = [];
+            selectedNode = nodes[0];
+            simulation.nodes(nodes);
+            simulation.force("link").links(links);
+            simulation.alpha(1).restart();
+            ticked();
+            updateNodeSelection();
+            saveToLocalStorage();
+          }
         });
       function attractAllToCenter(alpha) {
         nodes.forEach((node) => {
