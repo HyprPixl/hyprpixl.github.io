@@ -129,6 +129,7 @@
           <li><b>Ctrl/Cmd + Arrow Keys:</b> Navigate the map quickly. </li>
           <li><b>` :</b> ~top left keyboard button~ Change the color of a node.</li>
           <li><b>Ctrl/Cmd + Click and Drag:</b> Create new connections between nodes.</li>
+          <li><b>&lt; / &gt;:</b> Set arrow direction toward (&lt;) or away (&gt;) from the selected node on the most recent connection.</li>
           <li><b>Click and Drag:</b> to move nodes.</li>
           <li><b>Type:</b> to add or edit text in a node.</li>
           <li><b>Enter:</b> Create a line break within a node.</li>
@@ -167,6 +168,30 @@
         .attr("width", width)
         .attr("height", height);
 
+      const defs = svg.append("defs");
+      defs.append("marker")
+        .attr("id", "arrow-end")
+        .attr("viewBox", "0 -5 10 10")
+        .attr("refX", 10)
+        .attr("refY", 0)
+        .attr("markerWidth", 6)
+        .attr("markerHeight", 6)
+        .attr("orient", "auto")
+        .append("path")
+        .attr("d", "M0,-5L10,0L0,5")
+        .attr("fill", "#999");
+      defs.append("marker")
+        .attr("id", "arrow-start")
+        .attr("viewBox", "0 -5 10 10")
+        .attr("refX", 0)
+        .attr("refY", 0)
+        .attr("markerWidth", 6)
+        .attr("markerHeight", 6)
+        .attr("orient", "auto")
+        .append("path")
+        .attr("d", "M10,-5L0,0L10,5")
+        .attr("fill", "#999");
+
       const edgesLayer = svg.append("g"); // Layer for edges
       const nodesLayer = svg.append("g"); // Layer for nodes
 
@@ -174,8 +199,12 @@
         { id: 0, x: width / 2, y: height / 2, text: "", color: "#1f77b4" },
       ];
       let links = [];
+      let lastAddedLink = null;
 
       loadFromLocalStorage();
+      if (links.length > 0) {
+        lastAddedLink = links[links.length - 1];
+      }
 
       let selectedNode = nodes[0];
 
@@ -284,7 +313,13 @@
                 const targetNode = findNearestNodeToCoordinates(x, y);
 
                 if (targetNode && targetNode !== tempLink.source) {
-                    links.push({ source: tempLink.source, target: targetNode });
+                    const newLink = {
+                      source: tempLink.source,
+                      target: targetNode,
+                      direction: null,
+                    };
+                    links.push(newLink);
+                    lastAddedLink = newLink;
                     simulation.force("link").links(links);
                     updateChargeStrengths(); // Recalculate forces after adding a link
                     simulation.alpha(1).restart(); // Give a higher alpha to settle faster
@@ -302,7 +337,13 @@
           .attr("x1", (d) => d.source.x)
           .attr("y1", (d) => d.source.y)
           .attr("x2", (d) => d.target.x)
-          .attr("y2", (d) => d.target.y);
+          .attr("y2", (d) => d.target.y)
+          .attr("marker-end", (d) =>
+            d.direction === "forward" ? "url(#arrow-end)" : null
+          )
+          .attr("marker-start", (d) =>
+            d.direction === "backward" ? "url(#arrow-start)" : null
+          );
 
         // Update nodes
         const node = nodesLayer
@@ -375,7 +416,13 @@
           .attr("x1", (d) => d.source.x)
           .attr("y1", (d) => d.source.y)
           .attr("x2", (d) => d.target.x)
-          .attr("y2", (d) => d.target.y);
+          .attr("y2", (d) => d.target.y)
+          .attr("marker-end", (d) =>
+            d.direction === "forward" ? "url(#arrow-end)" : null
+          )
+          .attr("marker-start", (d) =>
+            d.direction === "backward" ? "url(#arrow-start)" : null
+          );
 
         // Apply collision detection
         applyCollisions();
@@ -427,6 +474,7 @@
                   nodes.find(
                     (n) => n.id === (link.target.id ?? link.target)
                   ) || link.target,
+                direction: link.direction || null,
               }));
             }
           } catch (e) {
@@ -684,7 +732,9 @@
         ) {
           const newNode = createNewNode(event.key);
           nodes.push(newNode);
-          links.push({ source: selectedNode, target: newNode });
+          const newLink = { source: selectedNode, target: newNode, direction: null };
+          links.push(newLink);
+          lastAddedLink = newLink;
 
           // Update simulation with new node and link
           simulation.nodes(nodes);
@@ -712,6 +762,23 @@
             cycleColor(selectedNode);
             updateNodeSelection();
             ticked(); // Call ticked() to update the visualization
+            event.preventDefault();
+          }
+        } else if (event.key === ">" || event.key === "<") {
+          if (
+            lastAddedLink &&
+            selectedNode &&
+            (lastAddedLink.source === selectedNode ||
+              lastAddedLink.target === selectedNode)
+          ) {
+            if (event.key === ">") {
+              lastAddedLink.direction =
+                lastAddedLink.source === selectedNode ? "forward" : "backward";
+            } else {
+              lastAddedLink.direction =
+                lastAddedLink.source === selectedNode ? "backward" : "forward";
+            }
+            ticked();
             event.preventDefault();
           }
         } else {
