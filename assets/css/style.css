@@ -371,3 +371,13 @@ body.lava-on #terminal-overlay {
     display: none;
   }
 }
+
+/* Guestbook comment box styling */
+#giscus {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 0.5rem;
+  background: #FFFFFF;
+  border: 6px ridge #C0C0C0;
+}
