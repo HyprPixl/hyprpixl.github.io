@@ -49,7 +49,9 @@
       }
       #export-btn,
       #import-btn,
-      #clear-btn {
+      #clear-btn,
+      #add-node-btn,
+      #toggle-dir-btn {
         width: 80%;
         margin-top: 10px;
         padding: 8px;
@@ -63,7 +65,9 @@
       }
       #export-btn:hover,
       #import-btn:hover,
-      #clear-btn:hover {
+      #clear-btn:hover,
+      #add-node-btn:hover,
+      #toggle-dir-btn:hover {
         background-color: #888;
       }
       #import-file {
@@ -119,6 +123,8 @@
        <button id="export-btn">&#8681;</button>
        <button id="import-btn">&#8679;</button>
        <input type="file" id="import-file" title="Import mind map file" />
+       <button id="add-node-btn">&#10010;</button>
+       <button id="toggle-dir-btn">&#8644;</button>
        <button id="clear-btn">&#10006;</button>
        <div class="instructions-btn" onclick="toggleInstructions()">?</div>
     </div>
@@ -129,14 +135,16 @@
           <li><b>Ctrl/Cmd + Arrow Keys:</b> Navigate the map quickly. </li>
           <li><b>` :</b> ~top left keyboard button~ Change the color of a node.</li>
           <li><b>Ctrl/Cmd + Click and Drag:</b> Create new connections between nodes.</li>
+          <li><b>+</b> button: Add a new node to the right of the selected node.</li>
           <li><b>&lt; / &gt;:</b> Set arrow direction toward (&lt;) or away (&gt;) from the selected node on the most recent connection.</li>
+          <li><b>⇄</b> button: Toggle the direction of the most recent connection.</li>
           <li><b>Click and Drag:</b> to move nodes.</li>
           <li><b>Type:</b> to add or edit text in a node.</li>
           <li><b>Enter:</b> Create a line break within a node.</li>
           <li><b>Backspace:</b> Delete a node (if empty) or text.</li>
           <li><b>Ctrl/Cmd + C/V:</b> Copy/Paste node text.</li>
           <li><b>Press ?:</b> Toggle this instructions panel.</li>
-          <li><b>Above are Upload and download buttons</b> </li>
+          <li><b>Above are Upload, download, add, direction, and clear buttons</b> </li>
         </ul>
     </div>
     <div id="shortcut-hint">Press ? for shortcuts</div>
@@ -979,6 +987,46 @@
           };
 
           reader.readAsText(file);
+        });
+
+      document
+        .getElementById("add-node-btn")
+        .addEventListener("click", function () {
+          const newNode = createNewNode("ArrowRight");
+          nodes.push(newNode);
+          const newLink = { source: selectedNode, target: newNode, direction: null };
+          links.push(newLink);
+          lastAddedLink = newLink;
+
+          simulation.nodes(nodes);
+          simulation.force("link").links(links);
+          for (let i = 0; i < 20; ++i) simulation.tick();
+
+          selectedNode = newNode;
+          ticked();
+          updateNodeSelection();
+          applyInertialDamper();
+        });
+
+      document
+        .getElementById("toggle-dir-btn")
+        .addEventListener("click", function () {
+          if (
+            lastAddedLink &&
+            selectedNode &&
+            (lastAddedLink.source === selectedNode ||
+              lastAddedLink.target === selectedNode)
+          ) {
+            if (!lastAddedLink.direction) {
+              lastAddedLink.direction =
+                lastAddedLink.source === selectedNode ? "forward" : "backward";
+            } else if (lastAddedLink.direction === "forward") {
+              lastAddedLink.direction = "backward";
+            } else if (lastAddedLink.direction === "backward") {
+              lastAddedLink.direction = null;
+            }
+            ticked();
+          }
         });
       document
         .getElementById("clear-btn")
