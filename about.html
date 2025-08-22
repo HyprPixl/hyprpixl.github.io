@@ -56,9 +56,44 @@
       .logo-line { display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
       .logo-line span { padding:8px 10px; border:1px solid rgba(0,0,0,.06); border-radius:4px; background:#f0f0f0; color:#000; font-weight:600; font-size:.85rem; }
       .disclaimer { font-size: .85rem; color: var(--muted); }
-      .img { width:100%; height:auto; border-radius: 4px; border:1px solid rgba(0,0,0,.08); background:#f0f0f0; }
+    .img { width:100%; height:auto; border-radius: 4px; border:1px solid rgba(0,0,0,.08); background:#f0f0f0; }
+    #wins-lava { display:none; width:100%; height:200px; margin-top:12px; }
+    @media (min-width: 900px){ #wins-lava { display:block; } }
     .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
   </style>
+
+  <!-- Lava-lamp shaders -->
+  <script id="vertexShader"   type="x-shader/x-vertex">
+    uniform float time;
+    varying vec3 vNormal;
+    void main() {
+      vNormal = normal;
+      vec3 displaced = position + normal * sin(time + position.y * 5.0) * 0.2;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
+    }
+  </script>
+  <script id="fragmentShader" type="x-shader/x-fragment">
+    varying vec3 vNormal;
+    void main() {
+      float intensity = pow(0.6 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
+      vec3 baseColor = vec3(1.0, 0.3, 0.0);
+      gl_FragColor = vec4(baseColor + intensity * 0.5, 1.0);
+    }
+  </script>
+  <script id="glowVertex"     type="x-shader/x-vertex">
+    varying float vIntensity;
+    void main() {
+      vIntensity = pow(0.5 - dot(normal, vec3(0, 0, 1.0)), 4.0);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  </script>
+  <script id="glowFragment"   type="x-shader/x-fragment">
+    uniform vec3 glowColor;
+    varying float vIntensity;
+    void main() {
+      gl_FragColor = vec4(glowColor * vIntensity, vIntensity);
+    }
+  </script>
 
   <!-- Structured data for SEO -->
   <script type="application/ld+json">
@@ -149,6 +184,7 @@
           <li><strong>AI video understanding</strong> prototype that suggests work automations from screen recordings.</li>
           <li><strong>Data Lake Explorer</strong> for directors to see/ingest tables; simplified governance & onboarding.</li>
         </ul>
+        <div id="wins-lava"></div>
       </aside>
     </section>
 
@@ -246,5 +282,6 @@
   </script>
   <!-- keep your existing script if needed -->
   <script src="assets/js/terminal.js"></script>
+  <script type="module" src="assets/js/otherWinsLava.js"></script>
 </body>
 </html>
