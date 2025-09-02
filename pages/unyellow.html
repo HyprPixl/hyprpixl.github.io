@@ -17,15 +17,15 @@
       margin:0.5rem auto 0;
     }
     #uploadBtn:active{ border-style:inset; }
-    #imageWrapper{ position:relative; display:block; margin:1rem auto; border:4px dashed #C0C0C0; min-width:180px; min-height:200px; max-width:90vw; }
+    #imageWrapper{ position:relative; display:block; margin:1rem auto; border:4px dashed #C0C0C0; min-width:180px; min-height:200px; max-width:90vw; box-sizing:border-box; width:100%; }
     #imageWrapper.dragover{ background:#FFFFE0; }
     #imageWrapper img,#imageWrapper canvas{ width:100%; height:100%; display:block; }
     #imageWrapper img,#imageWrapper canvas{ transition:opacity .8s ease; }
     #imageWrapper canvas,#imageWrapper img{ position:absolute; top:0; left:0; }
     #downloadLink{ display:none; margin-top:1rem; }
-    #sliders{ margin:1rem auto; }
+    #sliders{ margin:1rem auto; max-width:90vw; width:100%; box-sizing:border-box; }
     #sliders label{ display:block; margin-top:.5rem; }
-    #sliders input[type="range"]{ width:100%; }
+    #sliders input[type="range"]{ width:100%; touch-action:none; }
   </style>
 </head>
 <body>
@@ -96,6 +96,28 @@ redSlider.addEventListener('input', handleSlider);
 greenSlider.addEventListener('input', handleSlider);
 blueSlider.addEventListener('input', handleSlider);
 
+function enableScrub(slider){
+  slider.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    slider.setPointerCapture(e.pointerId);
+    const onMove = ev => {
+      const rect = slider.getBoundingClientRect();
+      const ratio = (ev.clientX - rect.left) / rect.width;
+      const value = parseFloat(slider.min) + ratio * (slider.max - slider.min);
+      slider.value = Math.min(slider.max, Math.max(slider.min, value)).toFixed(2);
+      handleSlider();
+    };
+    const onUp = () => {
+      slider.releasePointerCapture(e.pointerId);
+      slider.removeEventListener('pointermove', onMove);
+    };
+    slider.addEventListener('pointermove', onMove);
+    slider.addEventListener('pointerup', onUp, { once: true });
+    onMove(e);
+  });
+}
+[redSlider, greenSlider, blueSlider].forEach(enableScrub);
+
 function loadImage(file){
   if(!file) return;
   const url = URL.createObjectURL(file);
@@ -112,7 +134,7 @@ function loadImage(file){
     const displayHeight = h * scale;
     wrapper.style.width = displayWidth + 'px';
     wrapper.style.height = displayHeight + 'px';
-    sliders.style.width = displayWidth + 'px';
+    sliders.style.maxWidth = displayWidth + 'px';
     canvas.style.width = original.style.width = '100%';
     canvas.style.height = original.style.height = '100%';
     ctx = canvas.getContext('2d');
