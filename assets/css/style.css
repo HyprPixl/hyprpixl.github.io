@@ -119,10 +119,26 @@ a          { color: #0000EE; }
   padding: 0 16px;
 }
 
-/* main column (blog posts) */
+/* main column (projects) */
 .main-column {
   flex: 0 0 850px;
   margin-top: 16px;
+}
+
+/* project sections */
+.project-section {
+  margin-bottom: 24px;
+}
+
+.project-section h2 {
+  margin-top: 0;
+}
+
+.project-summary {
+  margin: 4px 0 8px 20px;
+  font-size: 0.9em;
+  color: #333;
+  line-height: 1.4;
 }
 
 /* reading list box */
@@ -136,7 +152,18 @@ a          { color: #0000EE; }
   font-family: "Courier New", monospace;
 }
 
-/* projects list box */
+/* blog sidebar box */
+.blog-sidebar {
+  flex: 0 0 320px;
+  padding: 8px;
+  margin-top: 16px;
+  background: #000080;
+  color: #FFFF00;
+  border: 4px ridge #C0C0C0;
+  font-family: "Courier New", monospace;
+}
+
+/* legacy projects sidebar (no longer used) */
 .projects-sidebar {
   flex: 0 0 320px;
   padding: 8px;
@@ -151,6 +178,7 @@ a          { color: #0000EE; }
   /* shrink columns so layout fits on mid-size screens */
   .main-column       { flex: 0 0 540px; }
   .reading-sidebar,
+  .blog-sidebar,
   .projects-sidebar  { flex: 0 0 200px; }
 }
 
@@ -165,13 +193,18 @@ a          { color: #0000EE; }
     flex: 0 0 auto;
   }
 
-  .projects-sidebar {
+  .blog-sidebar {
     order: 2;
     flex: 0 0 auto;
   }
 
   .reading-sidebar {
     order: 3;
+    flex: 0 0 auto;
+  }
+
+  .projects-sidebar {
+    order: 2;
     flex: 0 0 auto;
   }
 }
@@ -240,10 +273,22 @@ a:hover    { color: #FF0000; text-decoration: underline; }
 }
 
 .reading-sidebar ul,
+.blog-sidebar ul,
 .projects-sidebar ul {
   list-style-position: inside;
   padding-left: 0;
   margin: 0;
+}
+
+/* match blog links to reading list style */
+.blog-sidebar a {
+  color: #FFFF00; /* bright yellow */
+  text-decoration: none;
+}
+
+.blog-sidebar a:hover {
+  color: #FFCC00;
+  text-decoration: underline;
 }
 
 /* match project links to reading list style */
@@ -360,6 +405,7 @@ a:hover    { color: #FF0000; text-decoration: underline; }
 body.lava-on header,
 body.lava-on .main-column,
 body.lava-on .reading-sidebar,
+body.lava-on .blog-sidebar,
 body.lava-on .projects-sidebar {
   opacity: 0.8;
 }
