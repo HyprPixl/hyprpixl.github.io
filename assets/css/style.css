@@ -119,15 +119,32 @@ a          { color: #0000EE; }
   padding: 0 16px;
 }
 
-/* main column (blog posts) */
+/* main column (projects) */
 .main-column {
   flex: 0 0 850px;
   margin-top: 16px;
 }
 
+/* project sections */
+.project-section {
+  margin-bottom: 24px;
+}
+
+.project-section h2 {
+  margin-top: 0;
+}
+
+.project-summary {
+  margin: 4px 0 8px 20px;
+  font-size: 0.9em;
+  color: #333;
+  line-height: 1.4;
+}
+
 /* reading list box */
 .reading-sidebar {
-  flex: 0 0 320px;
+  flex: 0 1 400px;
+  min-width: 280px;
   padding: 8px;
   margin-top: 16px;
   background: #000080;
@@ -136,22 +153,31 @@ a          { color: #0000EE; }
   font-family: "Courier New", monospace;
 }
 
-/* projects list box */
-.projects-sidebar {
-  flex: 0 0 320px;
+/* blog sidebar box */
+.blog-sidebar {
+  flex: 0 1 400px;
+  min-width: 280px;
   padding: 8px;
   margin-top: 16px;
   background: #000080;
   color: #FFFF00;
   border: 4px ridge #C0C0C0;
   font-family: "Courier New", monospace;
+}
+
+@media (max-width: 1600px) {
+  /* shrink columns so layout fits on mid-size screens */
+  .main-column       { flex: 0 0 600px; }
+  .reading-sidebar,
+  .blog-sidebar  { flex: 0 1 350px; }
 }
 
 @media (max-width: 1400px) {
-  /* shrink columns so layout fits on mid-size screens */
+  /* further shrink for smaller screens */
   .main-column       { flex: 0 0 540px; }
   .reading-sidebar,
-  .projects-sidebar  { flex: 0 0 200px; }
+  .blog-sidebar  { flex: 0 1 280px; }
+}
 }
 
 @media (max-width: 968px) {
@@ -165,7 +191,7 @@ a          { color: #0000EE; }
     flex: 0 0 auto;
   }
 
-  .projects-sidebar {
+  .blog-sidebar {
     order: 2;
     flex: 0 0 auto;
   }
@@ -240,19 +266,19 @@ a:hover    { color: #FF0000; text-decoration: underline; }
 }
 
 .reading-sidebar ul,
-.projects-sidebar ul {
+.blog-sidebar ul {
   list-style-position: inside;
   padding-left: 0;
   margin: 0;
 }
 
-/* match project links to reading list style */
-.projects-sidebar a {
+/* match blog links to reading list style */
+.blog-sidebar a {
   color: #FFFF00; /* bright yellow */
   text-decoration: none;
 }
 
-.projects-sidebar a:hover {
+.blog-sidebar a:hover {
   color: #FFCC00;
   text-decoration: underline;
 }
@@ -360,7 +386,7 @@ a:hover    { color: #FF0000; text-decoration: underline; }
 body.lava-on header,
 body.lava-on .main-column,
 body.lava-on .reading-sidebar,
-body.lava-on .projects-sidebar {
+body.lava-on .blog-sidebar {
   opacity: 0.8;
 }
 

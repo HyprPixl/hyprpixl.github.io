@@ -62,11 +62,11 @@
     <aside class="sidebar reading-sidebar">
       <h2>Reading List</h2>
       <ul>
-        <li><a href="https://www.youtube.com/watch?v=PK2SMIOHYig" target="_blank">“The answer is not a hut in the woods” – exurb1a</a></li>
-        <li><a href="https://slatestarcodex.com/2015/04/21/universal-love-said-the-cactus-person/" target="_blank">“Universal Love, Said the Cactus Person” – SSC</a></li>
+        <li><a href="https://www.youtube.com/watch?v=PK2SMIOHYig" target="_blank">"The answer is not a hut in the woods" – exurb1a</a></li>
+        <li><a href="https://slatestarcodex.com/2015/04/21/universal-love-said-the-cactus-person/" target="_blank">"Universal Love, Said the Cactus Person" – SSC</a></li>
         <li><a href="https://www.amazon.ca/Exhalation-Ted-Chiang/dp/1101972084" target="_blank"><em>Exhalation</em> – Ted Chiang</a></li>
-        <li><a href="https://guzey.com/lifehacks/" target="_blank">“Lifehacks” – Guzey</a></li>
-        <li><a href="https://www.lesswrong.com/posts/LHAJuYy453YwiKFt5/the-salt-in-pasta-water-fallacy" target="_blank">“The Salt in Pasta Water Fallacy” – LessWrong</a></li>
+        <li><a href="https://guzey.com/lifehacks/" target="_blank">"Lifehacks" – Guzey</a></li>
+        <li><a href="https://www.lesswrong.com/posts/LHAJuYy453YwiKFt5/the-salt-in-pasta-water-fallacy" target="_blank">"The Salt in Pasta Water Fallacy" – LessWrong</a></li>
         <li><a href="https://www.youtube.com/@KazeN64" target="_blank">Kaze N64</a> – watch all Mario 64 optimization videos</li>
       </ul>
 
@@ -81,19 +81,43 @@
       </details>
     </aside>
 
-    <!-- ── CENTRE : BLOG POSTS ── -->
-    <main class="main-column">
-      <h2>Blog Posts</h2>
-      <ul>
-        <li><time datetime="2025-06-20">20 Jun 2025</time> <a href="posts/software-isnt-dead-your-time-is-now.html">Software Isn’t Dead — Your Time Is Now</a></li>
-        <li><time datetime="2025-06-15">15 Jun 2025</time> <a href="posts/killing-expensive-enterprise-software.html">Expensive Enterprise Software Is Dying — I Saved $70K/Month by Killing It</a></li>
-        <li><time datetime="2025-05-05">5 May 2025</time> <a href="posts/pacesetter-launch.html">Launching the Plains Pacesetter Step Challenge</a></li>
-        <li><time datetime="2025-04-30">30 Apr 2025</time> <a href="posts/deploying-python-apps-databricks.html">Deploying Python Apps on Databricks: What No One Tells You</a></li>
-        <li><time datetime="2024-11-30">30 Nov 2024</time> <a href="posts/killing-it-in-cs-part-2.html">Killing It in Computer Science (Part 2)</a></li>
-        <li><time datetime="2024-11-25">25 Nov 2024</time> <a href="posts/ai-mistakes-internship-apps.html">The Worst Ways to Use AI in Internship / Job Apps</a></li>
-        <li><time datetime="2024-11-20">20 Nov 2024</time> <a href="posts/internships-hard-to-get.html">Internships Are Hard to Get – First Tips</a></li>
-        <li><time datetime="2024-11-15">15 Nov 2024</time> <a href="posts/three-best-strategies-cs-degree.html">Three Strategies for Killing a CS Degree</a></li>
-      </ul>
+    <!-- ── CENTRE : PROJECTS ── -->
+    <main class="main-column projects-column">
+      <section class="project-section">
+        <h2>Interactive Projects</h2>
+        <ul>
+          <li>
+            <a href="pages/video-presenter.html">Video Presenter</a>
+            <p class="project-summary">Mark pause points in videos and present them like a slideshow—PowerPoint, but with video slides.</p>
+          </li>
+          <li>
+            <a href="pages/cartoguesser.html">CartoGuesser</a>
+            <p class="project-summary">A cyberpunk-themed map guessing game built with Leaflet for interactive geography challenges.</p>
+          </li>
+          <li>
+            <a href="pages/unyellow.html">Unyellow</a>
+            <p class="project-summary">Upload photos with yellow tint and automatically correct the colors with adjustable RGB sliders.</p>
+          </li>
+          <li>
+            <a href="pages/mind-map.html">Mind Map</a>
+            <p class="project-summary">Interactive mind mapping tool with drag-and-drop nodes, connections, and export/import functionality.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section class="project-section">
+        <h2>Project Overviews</h2>
+        <ul>
+          <li>
+            <a href="posts/pacesetter-launch.html">Plains Pacesetter Step Challenge</a>
+            <p class="project-summary">Built the data infrastructure for a company-wide step challenge using Power Apps, MS Fabric SQL, and Power BI.</p>
+          </li>
+          <li>
+            <a href="posts/killing-expensive-enterprise-software.html">Cheque Image Viewer</a>
+            <p class="project-summary">Replaced legacy enterprise software with a custom Flask app, saving $70K/month by building a modern cheque retrieval system.</p>
+          </li>
+        </ul>
+      </section>
 
         <div class="buttons88x31" align="center">
           <img src="https://raw.githubusercontent.com/vilgacx/88x31/main/gifs/html3.gif" alt="HTML Power">
@@ -105,14 +129,18 @@
       </div>
     </main>
 
-    <!-- ── RIGHT : PROJECTS ── -->
-    <aside class="sidebar projects-sidebar">
-      <h2>Projects</h2>
+    <!-- ── RIGHT : BLOG POSTS ── -->
+    <aside class="sidebar blog-sidebar">
+      <h2>Blog Posts</h2>
       <ul>
-        <li><a href="pages/video-presenter.html">Video Presenter</a></li>
-        <li><a href="pages/cartoguesser.html">CartoGuesser</a></li>
-        <li><a href="pages/unyellow.html">Unyellow</a></li>
-        <li><a href="pages/mind-map.html">Mind Map</a></li>
+        <li><time datetime="2025-06-20">20 Jun 2025</time> <a href="posts/software-isnt-dead-your-time-is-now.html">Software Isn't Dead — Your Time Is Now</a></li>
+        <li><time datetime="2025-06-15">15 Jun 2025</time> <a href="posts/killing-expensive-enterprise-software.html">Expensive Enterprise Software Is Dying — I Saved $70K/Month by Killing It</a></li>
+        <li><time datetime="2025-05-05">5 May 2025</time> <a href="posts/pacesetter-launch.html">Launching the Plains Pacesetter Step Challenge</a></li>
+        <li><time datetime="2025-04-30">30 Apr 2025</time> <a href="posts/deploying-python-apps-databricks.html">Deploying Python Apps on Databricks: What No One Tells You</a></li>
+        <li><time datetime="2024-11-30">30 Nov 2024</time> <a href="posts/killing-it-in-cs-part-2.html">Killing It in Computer Science (Part 2)</a></li>
+        <li><time datetime="2024-11-25">25 Nov 2024</time> <a href="posts/ai-mistakes-internship-apps.html">The Worst Ways to Use AI in Internship / Job Apps</a></li>
+        <li><time datetime="2024-11-20">20 Nov 2024</time> <a href="posts/internships-hard-to-get.html">Internships Are Hard to Get – First Tips</a></li>
+        <li><time datetime="2024-11-15">15 Nov 2024</time> <a href="posts/three-best-strategies-cs-degree.html">Three Strategies for Killing a CS Degree</a></li>
       </ul>
     </aside>
 
@@ -125,7 +153,7 @@
     <strong>I</strong>mages of letters as <strong>A</strong>SCII.
     <strong>L</strong>ook carefully, <strong>S</strong>eeker!
     <strong>-</strong>
-    <strong>T</strong>hat’s the <strong>O</strong>ne path.
+    <strong>T</strong>hat's the <strong>O</strong>ne path.
     <strong>-</strong>
     <strong>A</strong>fter decoding, <strong>S</strong>ubmit
     <strong>C</strong>ollected <strong>I</strong>ntegers.
