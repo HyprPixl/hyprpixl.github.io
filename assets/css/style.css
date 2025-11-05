@@ -13,6 +13,7 @@ body {
   background: #fffbe8; /* light cream */
   font-family: "Courier New", Courier, monospace;
   color: #000;
+  padding-bottom: 40vh; /* Add space for terminal overlay */
 }
 
 /* Header banner—yellow on navy with a chunky double border */
@@ -267,8 +268,8 @@ a:hover    { color: #FF0000; text-decoration: underline; }
 
 .reading-sidebar ul,
 .blog-sidebar ul {
-  list-style-position: inside;
-  padding-left: 0;
+  list-style-position: outside;
+  padding-left: 20px;
   margin: 0;
 }
 
