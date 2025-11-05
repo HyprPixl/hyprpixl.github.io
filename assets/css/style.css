@@ -256,8 +256,6 @@ a:hover    { color: #FF0000; text-decoration: underline; }
 }
 
 .reading-sidebar ul,
-.blog-sidebar ul,
-.reading-sidebar ul,
 .blog-sidebar ul {
   list-style-position: inside;
   padding-left: 0;
