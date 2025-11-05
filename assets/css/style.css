@@ -163,23 +163,11 @@ a          { color: #0000EE; }
   font-family: "Courier New", monospace;
 }
 
-/* legacy projects sidebar (no longer used) */
-.projects-sidebar {
-  flex: 0 0 320px;
-  padding: 8px;
-  margin-top: 16px;
-  background: #000080;
-  color: #FFFF00;
-  border: 4px ridge #C0C0C0;
-  font-family: "Courier New", monospace;
-}
-
 @media (max-width: 1400px) {
   /* shrink columns so layout fits on mid-size screens */
   .main-column       { flex: 0 0 540px; }
   .reading-sidebar,
-  .blog-sidebar,
-  .projects-sidebar  { flex: 0 0 200px; }
+  .blog-sidebar  { flex: 0 0 200px; }
 }
 
 @media (max-width: 968px) {
@@ -200,11 +188,6 @@ a          { color: #0000EE; }
 
   .reading-sidebar {
     order: 3;
-    flex: 0 0 auto;
-  }
-
-  .projects-sidebar {
-    order: 2;
     flex: 0 0 auto;
   }
 }
@@ -274,7 +257,8 @@ a:hover    { color: #FF0000; text-decoration: underline; }
 
 .reading-sidebar ul,
 .blog-sidebar ul,
-.projects-sidebar ul {
+.reading-sidebar ul,
+.blog-sidebar ul {
   list-style-position: inside;
   padding-left: 0;
   margin: 0;
@@ -287,17 +271,6 @@ a:hover    { color: #FF0000; text-decoration: underline; }
 }
 
 .blog-sidebar a:hover {
-  color: #FFCC00;
-  text-decoration: underline;
-}
-
-/* match project links to reading list style */
-.projects-sidebar a {
-  color: #FFFF00; /* bright yellow */
-  text-decoration: none;
-}
-
-.projects-sidebar a:hover {
   color: #FFCC00;
   text-decoration: underline;
 }
@@ -405,8 +378,7 @@ a:hover    { color: #FF0000; text-decoration: underline; }
 body.lava-on header,
 body.lava-on .main-column,
 body.lava-on .reading-sidebar,
-body.lava-on .blog-sidebar,
-body.lava-on .projects-sidebar {
+body.lava-on .blog-sidebar {
   opacity: 0.8;
 }
 
