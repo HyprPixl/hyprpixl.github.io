@@ -18,9 +18,13 @@
   const obf = [...asciiStr].map(c => c.charCodeAt(0) ^ key);
 
   function addDigit(d) {
+    // Cap input at 4 digits
+    if (input.length >= 4) {
+      return;
+    }
     input += d;
     display.textContent = input;
-    if (input.length >= obf.length) {
+    if (input.length >= 4) {
       checkAttempt();
     }
   }
@@ -28,8 +32,10 @@
   function checkAttempt() {
     // de-obfuscate on the fly
     const target = obf.map(n => String.fromCharCode(n ^ key)).join("");
-    const attempt = input.slice(-target.length);
-    if (attempt === target) {
+    // Only check the first 4 digits of the target
+    const targetFirst4 = target.slice(0, 4);
+    const attempt = input.slice(0, 4);
+    if (attempt === targetFirst4) {
       window.location.href = "/pages/classified-archive.html";
     }
   }
