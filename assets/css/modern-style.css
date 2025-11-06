@@ -462,11 +462,6 @@ body.modern-style .content-wrapper {
   position: relative;
 }
 
-/* Hide retro buttons section in modern mode */
-body.modern-style .buttons88x31 {
-  display: none;
-}
-
 /* Responsive adjustments */
 @media (max-width: 968px) {
   body.modern-style header h1 {
