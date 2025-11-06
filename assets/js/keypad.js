@@ -24,7 +24,7 @@
     }
     input += d;
     display.textContent = input;
-    if (input.length >= 4) {
+    if (input.length === 4) {
       checkAttempt();
     }
   }
