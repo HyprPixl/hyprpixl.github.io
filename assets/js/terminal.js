@@ -22,7 +22,8 @@
     'There are cathedrals everywhere for those with the eyes to see',
     'Cynicism and nihilism are memetic traps.',
     'You never regret a swim',
-    'It may not be your fault, but it is your problem'
+    'It may not be your fault, but it is your problem',
+    'your boos mean nothing to me, I have seen what makes you cheer',
   ];
 
   const links = Array.from(document.querySelectorAll('a[href]')).map(a => a.getAttribute('href'));
