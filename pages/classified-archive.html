@@ -51,16 +51,7 @@
     }
     @keyframes spin{to{transform:rotate(360deg)}}
 
-    .crystal{
-      width:48px;height:48px;
-      background:url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAAUElEQVR4nO3PQQ0AIBDAMMC/50MEj4ZkVbDtWTPrY0cHvGpAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0C7D2UDXXtH2lgAAAAASUVORK5CYII=") center/contain no-repeat;
-      position:absolute;bottom:-24px;right:-24px;
-      animation:pulse 2s ease-in-out infinite;
-    }
-    @keyframes pulse{
-      0%,100%{transform:scale(1);filter:drop-shadow(0 0 6px #ff00ff)}
-      50%     {transform:scale(1.2);filter:drop-shadow(0 0 18px #ff66ff)}
-    }
+
 
     /* ─────────  CONTENT SECTIONS  ───────── */
     .intro-text{
@@ -155,6 +146,63 @@
       .oats-link{font-size:0.65rem;padding:12px 16px;}
       .section-title{font-size:1rem;}
     }
+
+    /* ─────────  TERMINAL OVERLAY  ───────── */
+    #terminal-overlay {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 40%;
+      background: rgba(0,0,0,0.9);
+      color: #00FF00;
+      font-family: "Courier New", Courier, monospace;
+      padding: 8px;
+      overflow-y: auto;
+      z-index: 9999;
+    }
+
+    #terminal-current {
+      display: flex;
+    }
+
+    #terminal-current input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: inherit;
+      font: inherit;
+      outline: none;
+    }
+
+    #terminal-prompt {
+      margin-right: 4px;
+      white-space: pre;
+    }
+
+    #terminalLink {
+      position: fixed;
+      bottom: 4px;
+      right: 8px;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 0.8rem;
+      color: #00FF00;
+      text-decoration: none;
+    }
+
+    #terminalLink:hover {
+      color: #00FFFF;
+      text-decoration: underline;
+    }
+
+    /* Hide terminal overlay and link on small screens */
+    @media (max-width: 600px) {
+      #terminal-overlay,
+      #terminalLink {
+        display: none !important;
+      }
+    }
   </style>
 </head>
 
@@ -188,7 +236,6 @@
     </div>
 
     <a class="return" href="/index.html">← Return to Surface World</a>
-    <div class="crystal" aria-hidden="true"></div>
   </div>
   <script src="../assets/js/terminal.js"></script>
 </body>
