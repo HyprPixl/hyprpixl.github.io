@@ -68,11 +68,17 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Re-run makeListItemsClickable when style changes
-// Listen for style toggle
-const styleToggleBtn = document.getElementById('style-toggle-btn');
-if (styleToggleBtn) {
-  styleToggleBtn.addEventListener('click', () => {
-    // Use setTimeout to wait for the class to be added
-    setTimeout(makeListItemsClickable, 50);
+// Use MutationObserver to detect when body class changes
+const bodyObserver = new MutationObserver((mutations) => {
+  mutations.forEach((mutation) => {
+    if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+      makeListItemsClickable();
+    }
   });
-}
+});
+
+// Start observing body class changes
+bodyObserver.observe(document.body, {
+  attributes: true,
+  attributeFilter: ['class']
+});
