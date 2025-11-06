@@ -25,18 +25,20 @@
 
     /* ─────────  MAIN FRAME  ───────── */
     .frame{
-      max-width:900px;margin:40px auto;padding:24px;
+      max-width:900px;margin:40px auto;padding:32px;
       border:12px double #c0c0c0;
-      background:#111 url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAYUlEQVR4nO3PQQ0AIBDAMEDp+VeBCB4Nyapg2zOzfnZ0wKsGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAuJ3gGguaL+bQAAAABJRU5ErkJggg==") center/cover;
-      box-shadow:0 0 25px 8px rgba(0,255,255,.4);
+      background:linear-gradient(135deg, #1a0033 0%, #0d0020 100%) url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAYUlEQVR4nO3PQQ0AIBDAMEDp+VeBCB4Nyapg2zOzfnZ0wKsGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAuJ3gGguaL+bQAAAABJRU5ErkJggg==") center/cover;
+      box-shadow:0 0 35px 12px rgba(0,255,255,.5), inset 0 0 80px rgba(255,0,255,.1);
       position:relative;
+      border-radius:8px;
     }
     h1{
       font-family:"MedievalSharp",cursive;
       text-align:center;
-      font-size:2.8rem;margin:0 0 24px;
+      font-size:3rem;margin:0 0 32px;
       color:#00ffff;
-      text-shadow:0 0 8px #00ffff,0 0 16px #00ffff;
+      text-shadow:0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 30px #00ffff;
+      letter-spacing:2px;
     }
 
     /* ─────────  DECORATIVE SPRITES  ───────── */
@@ -45,6 +47,7 @@
       background:url("../assets/images/wizard-staff.png") center/contain no-repeat;
       position:absolute;top:-32px;left:-32px;
       animation:spin 6s linear infinite;
+      filter:drop-shadow(0 0 8px #00ffff);
     }
     @keyframes spin{to{transform:rotate(360deg)}}
 
@@ -59,63 +62,134 @@
       50%     {transform:scale(1.2);filter:drop-shadow(0 0 18px #ff66ff)}
     }
 
+    /* ─────────  CONTENT SECTIONS  ───────── */
+    .intro-text{
+      font-size:0.85rem;
+      line-height:1.6;
+      text-align:center;
+      padding:0 20px;
+      margin-bottom:32px;
+      color:#e0e0ff;
+      text-shadow:0 0 4px rgba(224,224,255,.5);
+    }
+
+    .content-section{
+      background:rgba(0,0,0,.4);
+      border:2px solid rgba(0,255,255,.3);
+      border-radius:6px;
+      padding:24px;
+      margin:24px 0;
+      box-shadow:inset 0 0 20px rgba(0,255,255,.1);
+    }
+
+    .section-title{
+      font-size:1.2rem;
+      color:#ff66ff;
+      text-align:center;
+      margin:0 0 20px;
+      text-shadow:0 0 8px #ff66ff;
+      letter-spacing:1px;
+    }
+
     /* ─────────  LINK BUTTONS  ───────── */
+    .link-container{
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+      align-items:center;
+    }
+
     .oats-link{
       display:inline-block;
-      margin:16px auto 24px;
-      padding:10px 18px;
-      border:2px solid #ff66ff;
+      width:100%;
+      max-width:500px;
+      padding:14px 20px;
+      border:3px solid #ff66ff;
+      background:linear-gradient(135deg, rgba(255,0,255,.1) 0%, rgba(255,102,255,.1) 100%);
       color:#ff66ff;
       text-decoration:none;
-      font-size:0.8rem;
+      font-size:0.75rem;
       text-align:center;
       animation:glow 2.5s ease-in-out infinite;
+      border-radius:4px;
+      transition:all 0.3s ease;
+      line-height:1.4;
     }
+    
+    .oats-link:hover{
+      background:linear-gradient(135deg, rgba(255,0,255,.2) 0%, rgba(255,102,255,.2) 100%);
+      transform:translateY(-2px);
+      box-shadow:0 0 20px #ff66ff, 0 4px 12px rgba(255,102,255,.4);
+    }
+
     @keyframes glow{
       0%,100%{box-shadow:0 0 6px #ff66ff}
-      50%     {box-shadow:0 0 16px #ff66ff}
+      50%     {box-shadow:0 0 20px #ff66ff, 0 0 30px rgba(255,102,255,.5)}
     }
 
     .return{
-      display:block;text-align:center;margin-top:8px;
-      color:#00ffff;font-size:0.8rem;text-decoration:none;
-      text-shadow:0 0 6px #00ffff;
+      display:block;
+      text-align:center;
+      margin-top:32px;
+      padding:12px;
+      color:#00ffff;
+      font-size:0.85rem;
+      text-decoration:none;
+      text-shadow:0 0 8px #00ffff;
+      border:2px solid transparent;
+      border-radius:4px;
+      transition:all 0.3s ease;
+    }
+    
+    .return:hover{
+      border-color:rgba(0,255,255,.4);
+      background:rgba(0,255,255,.05);
+      box-shadow:0 0 15px rgba(0,255,255,.3);
+    }
+
+    /* ─────────  RESPONSIVE  ───────── */
+    @media (max-width:768px){
+      .frame{padding:20px;margin:20px;}
+      h1{font-size:2rem;margin-bottom:24px;}
+      .intro-text{font-size:0.7rem;padding:0 10px;}
+      .oats-link{font-size:0.65rem;padding:12px 16px;}
+      .section-title{font-size:1rem;}
     }
   </style>
 </head>
 
 <body>
   <div class="frame">
-    <div class="sword"   aria-hidden="true"></div>
+    <div class="sword" aria-hidden="true"></div>
 
     <h1>CLASSIFIED&nbsp;ARCHIVE</h1>
 
-    <p style="font-size:0.8rem;line-height:1.4;text-align:center;padding:0 12px;">
+    <p class="intro-text">
       Within these vaults lie scrolls forgotten,<br>
       fragments arcane, and whispers of<br>
       ideas yet to be forged in pixel-fire. 🜂
     </p>
 
-    <!-- fancy link to the YouTube track -->
-    <p style="text-align:center">
-      <a class="oats-link"
-         href="https://www.youtube.com/watch?v=O7FIiYsVy3U"
-         target="_blank" rel="noopener">
-        ▶ May I Have Some Oats, Brother?
-      </a>
-    </p>
+    <div class="content-section">
+      <h2 class="section-title">✨ SACRED SCROLLS ✨</h2>
+      <div class="link-container">
+        <a class="oats-link"
+           href="https://www.youtube.com/watch?v=O7FIiYsVy3U"
+           target="_blank" rel="noopener">
+          ▶ May I Have Some Oats, Brother?
+        </a>
 
-    <p style="text-align:center">
-      <a class="oats-link"
-         href="https://www.kalzumeus.com/2012/01/23/salary-negotiation/"
-         target="_blank" rel="noopener">
-        💼 Salary Negotiation: Make More Money, Be More Valued
-      </a>
-    </p>
+        <a class="oats-link"
+           href="https://www.kalzumeus.com/2012/01/23/salary-negotiation/"
+           target="_blank" rel="noopener">
+          💼 Salary Negotiation: Make More Money, Be More Valued
+        </a>
+      </div>
+    </div>
 
-<a class="return" href="/index.html">← Return to Surface World</a>
-<div class="crystal" aria-hidden="true"></div>
-</div>
-<script src="../assets/js/terminal.js"></script>
+    <a class="return" href="/index.html">← Return to Surface World</a>
+    <div class="crystal" aria-hidden="true"></div>
+  </div>
+  <script src="../assets/js/terminal.js"></script>
 </body>
 </html>
