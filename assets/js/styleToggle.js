@@ -3,19 +3,21 @@
  */
 
 (() => {
-  // Create and inject the modern stylesheet link
-  const modernStylesheet = document.createElement('link');
-  modernStylesheet.rel = 'stylesheet';
-  modernStylesheet.href = '/assets/css/modern.css';
-  modernStylesheet.id = 'modern-stylesheet';
+  // Helper function to create a new modern stylesheet link
+  const createModernStylesheet = () => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/assets/css/modern.css';
+    link.id = 'modern-stylesheet';
+    return link;
+  };
   
   // Check localStorage for saved preference
   const savedStyle = localStorage.getItem('siteStyle');
-  const isModern = savedStyle === 'modern';
   
   // Apply saved preference on load
-  if (isModern) {
-    document.head.appendChild(modernStylesheet);
+  if (savedStyle === 'modern') {
+    document.head.appendChild(createModernStylesheet());
     document.body.classList.add('modern-style');
   }
   
@@ -24,14 +26,16 @@
     const btn = document.createElement('button');
     btn.id = 'style-toggle-btn';
     btn.className = 'lava-button';
-    btn.textContent = isModern ? '🕹️ Retro' : '✨ Modern';
+    // Check current state when button is created
+    const currentlyModern = document.body.classList.contains('modern-style');
+    btn.textContent = currentlyModern ? '🕹️ Retro' : '✨ Modern';
     btn.title = 'Toggle between retro and modern styles';
     btn.style.marginLeft = '8px';
     
     btn.addEventListener('click', () => {
-      const currentlyModern = document.body.classList.contains('modern-style');
+      const isModernNow = document.body.classList.contains('modern-style');
       
-      if (currentlyModern) {
+      if (isModernNow) {
         // Switch to retro
         document.body.classList.remove('modern-style');
         const stylesheet = document.getElementById('modern-stylesheet');
@@ -41,10 +45,10 @@
         btn.textContent = '✨ Modern';
         localStorage.setItem('siteStyle', 'retro');
       } else {
-        // Switch to modern
+        // Switch to modern - create a new stylesheet link
         document.body.classList.add('modern-style');
         if (!document.getElementById('modern-stylesheet')) {
-          document.head.appendChild(modernStylesheet);
+          document.head.appendChild(createModernStylesheet());
         }
         btn.textContent = '🕹️ Retro';
         localStorage.setItem('siteStyle', 'modern');
