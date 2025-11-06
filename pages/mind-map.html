@@ -117,6 +117,7 @@
         opacity: 0.8;
     }
     </style>
+    <link rel="stylesheet" href="../assets/css/modern-style.css">
 </head>
 <body>
     <div id="editor-buttons">
@@ -150,7 +151,7 @@
     <div id="shortcut-hint">Press ? for shortcuts</div>
     <div id="mindmap"></div>
     
-    <script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://d3js.org/d3.v7.min.js"></script>
     <script>
       function toggleInstructions() {
         const popup = document.getElementById("instructions-popup");
@@ -1073,5 +1074,6 @@
         edgesLayer.attr("transform", event.transform);
       }
     </script>
+    <script src="../assets/js/styleToggle.js"></script>
   </body>
 </html>

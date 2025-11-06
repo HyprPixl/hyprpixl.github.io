@@ -56,6 +56,23 @@ nav a {
   font-weight: bold;
 }
 
+/* Style toggle button in retro mode */
+#style-toggle-btn {
+  flex: 0 0 auto;
+  padding: 0.5rem 1rem;
+  background: #C0C0C0;
+  border: 2px outset #FFFFFF;
+  font-family: "Courier New", Courier, monospace;
+  font-weight: bold;
+  font-size: 1rem;
+  cursor: pointer;
+  color: #000;
+}
+
+#style-toggle-btn:active {
+  border-style: inset;
+}
+
 /* Responsive tweaks */
 @media (max-width: 480px) {
   header h1 {
