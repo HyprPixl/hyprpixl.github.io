@@ -51,9 +51,9 @@ body.modern-style header {
   box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2),
               0 2px 8px 0 rgba(139, 0, 0, 0.15),
               inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
-  padding: 1.5rem 1rem;
+  padding: 1.5rem 1rem 1.5rem 1rem;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* Subtle shimmer effect on header */
@@ -102,6 +102,7 @@ body.modern-style marquee {
 /* Modern navigation with enhanced glass effect */
 body.modern-style nav {
   margin-top: 1rem;
+  padding-top: 4px;
   gap: 0.75rem;
   position: relative;
   z-index: 1;
@@ -250,11 +251,13 @@ body.modern-style .project-section li {
   border: 1px solid rgba(139, 0, 0, 0.1);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05),
               inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  position: relative;
 }
 
 body.modern-style .project-section li:hover {
   background: rgba(255, 255, 255, 0.7);
-  transform: translateX(6px) translateY(-2px);
+  transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(139, 0, 0, 0.12),
               inset 0 1px 0 rgba(255, 255, 255, 0.8);
   border-color: rgba(139, 0, 0, 0.2);
@@ -402,14 +405,17 @@ body.modern-style .blog-sidebar ul {
 
 body.modern-style .reading-sidebar li,
 body.modern-style .blog-sidebar li {
-  padding: 0.6rem 0;
+  padding: 0.6rem 0.5rem;
+  margin-left: -0.5rem;
+  margin-right: -0.5rem;
   border-bottom: 1px solid rgba(139, 0, 0, 0.12);
   transition: all 0.2s ease;
+  cursor: pointer;
+  position: relative;
 }
 
 body.modern-style .reading-sidebar li:hover,
 body.modern-style .blog-sidebar li:hover {
-  padding-left: 0.5rem;
   background: rgba(255, 255, 255, 0.2);
   border-radius: 8px;
   border-bottom-color: transparent;
