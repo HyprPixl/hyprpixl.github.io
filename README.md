@@ -52,6 +52,16 @@ To publish:
 
 A GitHub Actions workflow automatically regenerates `sitemap.xml` after each push. You can also run `python3 scripts/generate_sitemap.py` locally if needed.
 
+## Play a Terminal Game
+
+Want a break from blogging? Fire up **Signal Foundry**, a tiny incremental game set in the wreckage of a silent beacon.
+
+```bash
+python3 scripts/signal_foundry.py
+```
+
+Type `help` once the game loads to see commands like `ping`, `buy`, `upgrade`, `venture`, and `ignite` (prestige). The game saves to `scripts/signal_foundry_save.json` so you can resume later.
+
 ## Contact
 
 Built by Caleb Fedyshen  
