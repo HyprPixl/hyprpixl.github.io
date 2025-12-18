@@ -35,6 +35,15 @@
   html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; }
   #app { height: 100%; position: relative; overflow: hidden; }
   #map { height: 100%; width: 100%; background: #000; }
+  .leaflet-control-zoom a {
+    color: var(--text);
+    background: #04060a;
+    border-color: rgba(0,255,240,0.35);
+    box-shadow: 0 0 8px rgba(0,255,240,0.15);
+  }
+  .leaflet-control-zoom a:hover {
+    color: var(--accent);
+  }
 
   /* Cyberpunk panel */
   .hud {
@@ -293,7 +302,10 @@ function fitToIds(ids){
     const b = lyr.getBounds();
     if(!bounds) bounds = b; else bounds = bounds.extend(b);
   });
-  if(bounds) map.fitBounds(bounds.pad(0.1));
+  if(bounds){
+    const padded = bounds.pad(ids.length === 1 ? 0.04 : 0.08);
+    map.flyToBounds(padded, { maxZoom: ids.length === 1 ? 8 : 6, animate: true, duration: 0.6 });
+  }
 }
 function randomChoice(arr){
   return arr[Math.floor(Math.random()*arr.length)];
@@ -546,8 +558,11 @@ function nextTarget(){
 (async function init(){
   // Map
   map = L.map('map', {
-    zoomControl: false,
+    zoomControl: true,
     minZoom: 2,
+    maxZoom: 10,
+    zoomSnap: 0.25,
+    wheelPxPerZoomLevel: 80,
     worldCopyJump: true
   }).setView([20, 0], 2);
 
