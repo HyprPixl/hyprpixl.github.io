@@ -426,10 +426,10 @@ body.modern-style .blog-sidebar li {
 
 body.modern-style .reading-sidebar li:hover,
 body.modern-style .blog-sidebar li:hover {
-  padding-left: 0.5rem;
   background: rgba(255, 255, 255, 0.2);
   border-radius: 8px;
   border-bottom-color: transparent;
+  transform: translateX(4px);
 }
 
 body.modern-style .reading-sidebar li:last-child,
