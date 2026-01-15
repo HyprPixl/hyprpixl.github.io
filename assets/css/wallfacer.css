@@ -89,19 +89,33 @@ body.wallfacer-page {
   text-align: center;
   pointer-events: auto;
   --float-offset: 0px;
+  --tile-size: clamp(220px, 34vw, 280px);
   transform: var(--tile-transform) translateY(var(--float-offset));
   transition: filter 0.3s ease, opacity 0.3s ease;
 }
 
 .wallfacer-tile img {
-  width: 220px;
-  max-width: 35vw;
-  max-height: 220px;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
   border-radius: 10px;
   border: 1px solid rgba(20, 120, 140, 0.4);
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.55),
     0 0 14px rgba(0, 200, 255, 0.15);
   background: rgba(4, 10, 15, 0.75);
+}
+
+.wallfacer-tile.is-wide img {
+  width: var(--tile-size);
+  height: auto;
+  max-height: 70vh;
+}
+
+.wallfacer-tile.is-tall img {
+  height: var(--tile-size);
+  width: auto;
+  max-width: 70vw;
 }
 
 .wallfacer-caption {
@@ -174,9 +188,8 @@ body.wallfacer-page {
 }
 
 @media (max-width: 700px) {
-  .wallfacer-tile img {
-    width: 170px;
-    max-height: 170px;
+  .wallfacer-tile {
+    --tile-size: clamp(170px, 55vw, 230px);
   }
 
   #wallfacer-hud {
