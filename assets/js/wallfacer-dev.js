@@ -20,11 +20,17 @@ const state = {
   tileStart: { x: 0, y: 0 },
   panStart: { x: 0, y: 0 },
   offsetStart: { x: 0, y: 0 },
+  panMoved: false,
 };
 
 const imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "avif"];
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+const hasImageExtension = (filename) =>
+  imageExtensions.some((extension) =>
+    filename.toLowerCase().endsWith(`.${extension}`)
+  );
 
 const parseImageData = (filename) => {
   const baseName = filename.split("/").pop() || filename;
@@ -37,6 +43,7 @@ const parseImageData = (filename) => {
     const [, x, y, label] = match;
     const cleanedLabel = label ? label.trim() : "";
     return {
+      kind: "image",
       file: filename,
       x: Number.parseInt(x, 10),
       y: Number.parseInt(y, 10),
@@ -47,6 +54,7 @@ const parseImageData = (filename) => {
   }
 
   return {
+    kind: "image",
     file: filename,
     x: 0,
     y: 0,
@@ -54,6 +62,52 @@ const parseImageData = (filename) => {
     title: nameWithoutExt,
     extension,
   };
+};
+
+const parseTextEntry = (entry) => {
+  const match = entry.match(/^(-?\d+)\s*[x,]\s*(-?\d+)\s+"(.+)"\s*$/);
+  if (!match) {
+    return null;
+  }
+  const [, x, y, text] = match;
+  return {
+    kind: "text",
+    x: Number.parseInt(x, 10),
+    y: Number.parseInt(y, 10),
+    text,
+    title: `${x},${y}`,
+  };
+};
+
+const parseManifestEntry = (entry) => {
+  if (typeof entry === "string") {
+    const textEntry = parseTextEntry(entry);
+    if (textEntry) {
+      return textEntry;
+    }
+    if (hasImageExtension(entry)) {
+      return parseImageData(entry);
+    }
+    return parseImageData(entry);
+  }
+
+  if (entry && typeof entry === "object") {
+    if (entry.type === "text" || entry.text) {
+      return {
+        kind: "text",
+        x: Number.parseInt(entry.x, 10) || 0,
+        y: Number.parseInt(entry.y, 10) || 0,
+        text: entry.text || "",
+        title: `${entry.x ?? 0},${entry.y ?? 0}`,
+      };
+    }
+
+    if (entry.file) {
+      return parseImageData(entry.file);
+    }
+  }
+
+  return null;
 };
 
 const updateStageTransform = () => {
@@ -78,44 +132,59 @@ const buildNewName = (image, x, y) => {
 };
 
 const updateOutput = () => {
-  const lines = state.tiles.map(({ tile, image }) => {
+  const entries = state.tiles.map(({ tile, entry }) => {
     const x = Number.parseInt(tile.dataset.x, 10);
     const y = Number.parseInt(tile.dataset.y, 10);
-    const newName = buildNewName(image, x, y);
-    return `${image.file} -> ${newName}`;
+    if (entry.kind === "text") {
+      return `${x},${y} "${entry.text}"`;
+    }
+    return buildNewName(entry, x, y);
   });
-  output.value = lines.join("\n");
+  output.value = JSON.stringify({ images: entries }, null, 2);
 };
 
-const renderTiles = (images) => {
+const renderTiles = (entries) => {
   stage.innerHTML = "";
-  state.tiles = images.map((image) => {
-    const tile = document.createElement("div");
-    tile.className = "wallfacer-dev-tile";
-    tile.dataset.x = String(image.x);
-    tile.dataset.y = String(image.y);
+  state.tiles = entries
+    .map((entry) => {
+      if (!entry) {
+        return null;
+      }
+      const tile = document.createElement("div");
+      tile.className = "wallfacer-dev-tile";
+      tile.dataset.x = String(entry.x);
+      tile.dataset.y = String(entry.y);
 
-    const img = document.createElement("img");
-    img.src = `../wallfacer/${image.file}`;
-    img.alt = image.label || image.title;
-    img.title = image.title;
-    img.loading = "lazy";
+      if (entry.kind === "text") {
+        const textBlock = document.createElement("div");
+        textBlock.className = "wallfacer-dev-text-block";
+        textBlock.textContent = entry.text;
+        tile.appendChild(textBlock);
+      } else {
+        const img = document.createElement("img");
+        img.src = `../wallfacer/${entry.file}`;
+        img.alt = entry.label || entry.title;
+        img.title = entry.title;
+        img.loading = "lazy";
 
-    const caption = document.createElement("div");
-    caption.className = "wallfacer-dev-caption";
-    caption.textContent = image.label || image.title;
+        const caption = document.createElement("div");
+        caption.className = "wallfacer-dev-caption";
+        caption.textContent = entry.label || entry.title;
 
-    const badge = document.createElement("div");
-    badge.className = "wallfacer-dev-badge";
+        tile.appendChild(img);
+        tile.appendChild(caption);
+      }
 
-    tile.appendChild(img);
-    tile.appendChild(caption);
-    tile.appendChild(badge);
-    stage.appendChild(tile);
+      const badge = document.createElement("div");
+      badge.className = "wallfacer-dev-badge";
 
-    updateTilePosition(tile);
-    return { tile, image };
-  });
+      tile.appendChild(badge);
+      stage.appendChild(tile);
+
+      updateTilePosition(tile);
+      return { tile, entry };
+    })
+    .filter(Boolean);
 
   updateOutput();
 };
@@ -170,6 +239,7 @@ const handlePanPointerDown = (event) => {
     return;
   }
   state.panning = true;
+  state.panMoved = false;
   state.panStart = { x: event.clientX, y: event.clientY };
   state.offsetStart = { x: state.offsetX, y: state.offsetY };
   app.classList.add("is-panning");
@@ -182,6 +252,9 @@ const handlePanPointerMove = (event) => {
   }
   const dx = event.clientX - state.panStart.x;
   const dy = event.clientY - state.panStart.y;
+  if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+    state.panMoved = true;
+  }
   state.offsetX = state.offsetStart.x + dx;
   state.offsetY = state.offsetStart.y + dy;
   updateStageTransform();
@@ -194,6 +267,9 @@ const handlePanPointerUp = (event) => {
   state.panning = false;
   app.classList.remove("is-panning");
   app.releasePointerCapture(event.pointerId);
+  if (!state.panMoved) {
+    handleEmptyCellInput(event);
+  }
 };
 
 const loadImagesFromDirectoryListing = async () => {
@@ -220,7 +296,7 @@ const loadImagesFromDirectoryListing = async () => {
   return Array.from(files);
 };
 
-const loadImagesFromManifest = async () => {
+const loadEntriesFromManifest = async () => {
   const response = await fetch("../wallfacer/manifest.json");
   if (!response.ok) {
     throw new Error("manifest not found");
@@ -229,24 +305,71 @@ const loadImagesFromManifest = async () => {
   return Array.isArray(data.images) ? data.images : [];
 };
 
+const getGridPosition = (clientX, clientY) => {
+  const rect = app.getBoundingClientRect();
+  const originX = rect.left + rect.width / 2 + state.offsetX;
+  const originY = rect.top + rect.height / 2 + state.offsetY;
+  const gridX = Math.round((clientX - originX) / state.spacing);
+  const gridY = Math.round((clientY - originY) / state.spacing);
+  return { gridX, gridY };
+};
+
+const isOccupied = (x, y) =>
+  state.tiles.some(({ tile }) => {
+    const tileX = Number.parseInt(tile.dataset.x, 10);
+    const tileY = Number.parseInt(tile.dataset.y, 10);
+    return tileX === x && tileY === y;
+  });
+
+const handleEmptyCellInput = (event) => {
+  const { gridX, gridY } = getGridPosition(event.clientX, event.clientY);
+  if (isOccupied(gridX, gridY)) {
+    return;
+  }
+  const text = window.prompt(`Enter text for (${gridX}, ${gridY})`);
+  const trimmedText = text ? text.trim() : "";
+  if (!trimmedText) {
+    return;
+  }
+  const entry = {
+    kind: "text",
+    x: gridX,
+    y: gridY,
+    text: trimmedText,
+    title: `${gridX},${gridY}`,
+  };
+  renderTiles([...state.tiles.map(({ entry }) => entry), entry]);
+  wireTileDragHandlers();
+};
+
 const init = async () => {
   try {
-    let images = [];
+    let entries = [];
     try {
-      images = await loadImagesFromDirectoryListing();
-    } catch (listingError) {
-      images = await loadImagesFromManifest();
+      entries = await loadEntriesFromManifest();
+    } catch (manifestError) {
+      entries = [];
     }
 
-    if (!images.length) {
+    if (!entries.length) {
+      try {
+        entries = await loadImagesFromDirectoryListing();
+      } catch (listingError) {
+        entries = [];
+      }
+    }
+
+    if (!entries.length) {
       message.textContent =
-        "No images yet. Add files to /wallfacer named with grid positions (e.g. 1,-1.jpg).";
+        "No images yet. Add files to /wallfacer named with grid positions (e.g. 1,-1.jpg) or update wallfacer/manifest.json.";
       return;
     }
 
     message.classList.add("wallfacer-hidden");
-    const parsedImages = images.map(parseImageData);
-    renderTiles(parsedImages);
+    const parsedEntries = entries
+      .map(parseManifestEntry)
+      .filter((entry) => entry);
+    renderTiles(parsedEntries);
   } catch (error) {
     message.textContent =
       "Unable to load Wallfacer images. Ensure /wallfacer has images or update wallfacer/manifest.json.";
@@ -298,7 +421,7 @@ const handleDownload = () => {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "wallfacer-rename-map.txt";
+  link.download = "wallfacer-manifest.json";
   document.body.appendChild(link);
   link.click();
   link.remove();
