@@ -16,8 +16,8 @@ const state = {
   tiles: [],
   panning: false,
   draggingTile: null,
-  dragStart: { x: 0, y: 0 },
   tileStart: { x: 0, y: 0 },
+  dragOffset: { x: 0, y: 0 },
   panStart: { x: 0, y: 0 },
   offsetStart: { x: 0, y: 0 },
   panMoved: false,
@@ -166,6 +166,7 @@ const renderTiles = (entries) => {
         img.alt = entry.label || entry.title;
         img.title = entry.title;
         img.loading = "lazy";
+        img.draggable = false;
 
         const caption = document.createElement("div");
         caption.className = "wallfacer-dev-caption";
@@ -196,13 +197,35 @@ const snapTileToGrid = (tile, x, y) => {
   updateOutput();
 };
 
+const getStageOrigin = () => {
+  const rect = app.getBoundingClientRect();
+  return {
+    originX: rect.left + rect.width / 2 + state.offsetX,
+    originY: rect.top + rect.height / 2 + state.offsetY,
+  };
+};
+
+const getPointerStagePosition = (event) => {
+  const { originX, originY } = getStageOrigin();
+  return {
+    x: event.clientX - originX,
+    y: event.clientY - originY,
+  };
+};
+
 const handleTilePointerDown = (event) => {
   const tile = event.currentTarget;
+  event.preventDefault();
+  event.stopPropagation();
   state.draggingTile = tile;
-  state.dragStart = { x: event.clientX, y: event.clientY };
   state.tileStart = {
     x: Number.parseInt(tile.dataset.x, 10) * state.spacing,
     y: Number.parseInt(tile.dataset.y, 10) * state.spacing,
+  };
+  const pointerPosition = getPointerStagePosition(event);
+  state.dragOffset = {
+    x: pointerPosition.x - state.tileStart.x,
+    y: pointerPosition.y - state.tileStart.y,
   };
   tile.classList.add("is-dragging");
   tile.setPointerCapture(event.pointerId);
@@ -212,22 +235,24 @@ const handleTilePointerMove = (event) => {
   if (!state.draggingTile) {
     return;
   }
-  const dx = event.clientX - state.dragStart.x;
-  const dy = event.clientY - state.dragStart.y;
+  const pointerPosition = getPointerStagePosition(event);
+  const nextX = pointerPosition.x - state.dragOffset.x;
+  const nextY = pointerPosition.y - state.dragOffset.y;
   const tile = state.draggingTile;
-  tile.style.setProperty("--tile-x", `${state.tileStart.x + dx}px`);
-  tile.style.setProperty("--tile-y", `${state.tileStart.y + dy}px`);
+  tile.style.setProperty("--tile-x", `${nextX}px`);
+  tile.style.setProperty("--tile-y", `${nextY}px`);
 };
 
 const handleTilePointerUp = (event) => {
   if (!state.draggingTile) {
     return;
   }
-  const dx = event.clientX - state.dragStart.x;
-  const dy = event.clientY - state.dragStart.y;
+  const pointerPosition = getPointerStagePosition(event);
+  const nextX = pointerPosition.x - state.dragOffset.x;
+  const nextY = pointerPosition.y - state.dragOffset.y;
   const tile = state.draggingTile;
-  const snappedX = Math.round((state.tileStart.x + dx) / state.spacing);
-  const snappedY = Math.round((state.tileStart.y + dy) / state.spacing);
+  const snappedX = Math.round(nextX / state.spacing);
+  const snappedY = Math.round(nextY / state.spacing);
   snapTileToGrid(tile, snappedX, snappedY);
   tile.classList.remove("is-dragging");
   tile.releasePointerCapture(event.pointerId);
@@ -267,9 +292,6 @@ const handlePanPointerUp = (event) => {
   state.panning = false;
   app.classList.remove("is-panning");
   app.releasePointerCapture(event.pointerId);
-  if (!state.panMoved) {
-    handleEmptyCellInput(event);
-  }
 };
 
 const loadImagesFromDirectoryListing = async () => {
@@ -306,9 +328,7 @@ const loadEntriesFromManifest = async () => {
 };
 
 const getGridPosition = (clientX, clientY) => {
-  const rect = app.getBoundingClientRect();
-  const originX = rect.left + rect.width / 2 + state.offsetX;
-  const originY = rect.top + rect.height / 2 + state.offsetY;
+  const { originX, originY } = getStageOrigin();
   const gridX = Math.round((clientX - originX) / state.spacing);
   const gridY = Math.round((clientY - originY) / state.spacing);
   return { gridX, gridY };
@@ -433,6 +453,19 @@ const wireTileEvents = () => {
   app.addEventListener("pointermove", handlePanPointerMove);
   app.addEventListener("pointerup", handlePanPointerUp);
   app.addEventListener("pointercancel", handlePanPointerUp);
+  app.addEventListener("click", (event) => {
+    if (state.panning || state.draggingTile) {
+      return;
+    }
+    if (
+      event.target.closest(".wallfacer-dev-tile") ||
+      event.target.closest("#wallfacer-dev-hud") ||
+      event.target.closest(".wallfacer-dev-output-panel")
+    ) {
+      return;
+    }
+    handleEmptyCellInput(event);
+  });
 };
 
 const wireTileDragHandlers = () => {
