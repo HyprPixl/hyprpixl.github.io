@@ -90,7 +90,7 @@ body.wallfacer-page {
   pointer-events: auto;
   --float-offset: 0px;
   --tile-size: clamp(220px, 34vw, 280px);
-  transform: var(--tile-transform) translateY(var(--float-offset));
+  transform: translate(-50%, -50%) var(--tile-transform) translateY(var(--float-offset));
   transition: filter 0.3s ease, opacity 0.3s ease;
 }
 
