@@ -47,6 +47,17 @@
   filter: brightness(1.1);
 }
 
+.wallfacer-dev-tile.is-selected img,
+.wallfacer-dev-tile.is-selected .wallfacer-dev-text-block {
+  border-color: rgba(100, 255, 210, 0.9);
+  box-shadow: 0 0 0 2px rgba(100, 255, 210, 0.5),
+    0 14px 30px rgba(0, 0, 0, 0.6);
+}
+
+.wallfacer-dev-tile.is-selected .wallfacer-dev-caption {
+  color: rgba(140, 255, 220, 0.95);
+}
+
 .wallfacer-dev-caption {
   font-size: 0.75rem;
   letter-spacing: 0.08em;
