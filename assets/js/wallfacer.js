@@ -159,18 +159,53 @@ const handlePointerUp = (event) => {
   app.releasePointerCapture(event.pointerId);
 };
 
+const imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "avif"];
+
+const loadImagesFromDirectoryListing = async () => {
+  const response = await fetch("../wallfacer/");
+  if (!response.ok) {
+    throw new Error("directory listing unavailable");
+  }
+
+  const text = await response.text();
+  const regex = new RegExp(
+    `href=["']([^"']+\\.(${imageExtensions.join("|")}))["']`,
+    "gi"
+  );
+
+  const files = new Set();
+  let match = regex.exec(text);
+  while (match) {
+    const href = match[1];
+    const file = decodeURIComponent(href.split("/").pop() || href);
+    files.add(file);
+    match = regex.exec(text);
+  }
+
+  return Array.from(files);
+};
+
+const loadImagesFromManifest = async () => {
+  const response = await fetch("../wallfacer/manifest.json");
+  if (!response.ok) {
+    throw new Error("manifest not found");
+  }
+  const data = await response.json();
+  return Array.isArray(data.images) ? data.images : [];
+};
+
 const init = async () => {
   try {
-    const response = await fetch("../wallfacer/manifest.json");
-    if (!response.ok) {
-      throw new Error("manifest not found");
+    let images = [];
+    try {
+      images = await loadImagesFromDirectoryListing();
+    } catch (listingError) {
+      images = await loadImagesFromManifest();
     }
-    const data = await response.json();
-    const images = Array.isArray(data.images) ? data.images : [];
 
     if (!images.length) {
       message.textContent =
-        "No images yet. Add files to /wallfacer and list them in wallfacer/manifest.json.";
+        "No images yet. Add files to /wallfacer named with grid positions (e.g. 1,-1.jpg).";
       return;
     }
 
@@ -180,7 +215,7 @@ const init = async () => {
     animate();
   } catch (error) {
     message.textContent =
-      "Unable to load the Wallfacer manifest. Make sure wallfacer/manifest.json exists.";
+      "Unable to load Wallfacer images. Ensure /wallfacer has images or update wallfacer/manifest.json.";
   }
 };
 
