@@ -62,6 +62,10 @@ const renderTiles = (images) => {
     img.alt = image.caption || image.title;
     img.title = image.title;
     img.loading = "lazy";
+    img.addEventListener("load", () => {
+      tile.classList.toggle("is-wide", img.naturalWidth >= img.naturalHeight);
+      tile.classList.toggle("is-tall", img.naturalWidth < img.naturalHeight);
+    });
     tile.appendChild(img);
 
     stage.appendChild(tile);
@@ -73,32 +77,33 @@ const updateTiles = () => {
   let closestTile = null;
   let closestDistance = Number.POSITIVE_INFINITY;
 
-  state.tiles.forEach((tile) => {
+  const tileData = state.tiles.map((tile) => {
     const gridX = Number.parseInt(tile.dataset.x, 10);
     const gridY = Number.parseInt(tile.dataset.y, 10);
     const worldX = gridX * state.spacing + state.offsetX;
     const worldY = gridY * state.spacing + state.offsetY;
+    const distance = Math.hypot(worldX, worldY);
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestTile = tile;
+    }
+    return { tile, worldX, worldY, distance };
+  });
 
-    const depth = -((worldX ** 2 + worldY ** 2) * 0.000006);
-    const scale = clamp(1 + depth * 0.002, 0.7, 1.1);
-    const rotateX = clamp(-worldY * 0.0004, -9, 9);
-    const rotateY = clamp(worldX * 0.0004, -9, 9);
-    const opacity = clamp(1 + depth * 0.015, 0.35, 1);
+  tileData.forEach(({ tile, worldX, worldY, distance }) => {
+    const depth = -distance * 0.18;
+    const baseScale = clamp(1.12 - distance * 0.0014, 0.5, 1.08);
+    const centerBoost = tile === closestTile ? 1.22 : 1;
+    const scale = clamp(baseScale * centerBoost, 0.5, 1.32);
+    const rotateX = clamp(-worldY * 0.0004, -10, 10);
+    const rotateY = clamp(worldX * 0.0004, -10, 10);
+    const opacity = clamp(1 - distance * 0.0014, 0.25, 1);
 
     tile.style.setProperty(
       "--tile-transform",
       `translate3d(${worldX}px, ${worldY}px, ${depth}px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(${scale})`
     );
     tile.style.opacity = `${opacity}`;
-
-    const distance = Math.hypot(worldX, worldY);
-    if (distance < closestDistance) {
-      closestDistance = distance;
-      closestTile = tile;
-    }
-  });
-
-  state.tiles.forEach((tile) => {
     tile.classList.toggle("is-center", tile === closestTile);
   });
 };
