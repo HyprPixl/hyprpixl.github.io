@@ -6,8 +6,11 @@ const spacingInput = document.getElementById("wallfacer-dev-spacing");
 const spacingValue = document.getElementById("wallfacer-dev-spacing-value");
 const centerButton = document.getElementById("wallfacer-dev-center");
 const snapButton = document.getElementById("wallfacer-dev-snap");
+const deleteButton = document.getElementById("wallfacer-dev-delete");
 const copyButton = document.getElementById("wallfacer-dev-copy");
 const downloadButton = document.getElementById("wallfacer-dev-download");
+
+const CLICK_SUPPRESS_MS = 240;
 
 const state = {
   spacing: Number.parseInt(spacingInput.value, 10),
@@ -16,11 +19,15 @@ const state = {
   tiles: [],
   panning: false,
   draggingTile: null,
+  selectedTile: null,
   tileStart: { x: 0, y: 0 },
   dragOffset: { x: 0, y: 0 },
   panStart: { x: 0, y: 0 },
   offsetStart: { x: 0, y: 0 },
   panMoved: false,
+  dragMoved: false,
+  pointerStart: { x: 0, y: 0 },
+  lastInteractionAt: 0,
 };
 
 const imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "avif"];
@@ -132,15 +139,22 @@ const buildNewName = (image, x, y) => {
 };
 
 const updateOutput = () => {
-  const entries = state.tiles.map(({ tile, entry }) => {
+  const entries = [];
+  const renames = [];
+
+  state.tiles.forEach(({ tile, entry }) => {
     const x = Number.parseInt(tile.dataset.x, 10);
     const y = Number.parseInt(tile.dataset.y, 10);
     if (entry.kind === "text") {
-      return `${x},${y} "${entry.text}"`;
+      entries.push(`${x},${y} "${entry.text}"`);
+      return;
     }
-    return buildNewName(entry, x, y);
+    const newName = buildNewName(entry, x, y);
+    entries.push(newName);
+    renames.push(`wallfacer/${entry.file} → wallfacer/${newName}`);
   });
-  output.value = JSON.stringify({ images: entries }, null, 2);
+
+  output.value = JSON.stringify({ images: entries, renames }, null, 2);
 };
 
 const renderTiles = (entries) => {
@@ -197,6 +211,32 @@ const snapTileToGrid = (tile, x, y) => {
   updateOutput();
 };
 
+const clearSelectedTile = () => {
+  if (state.selectedTile) {
+    state.selectedTile.classList.remove("is-selected");
+    state.selectedTile = null;
+  }
+};
+
+const selectTile = (tile) => {
+  if (state.selectedTile === tile) {
+    return;
+  }
+  clearSelectedTile();
+  state.selectedTile = tile;
+  tile.classList.add("is-selected");
+};
+
+const removeTile = (tile) => {
+  if (!tile) {
+    return;
+  }
+  tile.remove();
+  state.tiles = state.tiles.filter(({ tile: candidate }) => candidate !== tile);
+  clearSelectedTile();
+  updateOutput();
+};
+
 const getStageOrigin = () => {
   const rect = app.getBoundingClientRect();
   return {
@@ -217,7 +257,10 @@ const handleTilePointerDown = (event) => {
   const tile = event.currentTarget;
   event.preventDefault();
   event.stopPropagation();
+  selectTile(tile);
   state.draggingTile = tile;
+  state.dragMoved = false;
+  state.pointerStart = { x: event.clientX, y: event.clientY };
   state.tileStart = {
     x: Number.parseInt(tile.dataset.x, 10) * state.spacing,
     y: Number.parseInt(tile.dataset.y, 10) * state.spacing,
@@ -234,6 +277,11 @@ const handleTilePointerDown = (event) => {
 const handleTilePointerMove = (event) => {
   if (!state.draggingTile) {
     return;
+  }
+  const dragDx = event.clientX - state.pointerStart.x;
+  const dragDy = event.clientY - state.pointerStart.y;
+  if (Math.abs(dragDx) > 4 || Math.abs(dragDy) > 4) {
+    state.dragMoved = true;
   }
   const pointerPosition = getPointerStagePosition(event);
   const nextX = pointerPosition.x - state.dragOffset.x;
@@ -257,6 +305,9 @@ const handleTilePointerUp = (event) => {
   tile.classList.remove("is-dragging");
   tile.releasePointerCapture(event.pointerId);
   state.draggingTile = null;
+  if (state.dragMoved) {
+    state.lastInteractionAt = Date.now();
+  }
 };
 
 const handlePanPointerDown = (event) => {
@@ -265,6 +316,7 @@ const handlePanPointerDown = (event) => {
   }
   state.panning = true;
   state.panMoved = false;
+  clearSelectedTile();
   state.panStart = { x: event.clientX, y: event.clientY };
   state.offsetStart = { x: state.offsetX, y: state.offsetY };
   app.classList.add("is-panning");
@@ -292,6 +344,9 @@ const handlePanPointerUp = (event) => {
   state.panning = false;
   app.classList.remove("is-panning");
   app.releasePointerCapture(event.pointerId);
+  if (state.panMoved) {
+    state.lastInteractionAt = Date.now();
+  }
 };
 
 const loadImagesFromDirectoryListing = async () => {
@@ -417,6 +472,10 @@ const handleSnapAll = () => {
   });
 };
 
+const handleDeleteSelected = () => {
+  removeTile(state.selectedTile);
+};
+
 const handleCopy = async () => {
   if (!output.value) {
     return;
@@ -457,6 +516,9 @@ const wireTileEvents = () => {
     if (state.panning || state.draggingTile) {
       return;
     }
+    if (Date.now() - state.lastInteractionAt < CLICK_SUPPRESS_MS) {
+      return;
+    }
     if (
       event.target.closest(".wallfacer-dev-tile") ||
       event.target.closest("#wallfacer-dev-hud") ||
@@ -464,7 +526,18 @@ const wireTileEvents = () => {
     ) {
       return;
     }
+    clearSelectedTile();
     handleEmptyCellInput(event);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (!state.selectedTile) {
+      return;
+    }
+    if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault();
+      removeTile(state.selectedTile);
+    }
   });
 };
 
@@ -480,6 +553,7 @@ const wireTileDragHandlers = () => {
 spacingInput.addEventListener("input", handleSpacingChange);
 centerButton.addEventListener("click", handleCenter);
 snapButton.addEventListener("click", handleSnapAll);
+deleteButton.addEventListener("click", handleDeleteSelected);
 copyButton.addEventListener("click", handleCopy);
 downloadButton.addEventListener("click", handleDownload);
 
