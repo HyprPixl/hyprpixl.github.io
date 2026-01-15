@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wallfacer Dev Layout</title>
+    <link rel="stylesheet" href="../assets/css/wallfacer.css" />
+    <link rel="stylesheet" href="../assets/css/wallfacer-dev.css" />
+  </head>
+  <body class="wallfacer-page wallfacer-dev-page">
+    <div id="wallfacer-dev-app" class="wallfacer-screen wallfacer-dev-screen">
+      <header id="wallfacer-dev-hud">
+        <h1>Wallfacer Layout Lab</h1>
+        <p>
+          Drag tiles to new grid positions. Drag the background to pan. Adjust
+          spacing to tighten or loosen the grid. Download the rename map when
+          you’re done.
+        </p>
+        <div class="wallfacer-dev-controls">
+          <label class="wallfacer-dev-control">
+            <span>Grid spacing</span>
+            <input
+              id="wallfacer-dev-spacing"
+              type="range"
+              min="160"
+              max="360"
+              step="10"
+              value="260"
+            />
+            <span id="wallfacer-dev-spacing-value">260px</span>
+          </label>
+          <div class="wallfacer-dev-buttons">
+            <button id="wallfacer-dev-center" type="button">Center view</button>
+            <button id="wallfacer-dev-snap" type="button">Snap all</button>
+          </div>
+        </div>
+      </header>
+
+      <div id="wallfacer-dev-message">Loading wallfacer images…</div>
+      <div id="wallfacer-dev-stage" aria-live="polite"></div>
+
+      <aside class="wallfacer-dev-output-panel">
+        <div class="wallfacer-dev-output-header">
+          <h2>Rename map</h2>
+          <div class="wallfacer-dev-output-actions">
+            <button id="wallfacer-dev-copy" type="button">Copy</button>
+            <button id="wallfacer-dev-download" type="button">Download</button>
+          </div>
+        </div>
+        <textarea
+          id="wallfacer-dev-output"
+          rows="12"
+          readonly
+          aria-label="Rename mapping output"
+        ></textarea>
+      </aside>
+    </div>
+
+    <noscript>Enable JavaScript to layout Wallfacer images.</noscript>
+    <script src="../assets/js/wallfacer-dev.js"></script>
+  </body>
+</html>
