@@ -16,6 +16,13 @@ const state = {
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
+const imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "avif"];
+
+const hasImageExtension = (filename) =>
+  imageExtensions.some((extension) =>
+    filename.toLowerCase().endsWith(`.${extension}`)
+  );
+
 const parseImageData = (filename) => {
   const baseName = filename.split("/").pop() || filename;
   const nameWithoutExt = baseName.replace(/\.[^.]+$/, "");
@@ -25,6 +32,7 @@ const parseImageData = (filename) => {
     const [, x, y, label] = match;
     const caption = label ? label.trim() : "";
     return {
+      kind: "image",
       file: filename,
       x: Number.parseInt(x, 10),
       y: Number.parseInt(y, 10),
@@ -34,6 +42,7 @@ const parseImageData = (filename) => {
   }
 
   return {
+    kind: "image",
     file: filename,
     x: 0,
     y: 0,
@@ -42,35 +51,96 @@ const parseImageData = (filename) => {
   };
 };
 
-const renderTiles = (images) => {
-  stage.innerHTML = "";
-  state.tiles = images.map((image) => {
-    const tile = document.createElement("div");
-    tile.className = "wallfacer-tile";
-    tile.dataset.x = String(image.x);
-    tile.dataset.y = String(image.y);
+const parseTextEntry = (entry) => {
+  const match = entry.match(/^(-?\d+)\s*[x,]\s*(-?\d+)\s+"(.+)"\s*$/);
+  if (!match) {
+    return null;
+  }
+  const [, x, y, text] = match;
+  return {
+    kind: "text",
+    x: Number.parseInt(x, 10),
+    y: Number.parseInt(y, 10),
+    text,
+    title: `${x},${y}`,
+  };
+};
 
-    if (image.caption) {
-      const caption = document.createElement("div");
-      caption.className = "wallfacer-caption";
-      caption.textContent = image.caption;
-      tile.appendChild(caption);
+const parseManifestEntry = (entry) => {
+  if (typeof entry === "string") {
+    const textEntry = parseTextEntry(entry);
+    if (textEntry) {
+      return textEntry;
+    }
+    if (hasImageExtension(entry)) {
+      return parseImageData(entry);
+    }
+    return parseImageData(entry);
+  }
+
+  if (entry && typeof entry === "object") {
+    if (entry.type === "text" || entry.text) {
+      return {
+        kind: "text",
+        x: Number.parseInt(entry.x, 10) || 0,
+        y: Number.parseInt(entry.y, 10) || 0,
+        text: entry.text || "",
+        title: `${entry.x ?? 0},${entry.y ?? 0}`,
+      };
     }
 
-    const img = document.createElement("img");
-    img.src = `../wallfacer/${image.file}`;
-    img.alt = image.caption || image.title;
-    img.title = image.title;
-    img.loading = "lazy";
-    img.addEventListener("load", () => {
-      tile.classList.toggle("is-wide", img.naturalWidth >= img.naturalHeight);
-      tile.classList.toggle("is-tall", img.naturalWidth < img.naturalHeight);
-    });
-    tile.appendChild(img);
+    if (entry.file) {
+      return parseImageData(entry.file);
+    }
+  }
 
-    stage.appendChild(tile);
-    return tile;
-  });
+  return null;
+};
+
+const renderTiles = (entries) => {
+  stage.innerHTML = "";
+  state.tiles = entries
+    .map((entry) => {
+      if (!entry) {
+        return null;
+      }
+      const tile = document.createElement("div");
+      tile.className = "wallfacer-tile";
+      tile.dataset.x = String(entry.x);
+      tile.dataset.y = String(entry.y);
+
+      if (entry.kind === "text") {
+        const textBlock = document.createElement("div");
+        textBlock.className = "wallfacer-text-block";
+        textBlock.textContent = entry.text;
+        tile.appendChild(textBlock);
+      } else {
+        if (entry.caption) {
+          const caption = document.createElement("div");
+          caption.className = "wallfacer-caption";
+          caption.textContent = entry.caption;
+          tile.appendChild(caption);
+        }
+
+        const img = document.createElement("img");
+        img.src = `../wallfacer/${entry.file}`;
+        img.alt = entry.caption || entry.title;
+        img.title = entry.title;
+        img.loading = "lazy";
+        img.addEventListener("load", () => {
+          tile.classList.toggle("is-wide", img.naturalWidth >= img.naturalHeight);
+          tile.classList.toggle(
+            "is-tall",
+            img.naturalWidth < img.naturalHeight
+          );
+        });
+        tile.appendChild(img);
+      }
+
+      stage.appendChild(tile);
+      return tile;
+    })
+    .filter(Boolean);
 };
 
 const updateTiles = () => {
@@ -164,8 +234,6 @@ const handlePointerUp = (event) => {
   app.releasePointerCapture(event.pointerId);
 };
 
-const imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "avif"];
-
 const loadImagesFromDirectoryListing = async () => {
   const response = await fetch("../wallfacer/");
   if (!response.ok) {
@@ -190,7 +258,7 @@ const loadImagesFromDirectoryListing = async () => {
   return Array.from(files);
 };
 
-const loadImagesFromManifest = async () => {
+const loadEntriesFromManifest = async () => {
   const response = await fetch("../wallfacer/manifest.json");
   if (!response.ok) {
     throw new Error("manifest not found");
@@ -201,22 +269,32 @@ const loadImagesFromManifest = async () => {
 
 const init = async () => {
   try {
-    let images = [];
+    let entries = [];
     try {
-      images = await loadImagesFromDirectoryListing();
-    } catch (listingError) {
-      images = await loadImagesFromManifest();
+      entries = await loadEntriesFromManifest();
+    } catch (manifestError) {
+      entries = [];
     }
 
-    if (!images.length) {
+    if (!entries.length) {
+      try {
+        entries = await loadImagesFromDirectoryListing();
+      } catch (listingError) {
+        entries = [];
+      }
+    }
+
+    if (!entries.length) {
       message.textContent =
-        "No images yet. Add files to /wallfacer named with grid positions (e.g. 1,-1.jpg).";
+        "No images yet. Add files to /wallfacer named with grid positions (e.g. 1,-1.jpg) or update wallfacer/manifest.json.";
       return;
     }
 
     message.classList.add("wallfacer-hidden");
-    const parsedImages = images.map(parseImageData);
-    renderTiles(parsedImages);
+    const parsedEntries = entries
+      .map(parseManifestEntry)
+      .filter((entry) => entry);
+    renderTiles(parsedEntries);
     animate();
   } catch (error) {
     message.textContent =

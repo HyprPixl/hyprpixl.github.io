@@ -136,6 +136,21 @@ body.wallfacer-page {
     0 0 20px rgba(0, 255, 255, 0.25);
 }
 
+.wallfacer-text-block {
+  max-width: min(320px, 70vw);
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 200, 255, 0.35);
+  background: rgba(4, 12, 18, 0.85);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.55),
+    0 0 16px rgba(0, 200, 255, 0.15);
+  font-size: 0.95rem;
+  line-height: 1.4;
+  color: rgba(210, 255, 255, 0.92);
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
 #wallfacer-hud {
   position: absolute;
   top: 18px;
