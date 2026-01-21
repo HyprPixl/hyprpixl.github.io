@@ -176,7 +176,7 @@ const renderTiles = (entries) => {
         tile.appendChild(textBlock);
       } else {
         const img = document.createElement("img");
-        img.src = `../wallfacer/${entry.file}`;
+        img.src = `/wallfacer/${entry.file}`;
         img.alt = entry.label || entry.title;
         img.title = entry.title;
         img.loading = "lazy";

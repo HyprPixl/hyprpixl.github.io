@@ -123,7 +123,7 @@ const renderTiles = (entries) => {
         }
 
         const img = document.createElement("img");
-        img.src = `../wallfacer/${entry.file}`;
+        img.src = `/wallfacer/${entry.file}`;
         img.alt = entry.caption || entry.title;
         img.title = entry.title;
         img.loading = "lazy";
