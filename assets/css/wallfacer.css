@@ -79,6 +79,51 @@ body.wallfacer-page {
   transform-style: preserve-3d;
 }
 
+.wallfacer-connections {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.wallfacer-connection {
+  stroke: rgba(80, 220, 240, 0.28);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 2 12;
+  filter: drop-shadow(0 0 6px rgba(120, 240, 255, 0.25));
+  animation: connectionFlicker 2.2s steps(2) infinite;
+}
+
+.wallfacer-connection:nth-child(3n) {
+  stroke-dasharray: 4 10;
+  animation-duration: 1.6s;
+}
+
+.wallfacer-connection:nth-child(4n) {
+  stroke-dasharray: 1 8;
+  animation-duration: 2.8s;
+}
+
+@keyframes connectionFlicker {
+  0% {
+    stroke-opacity: 0.15;
+    filter: drop-shadow(0 0 4px rgba(120, 240, 255, 0.2));
+  }
+  50% {
+    stroke-opacity: 0.35;
+    filter: drop-shadow(0 0 10px rgba(120, 240, 255, 0.35));
+  }
+  100% {
+    stroke-opacity: 0.22;
+    filter: drop-shadow(0 0 6px rgba(120, 240, 255, 0.25));
+  }
+}
+
 .wallfacer-tile {
   position: absolute;
   transform-style: preserve-3d;
@@ -88,22 +133,30 @@ body.wallfacer-page {
   gap: 0.4rem;
   text-align: center;
   pointer-events: auto;
+  z-index: 1;
   --float-offset: 0px;
   --tile-size: clamp(220px, 34vw, 280px);
   transform: translate(-50%, -50%) var(--tile-transform) translateY(var(--float-offset));
   transition: filter 0.3s ease, opacity 0.3s ease;
 }
 
-.wallfacer-tile img {
-  width: auto;
-  height: auto;
-  max-width: none;
-  max-height: none;
+.wallfacer-image {
+  position: relative;
+  display: inline-block;
   border-radius: 10px;
   border: 1px solid rgba(20, 120, 140, 0.4);
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.55),
     0 0 14px rgba(0, 200, 255, 0.15);
-  background: rgba(4, 10, 15, 0.75);
+  background: #050608;
+  overflow: hidden;
+}
+
+.wallfacer-image img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
 }
 
 .wallfacer-tile.is-wide img {
@@ -131,9 +184,76 @@ body.wallfacer-page {
   --float-offset: -12px;
 }
 
-.wallfacer-tile.is-center img {
+.wallfacer-tile.is-center .wallfacer-image {
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.65),
     0 0 20px rgba(0, 255, 255, 0.25);
+}
+
+.wallfacer-tile.is-dim .wallfacer-image img {
+  filter: saturate(0.7) brightness(0.85) contrast(1.05);
+  opacity: var(--dim-opacity, 0.75);
+}
+
+.wallfacer-tile.is-dim .wallfacer-text-block {
+  opacity: 0.85;
+}
+
+.wallfacer-image::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'><filter id='n'><feTurbulence type='turbulence' baseFrequency='0.18' numOctaves='1' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='80' height='80' filter='url(%23n)' opacity='0.6'/></svg>");
+  background-size: var(--static-size, 96px) var(--static-size, 96px);
+  image-rendering: pixelated;
+  mix-blend-mode: screen;
+  opacity: 0;
+  pointer-events: none;
+  filter: contrast(1.35) brightness(1);
+  animation: wallfacerStatic var(--static-speed, 0.24s) steps(1, end) infinite;
+  animation-delay: var(--static-delay, 0s);
+}
+
+.wallfacer-tile.is-dim .wallfacer-image::after {
+  opacity: var(--static-opacity, 0.75);
+}
+
+.wallfacer-tile.is-far .wallfacer-image::after {
+  opacity: 0.95;
+  filter: contrast(1.6) brightness(1.05);
+}
+
+.wallfacer-tile.is-far .wallfacer-image img {
+  opacity: 0.22;
+  filter: saturate(0.4) brightness(0.7) contrast(1.1) blur(2.6px);
+}
+
+.wallfacer-tile.is-far .wallfacer-text-block {
+  opacity: 0.2;
+  filter: blur(2px);
+}
+
+@keyframes wallfacerStatic {
+  0% {
+    background-position: 0 0;
+    opacity: calc(var(--static-opacity, 0.75) * 0.8);
+  }
+  25% {
+    background-position: 16px -24px;
+    opacity: calc(var(--static-opacity, 0.75) * 1.05);
+  }
+  50% {
+    background-position: -22px 18px;
+    opacity: calc(var(--static-opacity, 0.75) * 0.9);
+  }
+  75% {
+    background-position: 28px 10px;
+    opacity: calc(var(--static-opacity, 0.75) * 1.1);
+  }
+  100% {
+    background-position: -10px -30px;
+    opacity: calc(var(--static-opacity, 0.75) * 0.95);
+  }
 }
 
 .wallfacer-text-block {

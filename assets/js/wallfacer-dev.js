@@ -1,19 +1,17 @@
-const app = document.getElementById("wallfacer-dev-app");
-const stage = document.getElementById("wallfacer-dev-stage");
-const message = document.getElementById("wallfacer-dev-message");
-const output = document.getElementById("wallfacer-dev-output");
-const spacingInput = document.getElementById("wallfacer-dev-spacing");
-const spacingValue = document.getElementById("wallfacer-dev-spacing-value");
-const centerButton = document.getElementById("wallfacer-dev-center");
-const snapButton = document.getElementById("wallfacer-dev-snap");
-const deleteButton = document.getElementById("wallfacer-dev-delete");
-const copyButton = document.getElementById("wallfacer-dev-copy");
-const downloadButton = document.getElementById("wallfacer-dev-download");
+let app = null;
+let stage = null;
+let message = null;
+let output = null;
+let spacingInput = null;
+let spacingValue = null;
+let deleteButton = null;
+let copyButton = null;
+let downloadButton = null;
 
 const CLICK_SUPPRESS_MS = 240;
 
 const state = {
-  spacing: Number.parseInt(spacingInput.value, 10),
+  spacing: 260,
   offsetX: 0,
   offsetY: 0,
   tiles: [],
@@ -31,6 +29,8 @@ const state = {
 };
 
 const imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "avif"];
+const wallfacerBaseUrl = new URL("../wallfacer/", window.location.href);
+const wallfacerManifestUrl = new URL("manifest.json", wallfacerBaseUrl);
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -122,6 +122,11 @@ const updateStageTransform = () => {
   stage.style.setProperty("--stage-offset-y", `${state.offsetY}px`);
 };
 
+const isUiElement = (target) =>
+  target.closest(
+    "#wallfacer-dev-hud, .wallfacer-dev-output-panel, button, input, textarea, select, label"
+  );
+
 const updateTilePosition = (tile) => {
   const x = Number.parseInt(tile.dataset.x, 10);
   const y = Number.parseInt(tile.dataset.y, 10);
@@ -139,6 +144,9 @@ const buildNewName = (image, x, y) => {
 };
 
 const updateOutput = () => {
+  if (!output) {
+    return;
+  }
   const entries = [];
   const renames = [];
 
@@ -176,7 +184,7 @@ const renderTiles = (entries) => {
         tile.appendChild(textBlock);
       } else {
         const img = document.createElement("img");
-        img.src = `/wallfacer/${entry.file}`;
+        img.src = new URL(entry.file, wallfacerBaseUrl).toString();
         img.alt = entry.label || entry.title;
         img.title = entry.title;
         img.loading = "lazy";
@@ -197,6 +205,13 @@ const renderTiles = (entries) => {
       stage.appendChild(tile);
 
       updateTilePosition(tile);
+      
+      // Add event handlers directly to each tile
+      tile.addEventListener("pointerdown", handleTilePointerDown);
+      tile.addEventListener("pointermove", handleTilePointerMove);
+      tile.addEventListener("pointerup", handleTilePointerUp);
+      tile.addEventListener("pointercancel", handleTilePointerUp);
+      
       return { tile, entry };
     })
     .filter(Boolean);
@@ -204,9 +219,33 @@ const renderTiles = (entries) => {
   updateOutput();
 };
 
+const getCurrentEntries = () =>
+  state.tiles.map(({ tile, entry }) => {
+    const x = Number.parseInt(tile.dataset.x, 10);
+    const y = Number.parseInt(tile.dataset.y, 10);
+    if (!Number.isNaN(x) && !Number.isNaN(y)) {
+      if (entry.x !== x || entry.y !== y) {
+        entry.x = x;
+        entry.y = y;
+        if (entry.kind === "text") {
+          entry.title = `${x},${y}`;
+        }
+      }
+    }
+    return entry;
+  });
+
 const snapTileToGrid = (tile, x, y) => {
   tile.dataset.x = String(x);
   tile.dataset.y = String(y);
+  const tileRecord = state.tiles.find((item) => item.tile === tile);
+  if (tileRecord) {
+    tileRecord.entry.x = x;
+    tileRecord.entry.y = y;
+    if (tileRecord.entry.kind === "text") {
+      tileRecord.entry.title = `${x},${y}`;
+    }
+  }
   updateTilePosition(tile);
   updateOutput();
 };
@@ -311,7 +350,7 @@ const handleTilePointerUp = (event) => {
 };
 
 const handlePanPointerDown = (event) => {
-  if (event.target.closest(".wallfacer-dev-tile")) {
+  if (event.target.closest(".wallfacer-dev-tile") || isUiElement(event.target)) {
     return;
   }
   state.panning = true;
@@ -350,7 +389,7 @@ const handlePanPointerUp = (event) => {
 };
 
 const loadImagesFromDirectoryListing = async () => {
-  const response = await fetch("../wallfacer/");
+  const response = await fetch(wallfacerBaseUrl);
   if (!response.ok) {
     throw new Error("directory listing unavailable");
   }
@@ -374,7 +413,7 @@ const loadImagesFromDirectoryListing = async () => {
 };
 
 const loadEntriesFromManifest = async () => {
-  const response = await fetch("../wallfacer/manifest.json");
+  const response = await fetch(wallfacerManifestUrl);
   if (!response.ok) {
     throw new Error("manifest not found");
   }
@@ -397,6 +436,12 @@ const isOccupied = (x, y) =>
   });
 
 const handleEmptyCellInput = (event) => {
+  // Check if click originated from a button or has recent drag/pan activity
+  if (
+    isUiElement(event.target)
+  ) {
+    return;
+  }
   const { gridX, gridY } = getGridPosition(event.clientX, event.clientY);
   if (isOccupied(gridX, gridY)) {
     return;
@@ -413,8 +458,7 @@ const handleEmptyCellInput = (event) => {
     text: trimmedText,
     title: `${gridX},${gridY}`,
   };
-  renderTiles([...state.tiles.map(({ entry }) => entry), entry]);
-  wireTileDragHandlers();
+  renderTiles([...getCurrentEntries(), entry]);
 };
 
 const init = async () => {
@@ -423,6 +467,7 @@ const init = async () => {
     try {
       entries = await loadEntriesFromManifest();
     } catch (manifestError) {
+      console.warn("Manifest not found, trying directory listing:", manifestError);
       entries = [];
     }
 
@@ -430,6 +475,7 @@ const init = async () => {
       try {
         entries = await loadImagesFromDirectoryListing();
       } catch (listingError) {
+        console.warn("Directory listing unavailable:", listingError);
         entries = [];
       }
     }
@@ -446,6 +492,7 @@ const init = async () => {
       .filter((entry) => entry);
     renderTiles(parsedEntries);
   } catch (error) {
+    console.error("Init error:", error);
     message.textContent =
       "Unable to load Wallfacer images. Ensure /wallfacer has images or update wallfacer/manifest.json.";
   }
@@ -453,23 +500,11 @@ const init = async () => {
 
 const handleSpacingChange = () => {
   state.spacing = clamp(Number.parseInt(spacingInput.value, 10), 120, 420);
-  spacingValue.textContent = `${state.spacing}px`;
+  if (spacingValue) {
+    spacingValue.textContent = `${state.spacing}px`;
+  }
   state.tiles.forEach(({ tile }) => updateTilePosition(tile));
   updateOutput();
-};
-
-const handleCenter = () => {
-  state.offsetX = 0;
-  state.offsetY = 0;
-  updateStageTransform();
-};
-
-const handleSnapAll = () => {
-  state.tiles.forEach(({ tile }) => {
-    const x = Number.parseInt(tile.dataset.x, 10);
-    const y = Number.parseInt(tile.dataset.y, 10);
-    snapTileToGrid(tile, x, y);
-  });
 };
 
 const handleDeleteSelected = () => {
@@ -519,11 +554,7 @@ const wireTileEvents = () => {
     if (Date.now() - state.lastInteractionAt < CLICK_SUPPRESS_MS) {
       return;
     }
-    if (
-      event.target.closest(".wallfacer-dev-tile") ||
-      event.target.closest("#wallfacer-dev-hud") ||
-      event.target.closest(".wallfacer-dev-output-panel")
-    ) {
+    if (event.target.closest(".wallfacer-dev-tile") || isUiElement(event.target)) {
       return;
     }
     clearSelectedTile();
@@ -542,33 +573,67 @@ const wireTileEvents = () => {
 };
 
 const wireTileDragHandlers = () => {
-  stage.querySelectorAll(".wallfacer-dev-tile").forEach((tile) => {
-    tile.addEventListener("pointerdown", handleTilePointerDown);
-    tile.addEventListener("pointermove", handleTilePointerMove);
-    tile.addEventListener("pointerup", handleTilePointerUp);
-    tile.addEventListener("pointercancel", handleTilePointerUp);
+  // Event handlers are now attached directly in renderTiles()
+  // This function is kept for backward compatibility but does nothing
+};
+
+const initDom = () => {
+  app = document.getElementById("wallfacer-dev-app");
+  stage = document.getElementById("wallfacer-dev-stage");
+  message = document.getElementById("wallfacer-dev-message");
+  output = document.getElementById("wallfacer-dev-output");
+  spacingInput = document.getElementById("wallfacer-dev-spacing");
+  spacingValue = document.getElementById("wallfacer-dev-spacing-value");
+  deleteButton = document.getElementById("wallfacer-dev-delete");
+  copyButton = document.getElementById("wallfacer-dev-copy");
+  downloadButton = document.getElementById("wallfacer-dev-download");
+
+  if (!app || !stage || !message) {
+    console.warn("Wallfacer dev: required elements missing.");
+    return false;
+  }
+
+  if (spacingInput) {
+    const parsedSpacing = Number.parseInt(spacingInput.value, 10);
+    if (!Number.isNaN(parsedSpacing)) {
+      state.spacing = parsedSpacing;
+    }
+    if (spacingValue) {
+      spacingValue.textContent = `${state.spacing}px`;
+    }
+  }
+
+  spacingInput?.addEventListener("input", handleSpacingChange);
+  deleteButton?.addEventListener("click", handleDeleteSelected);
+  copyButton?.addEventListener("click", handleCopy);
+  downloadButton?.addEventListener("click", handleDownload);
+
+  app.addEventListener("pointerleave", () => {
+    if (state.draggingTile) {
+      state.draggingTile.classList.remove("is-dragging");
+      state.draggingTile = null;
+    }
+    if (state.panning) {
+      state.panning = false;
+      app.classList.remove("is-panning");
+    }
+  });
+
+  return true;
+};
+
+const boot = () => {
+  if (!initDom()) {
+    return;
+  }
+  init().then(() => {
+    wireTileEvents();
+    wireTileDragHandlers();
   });
 };
 
-spacingInput.addEventListener("input", handleSpacingChange);
-centerButton.addEventListener("click", handleCenter);
-snapButton.addEventListener("click", handleSnapAll);
-deleteButton.addEventListener("click", handleDeleteSelected);
-copyButton.addEventListener("click", handleCopy);
-downloadButton.addEventListener("click", handleDownload);
-
-app.addEventListener("pointerleave", () => {
-  if (state.draggingTile) {
-    state.draggingTile.classList.remove("is-dragging");
-    state.draggingTile = null;
-  }
-  if (state.panning) {
-    state.panning = false;
-    app.classList.remove("is-panning");
-  }
-});
-
-init().then(() => {
-  wireTileEvents();
-  wireTileDragHandlers();
-});
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot();
+}
