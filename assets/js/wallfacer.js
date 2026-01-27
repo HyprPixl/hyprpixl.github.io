@@ -141,10 +141,11 @@ const renderTiles = (entries) => {
         );
 
         const img = document.createElement("img");
-        img.src = `/wallfacer/${entry.file}`;
+        img.dataset.src = `/wallfacer/${entry.file}`;
         img.alt = entry.caption || entry.title;
         img.title = entry.title;
         img.loading = "lazy";
+        img.decoding = "async";
         img.addEventListener("load", () => {
           tile.classList.toggle("is-wide", img.naturalWidth >= img.naturalHeight);
           tile.classList.toggle(
@@ -267,6 +268,17 @@ const updateTiles = () => {
     tile.classList.toggle("is-center", isCenter);
     tile.classList.toggle("is-dim", !isCenter);
     tile.classList.toggle("is-far", isFar);
+
+    const img = tile.querySelector("img");
+    if (img) {
+      const inRange = viewDistance <= 3;
+      const hasSrc = Boolean(img.getAttribute("src"));
+      if (inRange && !hasSrc && img.dataset.src) {
+        img.src = img.dataset.src;
+      } else if (!inRange && hasSrc) {
+        img.removeAttribute("src");
+      }
+    }
   });
 
   if (state.connectionLayer && state.connections.length) {
