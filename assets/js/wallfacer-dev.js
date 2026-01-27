@@ -86,8 +86,30 @@ const parseTextEntry = (entry) => {
   };
 };
 
+const parseLinkEntry = (entry) => {
+  const match = entry.match(
+    /^(-?\d+)\s*[x,]\s*(-?\d+)\s+"(.+?)"\s+(https?:\/\/\S+)\s*$/
+  );
+  if (!match) {
+    return null;
+  }
+  const [, x, y, text, href] = match;
+  return {
+    kind: "link",
+    x: Number.parseInt(x, 10),
+    y: Number.parseInt(y, 10),
+    text,
+    href,
+    title: `${x},${y}`,
+  };
+};
+
 const parseManifestEntry = (entry) => {
   if (typeof entry === "string") {
+    const linkEntry = parseLinkEntry(entry);
+    if (linkEntry) {
+      return linkEntry;
+    }
     const textEntry = parseTextEntry(entry);
     if (textEntry) {
       return textEntry;
@@ -99,6 +121,17 @@ const parseManifestEntry = (entry) => {
   }
 
   if (entry && typeof entry === "object") {
+    if (entry.type === "link" || entry.href) {
+      return {
+        kind: "link",
+        x: Number.parseInt(entry.x, 10) || 0,
+        y: Number.parseInt(entry.y, 10) || 0,
+        text: entry.text || entry.label || "",
+        href: entry.href || "",
+        title: `${entry.x ?? 0},${entry.y ?? 0}`,
+      };
+    }
+
     if (entry.type === "text" || entry.text) {
       return {
         kind: "text",
@@ -157,6 +190,10 @@ const updateOutput = () => {
       entries.push(`${x},${y} "${entry.text}"`);
       return;
     }
+    if (entry.kind === "link") {
+      entries.push(`${x},${y} "${entry.text}" ${entry.href}`);
+      return;
+    }
     const newName = buildNewName(entry, x, y);
     entries.push(newName);
     renames.push(`wallfacer/${entry.file} → wallfacer/${newName}`);
@@ -177,10 +214,19 @@ const renderTiles = (entries) => {
       tile.dataset.x = String(entry.x);
       tile.dataset.y = String(entry.y);
 
-      if (entry.kind === "text") {
+      if (entry.kind === "text" || entry.kind === "link") {
         const textBlock = document.createElement("div");
         textBlock.className = "wallfacer-dev-text-block";
-        textBlock.textContent = entry.text;
+        if (entry.kind === "link") {
+          const link = document.createElement("a");
+          link.href = entry.href;
+          link.textContent = entry.text || entry.href;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          textBlock.appendChild(link);
+        } else {
+          textBlock.textContent = entry.text;
+        }
         tile.appendChild(textBlock);
       } else {
         const img = document.createElement("img");
@@ -227,7 +273,7 @@ const getCurrentEntries = () =>
       if (entry.x !== x || entry.y !== y) {
         entry.x = x;
         entry.y = y;
-        if (entry.kind === "text") {
+        if (entry.kind === "text" || entry.kind === "link") {
           entry.title = `${x},${y}`;
         }
       }
@@ -242,7 +288,7 @@ const snapTileToGrid = (tile, x, y) => {
   if (tileRecord) {
     tileRecord.entry.x = x;
     tileRecord.entry.y = y;
-    if (tileRecord.entry.kind === "text") {
+    if (tileRecord.entry.kind === "text" || tileRecord.entry.kind === "link") {
       tileRecord.entry.title = `${x},${y}`;
     }
   }
