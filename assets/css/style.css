@@ -434,6 +434,8 @@ a:hover    { color: #FF0000; text-decoration: underline; }
   right: 8px;
   font-family: "Courier New", Courier, monospace;
   font-size: 0.8rem;
+  z-index: 10000;
+  pointer-events: auto;
 }
 
 /* semi-transparent boxes when lava lamp is on */
