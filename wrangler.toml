@@ -1,0 +1,9 @@
+# Wrangler configuration for serving this static site.
+# Note: Wrangler deploys to Cloudflare, not DigitalOcean.
+# If you're targeting DigitalOcean App Platform, keep this file for local preview
+# and use a DO app spec for actual deployment.
+name = "hyprpixl-site"
+compatibility_date = "2026-02-26"
+
+# Static assets are in the repository root.
+pages_build_output_dir = "."
