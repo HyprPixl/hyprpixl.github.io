@@ -7,3 +7,8 @@ compatibility_date = "2026-02-26"
 
 # Static assets are in the repository root.
 pages_build_output_dir = "."
+
+# Keep compatibility with `npx wrangler deploy` by explicitly treating
+# the repository root as a static assets bundle.
+[assets]
+directory = "."
