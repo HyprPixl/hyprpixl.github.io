@@ -204,7 +204,8 @@
     ctx = new (window.AudioContext || window.webkitAudioContext)();
 
     gainNode = ctx.createGain();
-    gainNode.gain.value = volSlider.value / 100;
+    gainNode.gain.setValueAtTime(0, ctx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(volSlider.value / 100, ctx.currentTime + 1);
 
     filterNode = ctx.createBiquadFilter();
     filterNode.type = 'lowpass';
