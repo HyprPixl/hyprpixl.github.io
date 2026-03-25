@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Cameron's White Noise</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <link rel="stylesheet" href="../assets/css/modern-style.css">
+  <style>
+    main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1.5rem 1rem 3rem;
+      gap: 1rem;
+    }
+
+    .player-wrap {
+      width: 100%;
+      max-width: 640px;
+      position: relative;
+      background: #000;
+    }
+
+    .player-wrap::before {
+      content: "";
+      display: block;
+      padding-top: 56.25%; /* 16:9 */
+    }
+
+    #yt-player {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      border: none;
+    }
+
+    .controls {
+      width: 100%;
+      max-width: 640px;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .controls button {
+      padding: 0.4rem 1rem;
+      background: #C0C0C0;
+      border: 2px outset #FFFFFF;
+      font-family: "Courier New", monospace;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .controls button:active { border-style: inset; }
+
+    .ad-info {
+      width: 100%;
+      max-width: 640px;
+      font-size: 0.85rem;
+    }
+
+    .ad-info .game-name {
+      font-weight: bold;
+      font-size: 1rem;
+    }
+
+    .ad-info .counter {
+      opacity: 0.6;
+      font-size: 0.8rem;
+    }
+
+    .progress-bar-wrap {
+      width: 100%;
+      max-width: 640px;
+      height: 6px;
+      background: #C0C0C0;
+      border: 1px inset #888;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: #000080;
+      width: 0%;
+      transition: width 0.5s linear;
+    }
+
+    .playlist {
+      width: 100%;
+      max-width: 640px;
+    }
+
+    .playlist h2 {
+      margin: 0 0 0.5rem;
+      font-size: 1rem;
+    }
+
+    .playlist ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      max-height: 200px;
+      overflow-y: auto;
+      border: 2px inset #C0C0C0;
+    }
+
+    .playlist li {
+      padding: 0.35rem 0.5rem;
+      cursor: pointer;
+      border-bottom: 1px solid #ccc;
+      font-size: 0.85rem;
+    }
+
+    .playlist li:hover { background: #e0e0ff; }
+    .playlist li.active { background: #000080; color: #FFFF00; font-weight: bold; }
+    .playlist li:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Cameron's White Noise</h1>
+  <nav>
+  <a href="/index.html">Home</a>
+  <a href="/about.html">About Me</a>
+  <a href="https://www.linkedin.com/in/caleb-fedyshen" target="_blank" rel="noopener">LinkedIn ↗</a>
+  <button id="style-toggle-btn">✨ Modern Style</button>
+</nav>
+</header>
+<main>
+
+  <div class="player-wrap">
+    <div id="yt-player"></div>
+  </div>
+
+  <div class="progress-bar-wrap">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <div class="ad-info">
+    <div class="game-name" id="gameName">Loading...</div>
+    <div class="counter" id="counter">Ad 1 of 1</div>
+  </div>
+
+  <div class="controls">
+    <button id="btnPrev">&#9664;&#9664; Prev</button>
+    <button id="btnSkip">Skip &#9654;&#9654;</button>
+    <button id="btnToggleLoop">Loop: ON</button>
+  </div>
+
+  <div class="playlist">
+    <h2>Playlist</h2>
+    <ul id="playlistEl"></ul>
+  </div>
+
+</main>
+
+<script src="../assets/js/styleToggle.js"></script>
+<script>
+  // ─── ADD YOUR VIDEO IDs AND GAME NAMES HERE ───────────────────────────────
+  // Each entry: { id: "YOUTUBE_VIDEO_ID", name: "Game Name" }
+  // To find an ID: it's the ?v= part of any YouTube URL, e.g. ?v=dQw4w9WgXcQ
+  const ADS = [
+    { id: "qpPLOdioG-c", name: "Clash of Clans – Revenge (Liam Neeson)" },
+    { id: "GC2qk2X3fKA", name: "Clash of Clans – Revenge (Super Bowl Cut)" },
+    { id: "TPQIj_xVCSs", name: "Raid: Shadow Legends" },
+    { id: "FRx-zEqxC8I", name: "Gardenscapes" },
+    { id: "ROdzpaBCD6w", name: "Rise of Kingdoms" },
+    { id: "", name: "Homescapes" },
+    { id: "", name: "Coin Master" },
+    { id: "", name: "AFK Arena" },
+    { id: "", name: "Lords Mobile" },
+  ];
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const VALID_ADS = ADS.filter(a => a.id.trim() !== "");
+
+  let player;
+  let current  = 0;
+  let loopAll  = true;
+  let progressInterval;
+
+  // Build playlist UI
+  const playlistEl = document.getElementById('playlistEl');
+  VALID_ADS.forEach((ad, i) => {
+    const li = document.createElement('li');
+    li.textContent = `${i + 1}. ${ad.name}`;
+    li.addEventListener('click', () => playIndex(i));
+    playlistEl.appendChild(li);
+  });
+
+  function updateUI() {
+    const ad = VALID_ADS[current];
+    document.getElementById('gameName').textContent = ad ? ad.name : '—';
+    document.getElementById('counter').textContent  = `Ad ${current + 1} of ${VALID_ADS.length}`;
+    document.querySelectorAll('#playlistEl li').forEach((li, i) => {
+      li.classList.toggle('active', i === current);
+    });
+    // scroll active into view
+    const activeLi = playlistEl.querySelector('.active');
+    if (activeLi) activeLi.scrollIntoView({ block: 'nearest' });
+    document.getElementById('progressBar').style.width = '0%';
+  }
+
+  function startProgressPoll() {
+    clearInterval(progressInterval);
+    progressInterval = setInterval(() => {
+      if (!player || typeof player.getDuration !== 'function') return;
+      const dur = player.getDuration();
+      const cur = player.getCurrentTime();
+      if (dur > 0) {
+        document.getElementById('progressBar').style.width = ((cur / dur) * 100) + '%';
+      }
+    }, 500);
+  }
+
+  function playIndex(i) {
+    current = i;
+    if (player && VALID_ADS[i]) {
+      player.loadVideoById(VALID_ADS[i].id);
+      updateUI();
+      startProgressPoll();
+    }
+  }
+
+  // YouTube IFrame API
+  window.onYouTubeIframeAPIReady = function () {
+    player = new YT.Player('yt-player', {
+      videoId: VALID_ADS[0]?.id || '',
+      playerVars: {
+        autoplay: 1,
+        rel: 0,
+        modestbranding: 1,
+        fs: 1,
+      },
+      events: {
+        onReady: (e) => { updateUI(); startProgressPoll(); },
+        onStateChange: (e) => {
+          if (e.data === YT.PlayerState.ENDED) {
+            clearInterval(progressInterval);
+            document.getElementById('progressBar').style.width = '100%';
+            const next = current + 1;
+            if (next < VALID_ADS.length) {
+              playIndex(next);
+            } else if (loopAll) {
+              playIndex(0);
+            }
+          }
+        }
+      }
+    });
+  };
+
+  // Load YouTube API script
+  const tag = document.createElement('script');
+  tag.src = "https://www.youtube.com/iframe_api";
+  document.head.appendChild(tag);
+
+  document.getElementById('btnSkip').addEventListener('click', () => {
+    const next = (current + 1) % VALID_ADS.length;
+    playIndex(next);
+  });
+
+  document.getElementById('btnPrev').addEventListener('click', () => {
+    const prev = (current - 1 + VALID_ADS.length) % VALID_ADS.length;
+    playIndex(prev);
+  });
+
+  document.getElementById('btnToggleLoop').addEventListener('click', function () {
+    loopAll = !loopAll;
+    this.textContent = loopAll ? 'Loop: ON' : 'Loop: OFF';
+  });
+
+  if (VALID_ADS.length === 0) {
+    document.getElementById('gameName').textContent = 'No video IDs added yet — edit the ADS array in the page source.';
+    document.getElementById('counter').textContent  = '';
+  }
+</script>
+</body>
+</html>
