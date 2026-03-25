@@ -24,26 +24,11 @@ body.modern-style {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   color: var(--modern-text);
   min-height: 100vh;
-  background-attachment: fixed;
+  background-attachment: scroll;
   position: relative;
   overflow-x: hidden;
 }
 
-/* Animated gradient overlay for depth */
-body.modern-style::before {
-  content: none;
-}
-
-@keyframes gradientShift {
-  0%, 100% {
-    opacity: 0.5;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.1);
-  }
-}
 
 /* Glassmorphism header with enhanced liquid effect */
 body.modern-style header {
@@ -95,7 +80,8 @@ body.modern-style header h1 {
 }
 
 /* Hide marquee in modern style */
-body.modern-style marquee {
+body.modern-style marquee,
+body.modern-style .marquee-wrap {
   display: none;
 }
 

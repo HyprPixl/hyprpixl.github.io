@@ -65,9 +65,12 @@
   <div id="lava-container"></div>
   <header>
     <h1 class="wink">Caleb Fedyshen</h1>
-    <marquee behavior="scroll" direction="left" scrollamount="7">
-      Welcome to my blogthing – I heard all the best programmers have the most retro looking websites. There are many secrets on this site, many more on the desktop version of the site than mobile. Have fun! I hope you're having a great day.
-    </marquee>
+    <div class="marquee-wrap" aria-hidden="true">
+      <div class="marquee-track">
+        <span>Welcome to my blogthing – I heard all the best programmers have the most retro looking websites. There are many secrets on this site, many more on the desktop version of the site than mobile. Have fun! I hope you're having a great day.&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+        <span aria-hidden="true">Welcome to my blogthing – I heard all the best programmers have the most retro looking websites. There are many secrets on this site, many more on the desktop version of the site than mobile. Have fun! I hope you're having a great day.&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+      </div>
+    </div>
 <nav>
   <a href="/index.html">Home</a>
   <a href="/about.html">About Me</a>
@@ -139,6 +142,10 @@
           <li>
             <a href="pages/wallfacer.html">Wallfacer</a>
             <p class="project-summary">An infinite CRT-inspired image canvas that maps a coordinate grid onto a curved surface.</p>
+          </li>
+          <li>
+            <a href="pages/brown-noise.html">Brown Noise Generator</a>
+            <p class="project-summary">Browser-based brown noise generator with volume and warmth controls and a live waveform visualiser.</p>
           </li>
         </ul>
       </section>

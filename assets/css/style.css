@@ -41,6 +41,28 @@ header h1 {
   text-shadow: 2px 2px #FF0000;
 }
 
+/* CSS marquee (replaces deprecated <marquee> tag) */
+.marquee-wrap {
+  overflow: hidden;
+  width: 100%;
+  white-space: nowrap;
+}
+
+.marquee-track {
+  display: inline-block;
+  white-space: nowrap;
+  animation: marquee-scroll 28s linear infinite;
+}
+
+.marquee-track span {
+  display: inline-block;
+}
+
+@keyframes marquee-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
 /* Navigation links: wrap on small screens */
 nav {
   margin-top: 0.5rem;
