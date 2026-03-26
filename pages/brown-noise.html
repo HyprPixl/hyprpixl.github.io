@@ -200,8 +200,14 @@
     return 800 - (warmth - 1) * 80;
   }
 
-  function start() {
+  async function start() {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // iOS Safari starts AudioContext in a suspended state even inside a user
+    // gesture — explicitly resume it before doing anything else.
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
 
     gainNode = ctx.createGain();
     gainNode.gain.setValueAtTime(0, ctx.currentTime);
@@ -257,15 +263,28 @@
     canvasCtx.stroke();
   }
 
-  playBtn.addEventListener('click', () => {
+  let starting = false;
+  playBtn.addEventListener('click', async () => {
+    if (starting) return;
     playing = !playing;
     if (playing) {
-      start();
-      iconPlay.style.display = 'none';
-      iconStop.style.display = '';
-      canvas.classList.add('active');
-      statusEl.textContent = 'Playing';
+      starting = true;
+      playBtn.disabled = true;
+      statusEl.textContent = 'Loading…';
       statusEl.classList.add('active');
+      try {
+        await start();
+        iconPlay.style.display = 'none';
+        iconStop.style.display = '';
+        canvas.classList.add('active');
+        statusEl.textContent = 'Playing';
+      } catch (e) {
+        playing = false;
+        statusEl.textContent = 'Error — try again';
+      } finally {
+        starting = false;
+        playBtn.disabled = false;
+      }
     } else {
       stop();
       iconPlay.style.display = '';
