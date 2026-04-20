@@ -549,11 +549,67 @@ body.modern-style .content-wrapper {
   body.modern-style header h1 {
     font-size: 1.75rem;
   }
-  
+
   body.modern-style nav a,
   body.modern-style #style-toggle-btn {
     font-size: 0.9rem;
     padding: 0.5rem 1rem;
     border-radius: 10px;
   }
+}
+
+/* Keep Reading section - modern overrides */
+body.modern-style .keep-reading {
+  background: rgba(111, 127, 87, 0.1);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border: 1px solid rgba(111, 127, 87, 0.25);
+  border-radius: 16px;
+  color: var(--modern-text);
+  box-shadow: 0 4px 16px rgba(31, 38, 135, 0.08),
+              inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+body.modern-style .keep-reading h2 {
+  color: var(--modern-accent-strong);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: normal;
+  text-transform: none;
+  border-bottom: 2px solid rgba(111, 127, 87, 0.2);
+  padding-bottom: 0.5rem;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+}
+
+body.modern-style .keep-reading ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+body.modern-style .keep-reading li {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid rgba(111, 127, 87, 0.12);
+  transition: all 0.2s ease;
+}
+
+body.modern-style .keep-reading li:last-child {
+  border-bottom: none;
+}
+
+body.modern-style .keep-reading li:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  border-bottom-color: transparent;
+  transform: translateX(4px);
+}
+
+body.modern-style .keep-reading a,
+body.modern-style .keep-reading a:visited {
+  color: var(--modern-accent-strong);
+  font-weight: 500;
+}
+
+body.modern-style .keep-reading a:hover {
+  color: var(--modern-accent);
+  text-decoration: underline;
 }

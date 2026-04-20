@@ -359,6 +359,56 @@ a:hover    { color: #FF0000; text-decoration: underline; }
   text-decoration: underline;
 }
 
+/* ────────────────────────────────────────────────── */
+/* keep reading section at the bottom of posts       */
+/* ────────────────────────────────────────────────── */
+.keep-reading {
+  margin-top: 2rem;
+  padding: 0.75rem 1rem;
+  background: #000080;
+  color: #FFFF00;
+  border: 4px ridge #C0C0C0;
+  font-family: "Courier New", monospace;
+}
+
+.keep-reading h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  color: #FFFF00;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.keep-reading ul {
+  list-style-position: outside;
+  padding-left: 20px;
+  margin: 0;
+}
+
+.keep-reading li {
+  margin-bottom: 0.4rem;
+}
+
+.keep-reading time {
+  font-size: 0.85em;
+  opacity: 0.8;
+  margin-right: 0.4em;
+}
+
+.keep-reading a {
+  color: #FFFF00;
+  text-decoration: none;
+}
+
+.keep-reading a:visited {
+  color: #FFCC88;
+}
+
+.keep-reading a:hover {
+  color: #FFCC00;
+  text-decoration: underline;
+}
+
 /* keypad styles for the secret archive */
 #keypad {
   display: flex;
