@@ -17,6 +17,8 @@ jobs:
           python-version: '3.x'
       - name: Run build
         run: python scripts/build.py
+      - name: Inject related posts
+        run: python scripts/inject_related_posts.py
       - name: Check links
         run: python scripts/check_links.py
       - name: Commit changes
