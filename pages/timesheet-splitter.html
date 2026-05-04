@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Timesheet Splitter</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem auto; max-width: 900px; line-height: 1.4; padding: 0 1rem; }
+    h1 { margin-bottom: 0.25rem; }
+    .muted { color: #555; margin-top: 0; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th, td { border: 1px solid #ddd; padding: 0.6rem; text-align: left; }
+    th { background: #f6f6f6; }
+    input[type="number"] { width: 100px; padding: 0.3rem; }
+    button { padding: 0.6rem 1rem; font-size: 1rem; cursor: pointer; }
+    .results { margin-top: 1.5rem; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: #fafafa; }
+    pre { white-space: pre-wrap; word-wrap: break-word; background: #fff; border: 1px solid #ddd; padding: 0.8rem; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Weekly Timesheet Splitter (70/30)</h1>
+  <p class="muted">Unlinked utility page. Enter hours for each day, then calculate a quarter-hour compliant split with at most one split day.</p>
+
+  <table>
+    <thead>
+      <tr><th>Day</th><th>Hours Worked</th></tr>
+    </thead>
+    <tbody id="hours-body"></tbody>
+  </table>
+
+  <button id="calculate">Calculate Split</button>
+
+  <div class="results" id="results" hidden>
+    <div class="card" id="assignments"></div>
+    <div class="card" id="totals"></div>
+    <div class="card" id="lines"></div>
+  </div>
+
+  <script>
+    const PROJECT_A = { name: 'IS – 2026 Data&AI-Eng-Security', id: '110701', code: 'PAA', ratio: 0.7 };
+    const PROJECT_B = { name: 'IS – 2026 DATA ENGINEERING & SECURITY SME CONSULTING', id: '110730', code: 'PMC', ratio: 0.3 };
+    const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+    const tbody = document.getElementById('hours-body');
+    DAYS.forEach((day) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${day}</td><td><input type="number" min="0" step="0.25" value="0" data-day="${day}"></td>`;
+      tbody.appendChild(tr);
+    });
+
+    function formatHours(units) {
+      return (units / 4).toFixed(2).replace(/\.00$/, '');
+    }
+
+    function roundToQuarter(hours) {
+      return Math.round(hours * 4);
+    }
+
+    function calculateBestSplit(dayUnits) {
+      const totalUnits = dayUnits.reduce((a, b) => a + b, 0);
+      const targetUnits = totalUnits * PROJECT_A.ratio;
+      let best = null;
+
+      for (let mask = 0; mask < (1 << 7); mask++) {
+        const assignments = [];
+        let totalA = 0;
+        for (let i = 0; i < 7; i++) {
+          const toA = (mask >> i) & 1;
+          const aUnits = toA ? dayUnits[i] : 0;
+          const bUnits = dayUnits[i] - aUnits;
+          totalA += aUnits;
+          assignments.push({ aUnits, bUnits, split: false });
+        }
+        const diff = Math.abs(totalA - targetUnits);
+        const candidate = { assignments, totalA, splitDays: 0, splitMinUnits: Infinity, diff };
+        if (!best || isBetter(candidate, best)) best = candidate;
+      }
+
+      for (let splitIdx = 0; splitIdx < 7; splitIdx++) {
+        const u = dayUnits[splitIdx];
+        if (u === 0) continue;
+        for (let splitA = 1; splitA < u; splitA++) {
+          for (let mask = 0; mask < (1 << 6); mask++) {
+            const assignments = [];
+            let totalA = 0;
+            let bit = 0;
+            for (let i = 0; i < 7; i++) {
+              if (i === splitIdx) {
+                assignments.push({ aUnits: splitA, bUnits: u - splitA, split: true });
+                totalA += splitA;
+              } else {
+                const toA = (mask >> bit) & 1;
+                bit++;
+                const aUnits = toA ? dayUnits[i] : 0;
+                const bUnits = dayUnits[i] - aUnits;
+                assignments.push({ aUnits, bUnits, split: false });
+                totalA += aUnits;
+              }
+            }
+            const diff = Math.abs(totalA - targetUnits);
+            const candidate = {
+              assignments,
+              totalA,
+              splitDays: 1,
+              splitMinUnits: Math.min(splitA, u - splitA),
+              diff
+            };
+            if (!best || isBetter(candidate, best)) best = candidate;
+          }
+        }
+      }
+
+      return { ...best, totalUnits, targetUnits };
+    }
+
+    function isBetter(a, b) {
+      if (a.diff !== b.diff) return a.diff < b.diff;
+      if (a.splitDays !== b.splitDays) return a.splitDays < b.splitDays;
+      if (a.splitDays === 1 && b.splitDays === 1 && a.splitMinUnits !== b.splitMinUnits) {
+        return a.splitMinUnits > b.splitMinUnits;
+      }
+      return false;
+    }
+
+    function render(best) {
+      const results = document.getElementById('results');
+      const assignmentsDiv = document.getElementById('assignments');
+      const totalsDiv = document.getElementById('totals');
+      const linesDiv = document.getElementById('lines');
+
+      const totalA = best.totalA;
+      const totalB = best.totalUnits - totalA;
+      const pctA = best.totalUnits ? (100 * totalA / best.totalUnits) : 0;
+      const pctB = best.totalUnits ? (100 * totalB / best.totalUnits) : 0;
+
+      let assignmentHtml = '<h3>Assignments by Day</h3><ul>';
+      DAYS.forEach((day, i) => {
+        const a = best.assignments[i].aUnits;
+        const b = best.assignments[i].bUnits;
+        if (a === 0 && b === 0) {
+          assignmentHtml += `<li>${day}: 0 h</li>`;
+        } else {
+          assignmentHtml += `<li>${day}: ${PROJECT_A.id} = ${formatHours(a)} h, ${PROJECT_B.id} = ${formatHours(b)} h</li>`;
+        }
+      });
+      assignmentHtml += '</ul>';
+      assignmentsDiv.innerHTML = assignmentHtml;
+
+      totalsDiv.innerHTML = `
+        <h3>Totals per Project</h3>
+        <ul>
+          <li>${PROJECT_A.name} (#${PROJECT_A.id}, ${PROJECT_A.code}): <strong>${formatHours(totalA)} h</strong> (${pctA.toFixed(2)}%)</li>
+          <li>${PROJECT_B.name} (#${PROJECT_B.id}, ${PROJECT_B.code}): <strong>${formatHours(totalB)} h</strong> (${pctB.toFixed(2)}%)</li>
+        </ul>
+        <p>Target was 70/30. Result is closest possible using 0.25 h increments and at most one split day.</p>
+      `;
+
+      const projectALines = [];
+      const projectBLines = [];
+      DAYS.forEach((day, i) => {
+        const { aUnits, bUnits } = best.assignments[i];
+        if (aUnits > 0) projectALines.push(`${day}: ${formatHours(aUnits)} h`);
+        if (bUnits > 0) projectBLines.push(`${day}: ${formatHours(bUnits)} h`);
+      });
+
+      linesDiv.innerHTML = `
+        <h3>Timesheet Lines (Grouped by Project)</h3>
+        <pre>${PROJECT_A.name} (#${PROJECT_A.id}, ${PROJECT_A.code})\n${projectALines.length ? projectALines.join('\n') : 'No hours'}\n\n${PROJECT_B.name} (#${PROJECT_B.id}, ${PROJECT_B.code})\n${projectBLines.length ? projectBLines.join('\n') : 'No hours'}</pre>
+      `;
+
+      results.hidden = false;
+    }
+
+    document.getElementById('calculate').addEventListener('click', () => {
+      const inputs = Array.from(document.querySelectorAll('input[data-day]'));
+      const dayUnits = inputs.map((input) => {
+        const roundedUnits = roundToQuarter(Number(input.value) || 0);
+        input.value = (roundedUnits / 4).toFixed(2).replace(/\.00$/, '');
+        return roundedUnits;
+      });
+      const best = calculateBestSplit(dayUnits);
+      render(best);
+    });
+  </script>
+</body>
+</html>
