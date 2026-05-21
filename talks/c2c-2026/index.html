@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Value Speaks for Itself — C2C 2026 — Caleb Fedyshen</title>
+  <meta name="viewport" content="width=1280, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <style>
+    /* ═══════════════════════════════════════════════════════════════
+       BASE
+    ═══════════════════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #070711;
+      --green:      #39FF14;
+      --green-dim:  rgba(57,255,20,0.15);
+      --yellow:     #FFFF00;
+      --red:        #FF4444;
+      --cyan:       #00FFFF;
+      --white:      #E0E0E0;
+      --muted:      #555;
+      --font:       "Courier New", Courier, monospace;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: var(--font);
+      color: var(--green);
+      user-select: none;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       CRT OVERLAY
+    ═══════════════════════════════════════════════════════════════ */
+    #crt-scanlines {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 900;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0,0,0,0.13) 0px, rgba(0,0,0,0.13) 1px,
+        transparent 1px, transparent 3px
+      );
+    }
+    #crt-vignette {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 901;
+      background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,0.65) 100%);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       DECK & SLIDES
+    ═══════════════════════════════════════════════════════════════ */
+    #deck {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    }
+
+    .slide {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      padding: 6% 9%;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.4s ease, transform 0.4s ease;
+      transform: scale(0.98);
+      text-align: center;
+    }
+    .slide.active {
+      opacity: 1; pointer-events: auto; transform: scale(1);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       CHROME: COUNTER, TIMER, PROGRESS
+    ═══════════════════════════════════════════════════════════════ */
+    #counter {
+      position: fixed; bottom: 22px; right: 28px;
+      font-size: 0.8rem; color: var(--muted); z-index: 950;
+      letter-spacing: 0.1em;
+    }
+    #timer {
+      position: fixed; bottom: 22px; left: 28px;
+      font-size: 0.8rem; color: var(--yellow); z-index: 950;
+    }
+    #timer.hidden { display: none; }
+    #hotkeys {
+      position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+      font-size: 0.65rem; color: #333; z-index: 950; letter-spacing: 0.08em;
+    }
+    #progress {
+      position: fixed; bottom: 0; left: 0;
+      height: 2px; background: var(--green);
+      transition: width 0.4s ease; z-index: 950;
+      box-shadow: 0 0 8px var(--green), 0 0 16px rgba(57,255,20,0.4);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       TYPOGRAPHY
+    ═══════════════════════════════════════════════════════════════ */
+    .event-tag {
+      font-size: clamp(0.65rem, 1vw, 0.85rem);
+      letter-spacing: 0.25em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 1.5rem;
+    }
+    h1.hero {
+      font-size: clamp(3rem, 7.5vw, 6.5rem);
+      color: var(--green); line-height: 1.0;
+      text-shadow: 0 0 30px rgba(57,255,20,0.5);
+      letter-spacing: -2px;
+    }
+    h2.slide-title {
+      font-size: clamp(1.8rem, 4.5vw, 3.5rem);
+      color: var(--yellow); line-height: 1.2; margin-bottom: 0.75rem;
+    }
+    h3.slide-sub {
+      font-size: clamp(1rem, 2vw, 1.5rem);
+      color: var(--white); font-weight: normal; line-height: 1.5;
+    }
+    p.body-text {
+      font-size: clamp(0.95rem, 1.8vw, 1.3rem);
+      color: var(--white); max-width: 80%; line-height: 1.7;
+      margin: 0.5rem auto;
+    }
+    .accent-green  { color: var(--green); }
+    .accent-yellow { color: var(--yellow); }
+    .accent-red    { color: var(--red); }
+    .accent-cyan   { color: var(--cyan); }
+    .glow-green    { text-shadow: 0 0 12px var(--green); }
+    .glow-yellow   { text-shadow: 0 0 12px var(--yellow); }
+    .glow-red      { text-shadow: 0 0 15px var(--red); }
+
+    /* ═══════════════════════════════════════════════════════════════
+       CURSOR BLINK
+    ═══════════════════════════════════════════════════════════════ */
+    .cursor {
+      display: inline-block; width: 0.55em; height: 1em;
+      background: var(--green); vertical-align: text-bottom;
+      margin-left: 3px; animation: blink 1s step-end infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* ═══════════════════════════════════════════════════════════════
+       DIVIDER
+    ═══════════════════════════════════════════════════════════════ */
+    .divider {
+      width: 70%; height: 1px; margin: 1.2rem auto;
+      background: linear-gradient(to right, transparent, var(--green), transparent);
+      box-shadow: 0 0 8px rgba(57,255,20,0.4);
+    }
+    .divider.yellow {
+      background: linear-gradient(to right, transparent, var(--yellow), transparent);
+      box-shadow: 0 0 8px rgba(255,255,0,0.4);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       STAT SLIDES
+    ═══════════════════════════════════════════════════════════════ */
+    .stat-hero {
+      font-size: clamp(4rem, 13vw, 11rem);
+      font-weight: 900; color: var(--red); line-height: 1;
+      letter-spacing: -3px;
+      text-shadow: 0 0 30px rgba(255,68,68,0.6), 0 0 60px rgba(255,68,68,0.3);
+    }
+    .stat-hero.green {
+      color: var(--green);
+      text-shadow: 0 0 30px rgba(57,255,20,0.6), 0 0 60px rgba(57,255,20,0.3);
+    }
+    .stat-label {
+      font-size: clamp(0.9rem, 2vw, 1.4rem);
+      color: var(--white); margin-top: 0.6rem; letter-spacing: 0.05em;
+    }
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 2.5rem; max-width: 860px; margin: 2rem auto;
+    }
+    .stat-box { text-align: center; }
+    .stat-box .num {
+      font-size: clamp(1.8rem, 4vw, 3rem);
+      color: var(--red); display: block;
+      text-shadow: 0 0 15px rgba(255,68,68,0.5);
+    }
+    .stat-box .lbl {
+      font-size: clamp(0.65rem, 1vw, 0.85rem);
+      color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.12em; margin-top: 0.3rem; display: block;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       QUOTE SLIDES
+    ═══════════════════════════════════════════════════════════════ */
+    .quote-text {
+      font-size: clamp(1.6rem, 3.8vw, 3rem);
+      color: var(--yellow); line-height: 1.45; max-width: 85%;
+      text-shadow: 0 0 20px rgba(255,255,0,0.25);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       TERMINAL WINDOW
+    ═══════════════════════════════════════════════════════════════ */
+    .terminal {
+      background: #000;
+      border: 1px solid rgba(57,255,20,0.5);
+      border-radius: 6px;
+      padding: 0;
+      max-width: 720px; width: 100%;
+      margin: 1.2rem auto;
+      box-shadow: 0 0 25px rgba(57,255,20,0.15), 0 0 60px rgba(57,255,20,0.07);
+      text-align: left;
+      font-size: clamp(0.65rem, 1.1vw, 0.88rem);
+    }
+    .terminal-titlebar {
+      background: #111; border-bottom: 1px solid #222;
+      padding: 8px 12px; display: flex; align-items: center; gap: 7px;
+      border-radius: 6px 6px 0 0;
+    }
+    .td { width: 11px; height: 11px; border-radius: 50%; }
+    .td.r { background: #FF5F57; }
+    .td.y { background: #FEBC2E; }
+    .td.g { background: #28C840; }
+    .terminal-titlebar span {
+      margin-left: auto; margin-right: auto; padding-right: 30px;
+      font-size: 0.7rem; color: #555; letter-spacing: 0.08em;
+    }
+    .terminal-body {
+      padding: 14px 18px; color: var(--green); line-height: 1.6;
+      font-family: var(--font);
+      white-space: pre;
+    }
+    .terminal-body .dim   { color: #444; }
+    .terminal-body .hi    { color: var(--yellow); }
+    .terminal-body .red   { color: var(--red); }
+    .terminal-body .cyan  { color: var(--cyan); }
+    .terminal-body .white { color: var(--white); }
+
+    /* ═══════════════════════════════════════════════════════════════
+       BIG LIST
+    ═══════════════════════════════════════════════════════════════ */
+    .big-list {
+      list-style: none; text-align: left; max-width: 82%;
+      margin: 0.8rem auto;
+    }
+    .big-list li {
+      font-size: clamp(1rem, 2.1vw, 1.5rem);
+      color: var(--white); padding: 0.45rem 0;
+      line-height: 1.4;
+    }
+    .big-list li::before { content: "▶ "; color: var(--green); }
+    .big-list li em  { color: var(--yellow); font-style: normal; }
+    .big-list li strong { color: var(--green); }
+    .big-list.questions li::before { content: ""; }
+    .big-list.questions li { padding-left: 1.5rem; position: relative; }
+    .big-list.questions li .q-num {
+      position: absolute; left: 0; color: var(--green);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       SECTION BREAK SLIDES
+    ═══════════════════════════════════════════════════════════════ */
+    .section-act {
+      font-size: 0.75rem; letter-spacing: 0.3em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 0.8rem;
+    }
+    .section-title {
+      font-size: clamp(2.5rem, 7vw, 5.5rem);
+      color: var(--green); letter-spacing: 0.05em;
+      text-shadow: 0 0 30px rgba(57,255,20,0.5);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       BOX DECORATION (corner brackets)
+    ═══════════════════════════════════════════════════════════════ */
+    .corner-box {
+      position: relative; padding: 2rem 3rem;
+      max-width: 900px; width: 100%;
+    }
+    .corner-box::before {
+      content: "";
+      position: absolute; top: 0; left: 0;
+      width: 28px; height: 28px;
+      border-top: 2px solid var(--green);
+      border-left: 2px solid var(--green);
+    }
+    .corner-box::after {
+      content: "";
+      position: absolute; bottom: 0; right: 0;
+      width: 28px; height: 28px;
+      border-bottom: 2px solid var(--green);
+      border-right: 2px solid var(--green);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       DEMO SLIDE
+    ═══════════════════════════════════════════════════════════════ */
+    #s17 {
+      background: radial-gradient(circle at 50% 45%, #001900 0%, #020a02 60%, #000 100%);
+    }
+    .demo-label {
+      font-size: clamp(0.7rem, 1.2vw, 0.9rem);
+      letter-spacing: 0.35em; text-transform: uppercase;
+      color: rgba(57,255,20,0.5); margin-bottom: 1.5rem;
+    }
+    .demo-hero {
+      font-size: clamp(3.5rem, 9vw, 8rem);
+      color: var(--green); letter-spacing: 0.08em;
+      text-shadow:
+        0 0 20px var(--green),
+        0 0 50px rgba(57,255,20,0.7),
+        0 0 100px rgba(57,255,20,0.4);
+      animation: pulse-glow 2.5s ease-in-out infinite;
+    }
+    @keyframes pulse-glow {
+      0%,100% { text-shadow: 0 0 20px var(--green), 0 0 50px rgba(57,255,20,0.7), 0 0 100px rgba(57,255,20,0.4); }
+      50%      { text-shadow: 0 0 30px var(--green), 0 0 80px rgba(57,255,20,0.9), 0 0 150px rgba(57,255,20,0.6); }
+    }
+    .demo-sub {
+      font-size: clamp(1rem, 2vw, 1.5rem);
+      color: rgba(57,255,20,0.6); margin-top: 1rem; letter-spacing: 0.1em;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       REVEAL ANIMATIONS
+    ═══════════════════════════════════════════════════════════════ */
+    .reveal { opacity: 0; }
+    .slide.active .reveal { animation: fadeInUp 0.5s ease forwards; }
+    .reveal.d1 { animation-delay: 0.08s; }
+    .reveal.d2 { animation-delay: 0.18s; }
+    .reveal.d3 { animation-delay: 0.28s; }
+    .reveal.d4 { animation-delay: 0.38s; }
+    .reveal.d5 { animation-delay: 0.48s; }
+    .reveal.d6 { animation-delay: 0.58s; }
+    .reveal.d7 { animation-delay: 0.68s; }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       SPEAKER NOTES OVERLAY
+    ═══════════════════════════════════════════════════════════════ */
+    #notes-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.94); z-index: 990;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      padding: 5%;
+    }
+    #notes-overlay.hidden { display: none; }
+    #notes-slidenum {
+      font-size: 0.75rem; color: var(--muted);
+      letter-spacing: 0.2em; margin-bottom: 1.2rem;
+    }
+    #notes-content {
+      font-size: clamp(1rem, 1.5vw, 1.25rem);
+      color: var(--yellow); max-width: 800px;
+      line-height: 1.8; text-align: left;
+    }
+    #notes-close {
+      margin-top: 1.5rem; font-size: 0.7rem;
+      color: #444; letter-spacing: 0.15em;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       OVERVIEW MODAL
+    ═══════════════════════════════════════════════════════════════ */
+    #overview {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.96); z-index: 980;
+      overflow-y: auto; padding: 40px 32px 80px;
+    }
+    #overview.hidden { display: none; }
+    #overview-header {
+      font-size: 0.75rem; color: var(--muted);
+      letter-spacing: 0.2em; margin-bottom: 24px;
+      text-transform: uppercase;
+    }
+    #overview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px; max-width: 1400px;
+    }
+    .ov-thumb {
+      background: #0d0d15; border: 1px solid #222;
+      padding: 10px 12px; cursor: pointer;
+      font-size: 0.7rem; color: #666;
+      transition: border-color 0.2s, color 0.2s;
+      aspect-ratio: 16/9;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      text-align: center; gap: 4px;
+    }
+    .ov-thumb:hover        { border-color: var(--green); color: var(--green); }
+    .ov-thumb.ov-current   { border-color: var(--yellow); color: var(--yellow); }
+    .ov-thumb .ov-n        { font-size: 0.55rem; color: #444; }
+    .ov-thumb .ov-title    { font-size: 0.68rem; line-height: 1.3; }
+
+    /* ═══════════════════════════════════════════════════════════════
+       CANVAS BACKGROUND (Title slide)
+    ═══════════════════════════════════════════════════════════════ */
+    #title-canvas {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; opacity: 0.35; z-index: 0;
+    }
+    #s1 > * { position: relative; z-index: 1; }
+
+    /* ═══════════════════════════════════════════════════════════════
+       FLOW DIAGRAM (Deal Capture)
+    ═══════════════════════════════════════════════════════════════ */
+    .flow {
+      display: flex; align-items: center; gap: 0;
+      max-width: 780px; margin: 1.5rem auto;
+    }
+    .flow-box {
+      background: #0a0a18; border: 1px solid rgba(57,255,20,0.35);
+      padding: 10px 16px;
+      font-size: clamp(0.65rem, 1vw, 0.82rem);
+      color: var(--green); text-align: center; min-width: 110px;
+      line-height: 1.4;
+    }
+    .flow-box.yellow { border-color: rgba(255,255,0,0.4); color: var(--yellow); }
+    .flow-box.cyan   { border-color: rgba(0,255,255,0.4); color: var(--cyan); }
+    .flow-arrow {
+      font-size: clamp(0.9rem, 1.5vw, 1.2rem);
+      color: var(--muted); padding: 0 4px;
+      animation: arrow-pulse 2s ease-in-out infinite;
+    }
+    @keyframes arrow-pulse {
+      0%,100% { opacity: 0.4; } 50% { opacity: 1; color: var(--green); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       GLITCH EFFECT (for one key quote)
+    ═══════════════════════════════════════════════════════════════ */
+    .glitch-wrap { position: relative; display: inline-block; }
+    .glitch-wrap::before, .glitch-wrap::after {
+      content: attr(data-text);
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none;
+    }
+    .glitch-wrap::before {
+      color: var(--red); clip-path: inset(0 0 100% 0);
+      animation: g1 4s steps(2) infinite;
+    }
+    .glitch-wrap::after {
+      color: var(--cyan); clip-path: inset(100% 0 0 0);
+      animation: g2 4s steps(2) infinite 0.3s;
+    }
+    @keyframes g1 {
+      0%  { clip-path: inset(0 0 100% 0); transform: translate(0); }
+      10% { clip-path: inset(30% 0 50% 0); transform: translate(-3px,1px); }
+      20% { clip-path: inset(60% 0 20% 0); transform: translate(2px,-1px); }
+      30% { clip-path: inset(0 0 100% 0); transform: translate(0); }
+      100%{ clip-path: inset(0 0 100% 0); transform: translate(0); }
+    }
+    @keyframes g2 {
+      0%  { clip-path: inset(100% 0 0 0); transform: translate(0); }
+      15% { clip-path: inset(20% 0 60% 0); transform: translate(3px,-1px); }
+      25% { clip-path: inset(70% 0 10% 0); transform: translate(-2px,1px); }
+      35% { clip-path: inset(100% 0 0 0); transform: translate(0); }
+      100%{ clip-path: inset(100% 0 0 0); transform: translate(0); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       SLIDE-SPECIFIC BACKGROUNDS
+    ═══════════════════════════════════════════════════════════════ */
+    #s10 { /* THREE WINS section break */
+      background: radial-gradient(circle at 50% 50%, #0d1a0d 0%, #040a04 60%, #000 100%);
+    }
+    #s20 { /* WHY THIS WORKS section break */
+      background: radial-gradient(circle at 50% 50%, #1a1a00 0%, #0a0a00 60%, #000 100%);
+    }
+    #s27 { /* THE PLAYBOOK section break */
+      background: radial-gradient(circle at 50% 50%, #00121a 0%, #000c12 60%, #000 100%);
+    }
+
+    /* Large single-stat slides */
+    #s2, #s4 {
+      background: radial-gradient(circle at 50% 40%, #150008 0%, #08000d 55%, #000 100%);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       ACTION ITEM SLIDE (#s34)
+    ═══════════════════════════════════════════════════════════════ */
+    .action-list {
+      list-style: none; text-align: left;
+      max-width: 75%; margin: 1rem auto;
+    }
+    .action-list li {
+      font-size: clamp(1rem, 2vw, 1.5rem);
+      color: var(--white); padding: 0.6rem 0;
+      border-bottom: 1px solid #1a1a1a; line-height: 1.4;
+    }
+    .action-list li span.step {
+      color: var(--green); margin-right: 0.8rem;
+    }
+
+  </style>
+</head>
+<body>
+
+<canvas id="title-canvas" style="position:fixed;top:0;left:0;pointer-events:none;opacity:0.25;z-index:0;"></canvas>
+
+<div id="deck">
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 1 — TITLE
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s1"
+    data-notes="Title slide. Don't start talking yet. Let the title sit. Take a breath. Look out at the room. Then start with the number on slide 2."
+    data-ov="Title">
+    <div class="event-tag reveal d1">Code to Cloud Summit 2026</div>
+    <h1 class="hero reveal d2">
+      VALUE SPEAKS<br>FOR ITSELF
+    </h1>
+    <div class="divider reveal d3"></div>
+    <p class="reveal d4" style="font-size:clamp(0.95rem,1.8vw,1.35rem);color:var(--yellow);max-width:65%;line-height:1.5;">
+      How to Replace Enterprise Software<br>and Become Your Company's Most Valuable Builder
+    </p>
+    <p class="reveal d5" style="font-size:clamp(0.8rem,1.3vw,1rem);color:var(--muted);margin-top:2.5rem;line-height:1.8;">
+      <span style="color:var(--white);">CALEB FEDYSHEN</span><br>
+      Software Engineer in AI &nbsp;·&nbsp; Plains Midstream<br>
+      <span style="color:#333;">hyprpixl.ca</span>
+    </p>
+    <span class="cursor reveal d6" style="margin-top:2rem;"></span>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 2 — THE CHARGE
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s2"
+    data-notes="Cold open. No intro. Just land the number. Let it sit. Don't fill the silence. The audience is doing math."
+    data-ov="$70K/month">
+    <div class="stat-hero reveal d1" data-counter data-target="70000" data-prefix="$" data-suffix="/mo USD">$70,000/mo USD</div>
+    <div class="divider reveal d2"></div>
+    <p class="stat-label reveal d3">
+      A retail bank was about to start charging us this<br>
+      <span style="color:var(--muted);">to access our own historical cheque data.</span>
+    </p>
+    <p class="reveal d4" style="font-size:clamp(0.9rem,1.5vw,1.1rem);color:var(--muted);margin-top:1rem;">
+      Billed per request. &nbsp;We make hundreds of requests a day.
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 3 — THE BUILD
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s3"
+    data-notes="Don't oversell the technical complexity yet — save the details for the next slide. The point here is: I built the replacement. That's the whole sentence."
+    data-ov="I built the replacement">
+    <h2 class="slide-title reveal d1">"I built the replacement."</h2>
+    <div class="terminal reveal d2">
+      <div class="terminal-titlebar">
+        <div class="td r"></div><div class="td y"></div><div class="td g"></div>
+        <span>ChequeViewer — Plains Midstream Internal</span>
+      </div>
+      <div class="terminal-body"><span class="dim">Search: </span><span class="hi">march 2023 fraud review</span><span class="cursor"></span>
+
+<span class="dim">─────────────────────────────────────────────────────────────────</span>
+<span class="cyan">  #    Date         Amount       Account      Status</span>
+<span class="dim">─────────────────────────────────────────────────────────────────</span>
+  1    2023-03-14   $2,847.50    ***-4821     <span class="white">✓ CLEARED</span>
+  2    2023-03-15   $12,000.00   ***-4821     <span class="red">⚠ FLAGGED</span>
+  3    2023-03-16   $891.25      ***-7743     <span class="white">✓ CLEARED</span>
+  4    2023-03-19   $34,200.00   ***-9902     <span class="red">⚠ FLAGGED</span>
+<span class="dim">─────────────────────────────────────────────────────────────────</span>
+<span class="dim">  6,000,000 records  ·  12,000,000 images  ·  15 years  ·  0.03s</span></div>
+    </div>
+    <p class="body-text reveal d3" style="font-size:clamp(0.85rem,1.4vw,1.05rem);">
+      Four messy data sources &nbsp;·&nbsp; Two banks &nbsp;·&nbsp; One search bar
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 4 — THE RESULT
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s4"
+    data-notes="Let this number breathe. The audience is still processing. Then read the label. Then move."
+    data-ov="$1.14M saved">
+    <p class="event-tag reveal d1">Net savings</p>
+    <div class="stat-hero green reveal d2" data-counter data-target="1140000" data-prefix="$" data-suffix=" CAD/yr">$1,140,000 CAD/yr</div>
+    <div class="divider yellow reveal d3"></div>
+    <div class="stats-grid reveal d4" style="margin-top:1.5rem;">
+      <div class="stat-box">
+        <span class="num" data-counter data-target="6000000" data-suffix="M" data-shortM>6M</span>
+        <span class="lbl">cheques indexed</span>
+      </div>
+      <div class="stat-box">
+        <span class="num" data-counter data-target="12000000" data-suffix="M" data-shortM>12M</span>
+        <span class="lbl">images stored</span>
+      </div>
+      <div class="stat-box">
+        <span class="num" style="color:var(--yellow);">15 yrs</span>
+        <span class="lbl">of records</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 5 — INTRO
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s5"
+    data-notes="Quick intro. Don't linger. The story already told people who you are. This is just the handshake."
+    data-ov="About me">
+    <div class="corner-box">
+      <p class="event-tag reveal d1" style="margin-bottom:1rem;">Hi, I'm —</p>
+      <h2 class="slide-title reveal d2" style="font-size:clamp(2rem,5vw,4rem);">Caleb Fedyshen</h2>
+      <p class="body-text reveal d3" style="margin-top:0.5rem;">
+        Software engineer in AI at Plains Midstream.
+      </p>
+      <div class="divider reveal d4" style="margin:1rem auto;"></div>
+      <p class="body-text reveal d5">
+        I started building apps inside my company <em style="color:var(--yellow);">during my internship</em> —
+        and you can do the same thing.
+      </p>
+      <p class="body-text reveal d6" style="margin-top:0.8rem;color:var(--muted);">
+        Today I want to show you how.
+      </p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 6 — THE PROBLEM
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s6"
+    data-notes="Read this slowly. Let each line hit. People in the audience are nodding — let them."
+    data-ov="Enterprise problem">
+    <h2 class="slide-title reveal d1">Every company in this room…</h2>
+    <ul class="big-list reveal d2">
+      <li>…is paying for software that does <em>80%</em> of what they need and <em>20%</em> of what they don't.</li>
+      <li>The procurement cycle to replace it: <em>six months.</em></li>
+      <li>The contract lock-in: <em>three years.</em></li>
+      <li>The UI was designed by a committee in <em>2009.</em></li>
+    </ul>
+    <p class="body-text reveal d3" style="margin-top:1rem;color:var(--muted);">
+      And somewhere in that company, someone is keeping a <em style="color:var(--yellow);">spreadsheet</em><br>
+      to work around the tool you're paying $50k a year for.
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 7 — THREE PATTERNS
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s7"
+    data-notes="These three patterns are things the audience should recognize from their own orgs. Pause after each one. Let them picture it."
+    data-ov="3 patterns">
+    <h2 class="slide-title reveal d1">How to spot unmet software needs</h2>
+    <ul class="big-list reveal d2">
+      <li><strong>Excel doing database work</strong> — the universal tell.</li>
+      <li><em>"We have to manually…"</em> — every dev's ears should perk up.</li>
+      <li><strong>Procurement-shaped problems</strong> — pain that's been normalized<br>because the alternative seems too expensive.</li>
+    </ul>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 8 — BUILD VS. BUY (HONEST)
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s8"
+    data-notes="The $20/month rule is the punchline. Then pivot hard to what 'build vs. buy' actually means in most companies — large vendor engagements, not internal builds."
+    data-ov="Build vs Buy">
+    <h2 class="slide-title reveal d1">Build vs. Buy: the honest version</h2>
+    <div class="divider reveal d2"></div>
+    <p class="body-text reveal d3" style="font-size:clamp(1rem,2vw,1.45rem);">
+      If a <em style="color:var(--yellow);">$20/month</em> tool already exists and solves your problem —<br>
+      <strong style="color:var(--green);">buy it. Don't write code.</strong>
+    </p>
+    <div class="divider reveal d4"></div>
+    <p class="body-text reveal d5">
+      But "build vs. buy" now often means:<br>
+      hire another company to do <em style="color:var(--red);">$300,000</em> of custom development work<br>
+      — because the people making the call<br>
+      <em style="color:var(--yellow);">don't realize someone in-house could build it for a tenth of that.</em>
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 9 — THE REAL OPPORTUNITY
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s9"
+    data-notes="Land on 'most companies don't even know that's an option.' That's the setup for the whole talk."
+    data-ov="The opportunity">
+    <p class="quote-text reveal d1">
+      "A competent developer can build something better,
+      cheaper, and more tailored to the exact problem
+      — <em style="color:var(--green);">in weeks.</em>"
+    </p>
+    <div class="divider yellow reveal d2"></div>
+    <p class="body-text reveal d3" style="font-size:clamp(1rem,1.8vw,1.3rem);color:var(--muted);">
+      Most companies don't even know that's an option.
+    </p>
+    <p class="body-text reveal d4" style="color:var(--yellow);font-size:clamp(1rem,2vw,1.4rem);">
+      That's the opportunity.
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 10 — SECTION: THREE WINS
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s10"
+    data-notes="Section break. Brief pause. Let it be a visual moment."
+    data-ov="ACT 3 — Three Wins">
+    <div class="section-act reveal d1">ACT 3</div>
+    <div class="section-title reveal d2">THREE WINS</div>
+    <div class="divider reveal d3" style="margin-top:1.2rem;"></div>
+    <p style="font-size:clamp(0.8rem,1.3vw,1rem);color:var(--muted);" class="reveal d4">
+      Pain → Build → Outcome &nbsp;·&nbsp; Numbers first.
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 11 — WIN 1: CHEQUVIEWER SETUP
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s11"
+    data-notes="This is the $70K story they already heard in the cold open — now with the full context. Treasury needed speed, accuracy, and zero vendor lock-in."
+    data-ov="ChequeViewer setup">
+    <div class="event-tag reveal d1">Win #1</div>
+    <h2 class="slide-title reveal d2">ChequeViewer</h2>
+    <div class="divider reveal d3"></div>
+    <ul class="big-list reveal d4">
+      <li>Bank sunsetting old image viewer. New one: <em>billed per request.</em></li>
+      <li>We pull hundreds of records/day for <em>fraud, legal, and audit.</em></li>
+      <li>Four data sources: zips of images, XML metadata, PDF pipeline, Excel files.</li>
+      <li>Two banks. Four formats. Terabytes of zips.</li>
+    </ul>
+    <p class="body-text reveal d5" style="margin-top:0.8rem;color:var(--muted);">
+      Multithreaded extraction → queryable database → Flask app → Databricks App
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 12 — CHEQUVIEWER STATS
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s12"
+    data-notes="Let the counter animation run. Say the numbers out loud as they land."
+    data-ov="ChequeViewer stats">
+    <h2 class="slide-title reveal d1">Six million cheques.<br>One search bar.</h2>
+    <div class="stats-grid reveal d2" style="margin:2rem auto;">
+      <div class="stat-box">
+        <span class="num" style="font-size:clamp(2.5rem,5vw,4rem);" data-counter data-target="6" data-suffix="M">6M</span>
+        <span class="lbl">cheques indexed</span>
+      </div>
+      <div class="stat-box">
+        <span class="num" style="font-size:clamp(2.5rem,5vw,4rem);" data-counter data-target="12" data-suffix="M">12M</span>
+        <span class="lbl">images stored</span>
+      </div>
+      <div class="stat-box">
+        <span class="num" style="font-size:clamp(2.5rem,5vw,4rem);color:var(--yellow);">15 yrs</span>
+        <span class="lbl">of records</span>
+      </div>
+    </div>
+    <div class="divider reveal d3"></div>
+    <div class="stat-hero green reveal d4" style="font-size:clamp(2.5rem,6vw,4.5rem);" data-counter data-target="1140000" data-prefix="$" data-suffix=" CAD / year">$1,140,000 CAD / year</div>
+    <p class="stat-label reveal d5" style="font-size:clamp(0.75rem,1.2vw,0.95rem);">saved vs. bank's new pricing</p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 13 — WIN 2: DEAL CAPTURE
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s13"
+    data-notes="'My company makes money by moving oil through pipelines.' Lead with that. Then the bottleneck. Then the AI extraction. Then the result."
+    data-ov="Deal Capture">
+    <div class="event-tag reveal d1">Win #2</div>
+    <h2 class="slide-title reveal d2">Deal Capture</h2>
+    <div class="divider reveal d3"></div>
+    <p class="body-text reveal d4" style="font-size:clamp(1rem,1.8vw,1.3rem);">
+      My company makes money by moving oil through pipelines.<br>
+      That starts with deals. Deals start as emails.
+    </p>
+    <div class="flow reveal d5">
+      <div class="flow-box">📥<br>Inbox</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box yellow">🤖 AI<br>Extraction</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box">✅ Human<br>Verify</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box cyan">📊 Live<br>Deal Sheet</div>
+    </div>
+    <p class="body-text reveal d6" style="margin-top:0.5rem;color:var(--muted);">
+      <em style="color:var(--yellow);">~10 hours/week saved</em> &nbsp;·&nbsp; error reduction &nbsp;·&nbsp; one source of truth
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 14 — DEAL CAPTURE TERMINAL
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s14"
+    data-notes="People used to bounce between an inbox and a spreadsheet, copy-pasting and missing fields. Now it's all in one place. Emphasize the error reduction — the hours are nice but the real win is reliability."
+    data-ov="Deal Capture — terminal">
+    <div class="terminal reveal d1" style="max-width:760px;">
+      <div class="terminal-titlebar">
+        <div class="td r"></div><div class="td y"></div><div class="td g"></div>
+        <span>Deal Capture — Verification Queue</span>
+      </div>
+      <div class="terminal-body"><span class="cyan">INCOMING EMAIL  </span><span class="dim">from: trading@client.com  ·  14:32 MST</span>
+<span class="dim">Subject: Supply Agreement — 50,000 bbl/d, May delivery</span>
+
+<span class="hi">AI EXTRACTION ────────────────────────────────────────────────</span>
+ Volume   <span class="white">50,000 bbl/d</span>       <span class="white">✓</span>   Price     <span class="white">$72.40 CAD/bbl</span>  <span class="white">✓</span>
+ Product  <span class="white">WTI Blend</span>         <span class="white">✓</span>   Delivery  <span class="white">May 2026</span>        <span class="white">✓</span>
+ Term     <span class="white">30 days</span>           <span class="white">✓</span>   Pipeline  <span class="white">Milk River</span>      <span class="white">✓</span>
+
+ Status: <span class="hi">[ PENDING REVIEW ]</span> → [ VERIFIED ] → [ DEAL SHEET ]
+
+<span class="dim">Everyone sees the same source of truth · In real time</span></div>
+    </div>
+    <p class="body-text reveal d2" style="font-size:clamp(0.85rem,1.3vw,1rem);color:var(--muted);">
+      Before: inbox + spreadsheet + copy-paste + missed fields.<br>
+      After: one place. Same data. Everyone. All at once.
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 15 — WIN 3: THE PDF PROBLEM
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s15"
+    data-notes="Describe this problem slowly. People will start nodding. They have this problem. They've accepted it. Let the absurdity of 'opening files one at a time' land."
+    data-ov="Contract Explorer — setup">
+    <div class="event-tag reveal d1">Win #3</div>
+    <h2 class="slide-title reveal d2" style="font-size:clamp(1.5rem,3.5vw,2.5rem);">
+      Here's a problem every company has<br>and almost nobody has solved.
+    </h2>
+    <div class="divider reveal d3"></div>
+    <p class="body-text reveal d4">
+      Contracts, agreements, SOWs — sitting in SharePoint folders.<br>
+      Nobody knows what's inside any of them.
+    </p>
+    <p class="body-text reveal d5" style="margin-top:0.8rem;color:var(--muted);">
+      Legal asks: <em style="color:var(--yellow);">"Find every contract with a renewal clause expiring in Q2."</em><br><br>
+      Somebody starts opening files one at a time.
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 16 — CONTRACT EXPLORER
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s16"
+    data-notes="'Google search, but for your contracts.' That's the whole pitch. Then show the terminal. Then go to the demo."
+    data-ov="Contract Explorer">
+    <h2 class="slide-title reveal d1" style="font-size:clamp(1.8rem,4vw,3rem);">
+      Google search, but for your contracts.
+    </h2>
+    <div class="terminal reveal d2" style="max-width:760px;">
+      <div class="terminal-titlebar">
+        <div class="td r"></div><div class="td y"></div><div class="td g"></div>
+        <span>Contract Explorer</span>
+      </div>
+      <div class="terminal-body"><span class="dim">⌕ </span><span class="hi">renewal clause expires Q2 2026</span><span class="cursor"></span>
+<span class="dim">────────────────────────────────────────────────────────────────────</span>
+ MSA-2021-004.pdf       <span class="white">Auto-renewal: Mar 31, 2026</span>   <span class="white">HIGH relevance</span>
+ VENDOR-AGMT-112.pdf    <span class="white">Renewal clause: Apr 15, 2026</span> <span class="white">HIGH relevance</span>
+ SVC-CONTRACT-89.pdf    <span class="white">Expiry: Jun 30, 2026</span>         <span class="cyan">MED  relevance</span>
+ MSTR-SVC-2019-44.pdf   <span class="white">Renewal: May 1, 2026</span>         <span class="white">HIGH relevance</span>
+<span class="dim">────────────────────────────────────────────────────────────────────</span>
+<span class="dim"> 847 contracts indexed  ·  Fields extracted via AI  ·  0.04s</span></div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 17 — DEMO
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s17"
+    data-notes="Switch to the live app now. Press Cmd+Tab. Take your time. Show: (1) keyword search, (2) open a contract with PDF + extracted fields side by side, (3) the AI extraction moment, (4) one filter nobody expects to be queryable. Come back here when done."
+    data-ov="DEMO">
+    <div class="demo-label reveal d1">Live Demo</div>
+    <div class="demo-hero reveal d2">CONTRACT<br>EXPLORER</div>
+    <div class="demo-sub reveal d3">Cmd+Tab to the app →</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 18 — POST-DEMO
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s18"
+    data-notes="Tie all three wins together. Same pattern. Pile of unstructured data → one search bar. Build cost: weeks. Off-the-shelf: pick a number and add a zero."
+    data-ov="Post-demo recap">
+    <h2 class="slide-title reveal d1">Same pattern. Every time.</h2>
+    <div class="divider reveal d2"></div>
+    <div style="display:flex;align-items:center;gap:1.5rem;justify-content:center;flex-wrap:wrap;" class="reveal d3">
+      <div style="text-align:center;">
+        <div style="font-size:clamp(2rem,4vw,3rem);color:var(--muted);">🗂</div>
+        <div style="font-size:clamp(0.7rem,1.2vw,0.9rem);color:var(--muted);margin-top:0.3rem;">Pile of<br>unstructured data</div>
+      </div>
+      <div style="font-size:clamp(1.5rem,3vw,2.5rem);color:var(--green);animation:arrow-pulse 2s ease-in-out infinite;">→</div>
+      <div style="text-align:center;">
+        <div style="font-size:clamp(2rem,4vw,3rem);color:var(--green);">⌕</div>
+        <div style="font-size:clamp(0.7rem,1.2vw,0.9rem);color:var(--green);margin-top:0.3rem;">One<br>search bar</div>
+      </div>
+    </div>
+    <div class="divider reveal d4" style="margin-top:1.5rem;"></div>
+    <p class="body-text reveal d5" style="font-size:clamp(0.9rem,1.5vw,1.1rem);">
+      Build cost: <em style="color:var(--green);">a few weeks of one developer.</em><br>
+      Off-the-shelf equivalent: <em style="color:var(--red);">pick a number and add a zero.</em>
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 19 — AUDIENCE CHECK
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s19"
+    data-notes="Scan the room after asking. Acknowledge whoever raises their hand with a nod. This is the humility move — it tells the seniors you know you're junior, and it tells the juniors this section is specifically for them."
+    data-ov="Audience check">
+    <h2 class="slide-title reveal d1" style="font-size:clamp(1.5rem,3.5vw,2.8rem);">
+      Quick show of hands —
+    </h2>
+    <p class="body-text reveal d2" style="font-size:clamp(1.1rem,2.2vw,1.7rem);margin-top:1rem;color:var(--yellow);">
+      How many of you are in an internship right now,<br>
+      still in school, or just a few years into your career?
+    </p>
+    <div class="divider reveal d3" style="margin-top:1.5rem;"></div>
+    <p class="body-text reveal d4" style="color:var(--muted);">
+      What I'm about to share is some stuff that's worked for me —<br>
+      and worked surprisingly well.<br>
+      <em style="color:var(--white);">Take it for what it is.</em>
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 20 — SECTION: WHY THIS WORKS
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s20"
+    data-notes="Section break. Breath. The tone shifts here — more philosophical."
+    data-ov="ACT 4 — Why This Works">
+    <div class="section-act reveal d1">ACT 4</div>
+    <div class="section-title reveal d2" style="color:var(--yellow);">WHY THIS<br>WORKS</div>
+    <div class="divider yellow reveal d3" style="margin-top:1rem;"></div>
+    <p style="font-size:clamp(0.8rem,1.3vw,1rem);color:var(--muted);" class="reveal d4">
+      Value Speaks for Itself
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 21 — FORGIVENESS
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s21"
+    data-notes="'Ask forgiveness, not permission.' Acknowledge it. Then dismiss it. The reframe is: build something so good forgiveness was never on the table."
+    data-ov="Not forgiveness">
+    <p class="body-text reveal d1" style="color:var(--muted);font-size:clamp(0.9rem,1.5vw,1.2rem);">
+      There's a common piece of advice in tech:
+    </p>
+    <p class="quote-text reveal d2" style="margin-top:0.8rem;color:var(--muted);text-decoration:line-through;font-size:clamp(1.4rem,3vw,2.5rem);">
+      "Ask forgiveness, not permission."
+    </p>
+    <div class="divider reveal d3"></div>
+    <p class="body-text reveal d4" style="color:var(--muted);">I don't love it. It assumes you're doing something that requires forgiveness.</p>
+    <p class="quote-text reveal d5" style="margin-top:1rem;color:var(--yellow);font-size:clamp(1.2rem,2.5vw,2rem);">
+      The better frame: build something so good<br>
+      that forgiveness was <em style="color:var(--green);">never on the table.</em>
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 22 — THE WAITING TRAP
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s22"
+    data-notes="Describe the committee cycle with contempt in your voice — but not toward the people, toward the process. The alternative isn't being reckless. It's putting yourself in a position where value is undeniable before anyone has time to object."
+    data-ov="The waiting trap">
+    <h2 class="slide-title reveal d1">Most developers wait.</h2>
+    <div class="divider reveal d2"></div>
+    <div class="flow reveal d3" style="flex-wrap:wrap;gap:0;">
+      <div class="flow-box" style="min-width:90px;font-size:clamp(0.6rem,0.9vw,0.78rem);">Write a<br>proposal</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="min-width:90px;font-size:clamp(0.6rem,0.9vw,0.78rem);">Goes to a<br>committee</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="min-width:90px;font-size:clamp(0.6rem,0.9vw,0.78rem);">Vendor<br>comparison</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="min-width:90px;font-size:clamp(0.6rem,0.9vw,0.78rem);">Four<br>months</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="min-width:90px;font-size:clamp(0.6rem,0.9vw,0.78rem);border-color:rgba(255,68,68,0.5);color:var(--red);">Pain<br>normalized</div>
+    </div>
+    <div class="divider reveal d4" style="margin-top:1.5rem;"></div>
+    <p class="body-text reveal d5" style="font-size:clamp(0.9rem,1.6vw,1.25rem);">
+      Enterprise procurement exists to manage risk on <em style="color:var(--yellow);">uncertain bets.</em><br>
+      Your job is to make the bet so obviously good<br>
+      it <em style="color:var(--green);">collapses that process.</em>
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 23 — LEGITIMACY
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s23"
+    data-notes="This is a big line. Slow down. 'Nobody asks how you spent last Thursday.' Let them picture their own director seeing a working tool."
+    data-ov="Legitimacy">
+    <p class="quote-text reveal d1" style="font-size:clamp(1.3rem,2.8vw,2.2rem);">
+      "When you show a director a working tool<br>
+      that saves her team twenty hours a week,<br>
+      <em style="color:var(--green);">nobody asks how you spent last Thursday.</em>"
+    </p>
+    <div class="divider yellow reveal d2" style="margin-top:1.5rem;"></div>
+    <p class="body-text reveal d3" style="font-size:clamp(1rem,2vw,1.5rem);color:var(--yellow);">
+      Legitimacy comes from outcomes, not process.
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 24 — TIME / LEVERAGE
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s24"
+    data-notes="Not asking people to work crazy hours. Just pointing out that the number of hours available for high-leverage work is much larger than the number being used that way. And the payoff is disproportionate."
+    data-ov="Time + leverage">
+    <h2 class="slide-title reveal d1" style="font-size:clamp(1.5rem,3.5vw,2.8rem);">
+      Everybody has more time than they think.
+    </h2>
+    <div class="divider reveal d2"></div>
+    <p class="body-text reveal d3" style="font-size:clamp(1rem,1.8vw,1.35rem);">
+      The hours in a week where you <em style="color:var(--yellow);">could be building something high-leverage</em><br>
+      is much larger than the hours you're currently using that way.
+    </p>
+    <div class="divider reveal d4"></div>
+    <p class="body-text reveal d5">
+      Replacing a tool that costs your company <em style="color:var(--red);">a million dollars a year</em><br>
+      is so disproportionate it almost shouldn't be possible.
+    </p>
+    <p class="body-text reveal d6" style="color:var(--green);margin-top:0.5rem;font-size:clamp(1rem,2vw,1.4rem);">
+      But it is.
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 25 — YOU CAN JUST DO THINGS
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s25"
+    data-notes="Land hard on 'you can just do things.' Then pause. That's the thesis. Then move."
+    data-ov='"You can just do things"'>
+    <p class="body-text reveal d1" style="color:var(--muted);font-size:clamp(0.85rem,1.5vw,1.1rem);">
+      I started as an intern. Nobody told me I was allowed to<br>
+      build a million-dollar replacement for an enterprise tool.
+    </p>
+    <p class="body-text reveal d2" style="margin-top:0.8rem;color:var(--white);font-size:clamp(0.9rem,1.5vw,1.15rem);">
+      I just looked at the problem, used the tools I had access to, and built it.
+    </p>
+    <div class="divider yellow reveal d3" style="margin-top:1.2rem;"></div>
+    <div class="reveal d4">
+      <div class="glitch-wrap" data-text="YOU CAN JUST DO THINGS.">
+        <p style="font-size:clamp(2rem,6vw,5rem);color:var(--yellow);letter-spacing:0.03em;text-shadow:0 0 25px rgba(255,255,0,0.4);line-height:1.1;">
+          YOU CAN JUST DO THINGS.
+        </p>
+      </div>
+    </div>
+    <p class="body-text reveal d5" style="margin-top:1rem;color:var(--muted);font-size:clamp(0.8rem,1.3vw,1rem);">
+      Flask, Power Apps, a Databricks notebook — whatever.<br>
+      The tool doesn't matter. <em style="color:var(--white);">The output does.</em>
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 26 — SECTION: THE PLAYBOOK
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s26"
+    data-notes="Section break. Quick breath."
+    data-ov="ACT 5 — The Playbook">
+    <div class="section-act reveal d1">ACT 5</div>
+    <div class="section-title reveal d2" style="color:var(--cyan);">THE PLAYBOOK</div>
+    <div class="divider reveal d3" style="background:linear-gradient(to right, transparent, var(--cyan), transparent);box-shadow:0 0 8px rgba(0,255,255,0.4);margin-top:1rem;"></div>
+    <p style="font-size:clamp(0.8rem,1.3vw,1rem);color:var(--muted);" class="reveal d4">
+      How to find your first win &nbsp;·&nbsp; How to compound it
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 27 — COFFEE CHATS
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s27"
+    data-notes="One a week. Different team. Finance, treasury, ops — anyone who doesn't write code. My only job was to listen. Explain this as a habit, not a tactic. It compounds."
+    data-ov="Coffee chats">
+    <h2 class="slide-title reveal d1" style="font-size:clamp(1.8rem,4.5vw,3.5rem);">The one habit that<br>compounded more than anything.</h2>
+    <div class="divider reveal d2"></div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:1.5rem;" class="reveal d3">
+      <div style="font-size:clamp(3rem,7vw,6rem);">☕</div>
+      <div style="text-align:left;">
+        <p style="font-size:clamp(1.5rem,4vw,3.5rem);color:var(--cyan);text-shadow:0 0 20px rgba(0,255,255,0.4);">COFFEE CHATS</p>
+        <p style="font-size:clamp(0.8rem,1.4vw,1.05rem);color:var(--muted);margin-top:0.4rem;">One per week &nbsp;·&nbsp; Different team &nbsp;·&nbsp; Just listen.</p>
+      </div>
+    </div>
+    <div class="divider reveal d4"></div>
+    <p class="body-text reveal d5" style="font-size:clamp(0.9rem,1.6vw,1.2rem);">
+      Finance. Treasury. Ops. Anyone who doesn't write code for a living.<br>
+      After a month: a <em style="color:var(--yellow);">heat map of every pain point in the company</em><br>
+      — and a list of people who already trusted me.
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 28 — THREE QUESTIONS
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s28"
+    data-notes="Deliver these slowly. Let people write them down if they want to. These three questions work in any context."
+    data-ov="3 questions">
+    <h2 class="slide-title reveal d1">Ask three questions. Every time.</h2>
+    <div class="divider reveal d2"></div>
+    <ul class="big-list questions reveal d3">
+      <li>
+        <span class="q-num accent-green">1 &nbsp;</span>
+        <em>"What's the hardest part of your job?"</em>
+      </li>
+      <li>
+        <span class="q-num accent-green">2 &nbsp;</span>
+        <em>"What tools do you use, and what's frustrating about them?"</em>
+      </li>
+      <li>
+        <span class="q-num accent-green">3 &nbsp;</span>
+        <em>"What's the most stupidly expensive piece of tech you have to use?"</em>
+      </li>
+    </ul>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 29 — THE SNOWBALL
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s29"
+    data-notes="The 'who should I talk to next?' question is the most important thing I say on this slide. Warm intro, no cold outreach. Credibility travels for free."
+    data-ov="The snowball">
+    <h2 class="slide-title reveal d1">The snowball question:</h2>
+    <div class="divider reveal d2"></div>
+    <p class="quote-text reveal d3" style="font-size:clamp(1.3rem,3vw,2.3rem);">
+      <em style="color:var(--cyan);">"Who are 2–3 people<br>you think I'd learn something from?"</em>
+    </p>
+    <div class="divider reveal d4"></div>
+    <ul class="big-list reveal d5" style="max-width:75%;">
+      <li>Warm intro. No cold outreach. <em>Instant credibility.</em></li>
+      <li>After a month: every pain point mapped.</li>
+      <li>People will tell you their real problems <em>if you just ask.</em></li>
+    </ul>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 30 — COMPLAINTS ARE A PRODUCT SPEC
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s30"
+    data-notes="Big quote. Let it land."
+    data-ov='"Complaints are a spec"'>
+    <p class="quote-text reveal d1" style="font-size:clamp(1.8rem,4.5vw,3.8rem);color:var(--yellow);">
+      "Complaints are a<br>
+      <em style="color:var(--green);">product spec</em><br>
+      in disguise."
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 31 — LUCK SURFACE AREA
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s31"
+    data-notes="Luck surface area. Define it. Then explain each of the four moves."
+    data-ov="Luck surface area">
+    <h2 class="slide-title reveal d1">Increasing your luck surface area</h2>
+    <div class="divider reveal d2"></div>
+    <p class="body-text reveal d3" style="font-size:clamp(1rem,1.8vw,1.35rem);color:var(--muted);margin-bottom:1.2rem;">
+      Luck surface area = the number of people who know what you can do.
+    </p>
+    <ul class="big-list reveal d4">
+      <li><strong>Ship fast.</strong> One deployed thing beats ten planned ones.</li>
+      <li><strong>Post about what you build</strong> — internally <em>and</em> publicly. Your SVP is reading.</li>
+      <li><strong>Name wins with numbers.</strong> <em>"Saved $40k/month"</em> travels. "Built a dashboard" dies.</li>
+      <li><strong>Make the person you helped your sponsor.</strong> They have political capital. They'll spend it on you.</li>
+    </ul>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 32 — LUCK SURFACE AREA CLOSE
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s32"
+    data-notes="The compounding point. After a year of this: you're not looking for opportunities. They find you."
+    data-ov="Luck surface area — close">
+    <p class="quote-text reveal d1" style="font-size:clamp(1.3rem,3vw,2.3rem);color:var(--cyan);">
+      "Hey, I saw your post about that app you built.<br>
+      There's this thing in my workflow that's annoying.<br>
+      Could I pick your brain about it?"
+    </p>
+    <div class="divider reveal d2" style="background:linear-gradient(to right, transparent, var(--cyan), transparent);box-shadow:0 0 8px rgba(0,255,255,0.4);"></div>
+    <p class="body-text reveal d3" style="font-size:clamp(0.9rem,1.6vw,1.2rem);">
+      That happens <em style="color:var(--yellow);">every single week</em> once you're consistent.<br>
+      You stop hunting for ideas. <em style="color:var(--green);">The ideas come to you.</em>
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 33 — ACTION ITEM
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s33"
+    data-notes="Specific and actionable. This week. Not someday. One person. Three questions. Sketch. Show one person. That's it."
+    data-ov="Action item">
+    <h2 class="slide-title reveal d1">Here's what to do this week.</h2>
+    <div class="divider reveal d2"></div>
+    <ol class="action-list reveal d3">
+      <li><span class="step">01</span>Find one person doing something <em style="color:var(--yellow);">manually that shouldn't be manual.</em></li>
+      <li><span class="step">02</span>Ask them the <em style="color:var(--cyan);">three questions.</em></li>
+      <li><span class="step">03</span>Sketch the replacement. Don't pitch it yet.</li>
+      <li><span class="step">04</span>Build a slice. <em style="color:var(--green);">Show one person.</em></li>
+    </ol>
+    <div class="divider reveal d4"></div>
+    <p class="body-text reveal d5" style="font-size:clamp(0.85rem,1.4vw,1.05rem);color:var(--muted);">
+      Every million-dollar tool replacement starts with<br>
+      one coffee chat and one prototype.
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 34 — FINAL CLOSE
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s34"
+    data-notes="The companies that win. Slow down here. This is the last substantive point."
+    data-ov="Final close">
+    <p class="quote-text reveal d1" style="font-size:clamp(1.3rem,2.8vw,2.2rem);">
+      "The companies that win aren't the ones with the biggest software budgets —
+      they're the ones with developers who
+      <em style="color:var(--green);">refuse to accept that the current tool is the only option.</em>"
+    </p>
+    <div class="divider yellow reveal d2" style="margin-top:2rem;"></div>
+    <p class="body-text reveal d3" style="margin-top:1rem;color:var(--muted);">
+      You don't need permission. You need a problem worth solving.
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SLIDE 35 — END / CONTACT
+  ══════════════════════════════════════════ -->
+  <div class="slide" id="s35"
+    data-notes="Thank the audience. Leave it up while you take questions."
+    data-ov="End / Contact">
+    <h2 class="slide-title reveal d1" style="font-size:clamp(2rem,5vw,4rem);">Thanks.</h2>
+    <div class="divider reveal d2"></div>
+    <p class="body-text reveal d3" style="font-size:clamp(1rem,2vw,1.5rem);color:var(--white);">
+      I'm Caleb Fedyshen.
+    </p>
+    <p class="body-text reveal d4" style="margin-top:1rem;font-size:clamp(0.9rem,1.6vw,1.2rem);color:var(--muted);">
+      Find me on LinkedIn or at
+      <span style="color:var(--yellow);">hyprpixl.ca</span>
+    </p>
+    <div class="divider reveal d5" style="margin-top:2rem;"></div>
+    <div class="reveal d6" style="display:grid;grid-template-columns:repeat(3,auto);gap:2.5rem;margin-top:1.5rem;text-align:center;">
+      <div>
+        <div style="font-size:clamp(1.5rem,3vw,2.5rem);color:var(--red);">$1.14M</div>
+        <div style="font-size:clamp(0.6rem,1vw,0.8rem);color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-top:0.2rem;">CAD saved/yr</div>
+      </div>
+      <div>
+        <div style="font-size:clamp(1.5rem,3vw,2.5rem);color:var(--green);">3 apps</div>
+        <div style="font-size:clamp(0.6rem,1vw,0.8rem);color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-top:0.2rem;">in production</div>
+      </div>
+      <div>
+        <div style="font-size:clamp(1.5rem,3vw,2.5rem);color:var(--yellow);">1 intern</div>
+        <div style="font-size:clamp(0.6rem,1vw,0.8rem);color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-top:0.2rem;">who just started building</div>
+      </div>
+    </div>
+    <span class="cursor reveal d7" style="margin-top:2rem;"></span>
+  </div>
+
+</div><!-- /deck -->
+
+<!-- CRT overlays -->
+<div id="crt-scanlines"></div>
+<div id="crt-vignette"></div>
+
+<!-- Chrome -->
+<div id="counter">1 / 35</div>
+<div id="timer" class="hidden">⏱ 00:00</div>
+<div id="progress" style="width:2.86%;"></div>
+<div id="hotkeys">← → navigate &nbsp;·&nbsp; N notes &nbsp;·&nbsp; P timer &nbsp;·&nbsp; G overview</div>
+
+<!-- Speaker Notes Overlay -->
+<div id="notes-overlay" class="hidden">
+  <div id="notes-slidenum"></div>
+  <div id="notes-content"></div>
+  <p id="notes-close">Press N or ESC to close</p>
+</div>
+
+<!-- Overview Modal -->
+<div id="overview" class="hidden">
+  <div id="overview-header">OVERVIEW — click a slide or press ESC to close</div>
+  <div id="overview-grid"></div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   DECK CONTROLLER
+═══════════════════════════════════════════════════════════════ */
+const TOTAL = 35;
+let current = 1;
+let timerOn = false;
+let timerStart = null;
+let timerInterval = null;
+let notesOpen = false;
+let overviewOpen = false;
+
+/* ─── GO TO SLIDE ─── */
+function goTo(n) {
+  if (n < 1 || n > TOTAL) return;
+  const prev = document.getElementById(`s${current}`);
+  const next = document.getElementById(`s${n}`);
+  if (prev) prev.classList.remove('active');
+  if (next) {
+    next.classList.add('active');
+    triggerCounters(next);
+    triggerTypewriter(next);
+  }
+  current = n;
+  document.getElementById('counter').textContent = `${current} / ${TOTAL}`;
+  const pct = ((current / TOTAL) * 100).toFixed(2);
+  document.getElementById('progress').style.width = `${pct}%`;
+  updateOverviewHighlight();
+}
+function next() { goTo(current + 1); }
+function prev() { goTo(current - 1); }
+
+/* ─── KEYBOARD ─── */
+document.addEventListener('keydown', e => {
+  if (overviewOpen) {
+    if (e.key === 'Escape' || e.key === 'g' || e.key === 'G') closeOverview();
+    return;
+  }
+  if (notesOpen) {
+    if (e.key === 'n' || e.key === 'N' || e.key === 'Escape') closeNotes();
+    return;
+  }
+  switch (e.key) {
+    case 'ArrowRight': case 'ArrowDown': case ' ': case 'PageDown':
+      e.preventDefault(); next(); break;
+    case 'ArrowLeft': case 'ArrowUp': case 'PageUp':
+      e.preventDefault(); prev(); break;
+    case 'Escape': case 'g': case 'G':
+      toggleOverview(); break;
+    case 'n': case 'N':
+      toggleNotes(); break;
+    case 'p': case 'P':
+      toggleTimer(); break;
+    case 'Home':
+      goTo(1); break;
+    case 'End':
+      goTo(TOTAL); break;
+  }
+});
+
+/* Touch swipe */
+let touchStartX = 0;
+document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; });
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  if (Math.abs(dx) > 50) { dx < 0 ? next() : prev(); }
+});
+
+/* ─── COUNTER ANIMATION ─── */
+function animateCounter(el) {
+  const raw = el.getAttribute('data-target');
+  const target = parseInt(raw);
+  const prefix = el.getAttribute('data-prefix') || '';
+  const suffix = el.getAttribute('data-suffix') || '';
+  const isShortM = el.hasAttribute('data-shortM');
+  const duration = 1200;
+  const start = Date.now();
+  const tick = () => {
+    const t = Math.min((Date.now() - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - t, 3);
+    const val = Math.round(ease * target);
+    if (isShortM) {
+      el.textContent = val + 'M';
+    } else if (target >= 1000000) {
+      el.textContent = prefix + (val / 1000000).toFixed(2).replace(/\.?0+$/, '') + 'M' + suffix;
+    } else if (target >= 1000) {
+      el.textContent = prefix + val.toLocaleString() + suffix;
+    } else {
+      el.textContent = prefix + val + suffix;
+    }
+    if (t < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+function triggerCounters(slide) {
+  if (!slide) return;
+  slide.querySelectorAll('[data-counter]').forEach(el => {
+    setTimeout(() => animateCounter(el), 250);
+  });
+}
+
+/* ─── TYPEWRITER ─── */
+function typewrite(el) {
+  const text = el.getAttribute('data-typewrite');
+  el.textContent = '';
+  let i = 0;
+  const speed = Math.max(25, Math.min(60, Math.floor(2000 / text.length)));
+  const id = setInterval(() => {
+    if (i >= text.length) { clearInterval(id); return; }
+    el.textContent += text[i++];
+  }, speed);
+}
+
+function triggerTypewriter(slide) {
+  if (!slide) return;
+  slide.querySelectorAll('[data-typewrite]').forEach(el => {
+    setTimeout(() => typewrite(el), 300);
+  });
+}
+
+/* ─── TIMER ─── */
+function toggleTimer() {
+  timerOn = !timerOn;
+  const el = document.getElementById('timer');
+  if (timerOn) {
+    timerStart = timerStart || Date.now();
+    el.classList.remove('hidden');
+    timerInterval = setInterval(updateTimer, 1000);
+  } else {
+    el.classList.add('hidden');
+    clearInterval(timerInterval);
+  }
+}
+function updateTimer() {
+  const sec = Math.floor((Date.now() - timerStart) / 1000);
+  const m = Math.floor(sec / 60).toString().padStart(2,'0');
+  const s = (sec % 60).toString().padStart(2,'0');
+  const el = document.getElementById('timer');
+  el.textContent = `⏱ ${m}:${s}`;
+  const warn = sec > 18 * 60;
+  el.style.color = warn ? 'var(--red)' : 'var(--yellow)';
+}
+
+/* ─── NOTES ─── */
+function toggleNotes() {
+  notesOpen = !notesOpen;
+  if (notesOpen) openNotes();
+  else closeNotes();
+}
+function openNotes() {
+  const slide = document.getElementById(`s${current}`);
+  const note = slide ? slide.getAttribute('data-notes') : '';
+  document.getElementById('notes-slidenum').textContent = `SLIDE ${current} / ${TOTAL} — SPEAKER NOTES`;
+  document.getElementById('notes-content').textContent = note || '(no notes for this slide)';
+  document.getElementById('notes-overlay').classList.remove('hidden');
+}
+function closeNotes() {
+  notesOpen = false;
+  document.getElementById('notes-overlay').classList.add('hidden');
+}
+
+/* ─── OVERVIEW ─── */
+function buildOverview() {
+  const grid = document.getElementById('overview-grid');
+  if (grid.children.length > 0) return;
+  for (let i = 1; i <= TOTAL; i++) {
+    const slide = document.getElementById(`s${i}`);
+    const title = slide ? (slide.getAttribute('data-ov') || `Slide ${i}`) : `Slide ${i}`;
+    const thumb = document.createElement('div');
+    thumb.className = 'ov-thumb' + (i === current ? ' ov-current' : '');
+    thumb.id = `ov-${i}`;
+    thumb.innerHTML = `<div class="ov-n">${i}</div><div class="ov-title">${title}</div>`;
+    thumb.addEventListener('click', () => { goTo(i); closeOverview(); });
+    grid.appendChild(thumb);
+  }
+}
+function toggleOverview() {
+  overviewOpen = !overviewOpen;
+  if (overviewOpen) {
+    buildOverview();
+    document.getElementById('overview').classList.remove('hidden');
+  } else {
+    closeOverview();
+  }
+}
+function closeOverview() {
+  overviewOpen = false;
+  document.getElementById('overview').classList.add('hidden');
+}
+function updateOverviewHighlight() {
+  document.querySelectorAll('.ov-thumb').forEach(t => t.classList.remove('ov-current'));
+  const cur = document.getElementById(`ov-${current}`);
+  if (cur) cur.classList.add('ov-current');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CANVAS BACKGROUND — Matrix rain (title slide only)
+═══════════════════════════════════════════════════════════════ */
+(function() {
+  const canvas = document.getElementById('title-canvas');
+  const ctx = canvas.getContext('2d');
+  const chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノ';
+  let drops = [];
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const cols = Math.floor(canvas.width / 16);
+    drops = Array(cols).fill(1);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  let frame = 0;
+  function draw() {
+    frame++;
+    if (frame % 3 !== 0) { requestAnimationFrame(draw); return; }
+    ctx.fillStyle = 'rgba(7,7,17,0.05)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#39FF14';
+    ctx.font = '13px "Courier New"';
+    for (let i = 0; i < drops.length; i++) {
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      ctx.fillText(ch, i * 16, drops[i] * 16);
+      if (drops[i] * 16 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+/* ─── INIT ─── */
+goTo(1);
+</script>
+</body>
+</html>
