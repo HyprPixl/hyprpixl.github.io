@@ -141,6 +141,17 @@
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 
     /* ═══════════════════════════════════════════════════════════════
+       SPLIT-FLAP DISPLAY
+    ═══════════════════════════════════════════════════════════════ */
+    .sf-cell { display: inline-block; }
+    @keyframes sf-flip {
+      0%   { transform: scaleY(1); }
+      42%  { transform: scaleY(0.04); opacity: 0.2; }
+      58%  { transform: scaleY(0.04); opacity: 0.2; }
+      100% { transform: scaleY(1); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
        DIVIDER
     ═══════════════════════════════════════════════════════════════ */
     .divider {
@@ -608,7 +619,7 @@
     data-notes="Let this number breathe. The audience is still processing. Then read the label. Then move."
     data-ov="$1.14M saved">
     <p class="event-tag reveal d1">Net savings</p>
-    <div class="stat-hero green reveal d2" data-counter data-target="1140000" data-prefix="$" data-suffix=" CAD/yr" style="display:inline-block;min-width:18ch;text-align:center;">$1,140,000 CAD/yr</div>
+    <div class="stat-hero green reveal d2" data-splitflap data-target="1140000" data-prefix="$" data-suffix=" CAD/yr">$1,140,000 CAD/yr</div>
     <div class="divider yellow reveal d3"></div>
     <div class="stats-grid reveal d4" style="margin-top:1.5rem;">
       <div class="stat-box">
@@ -779,7 +790,7 @@
       </div>
     </div>
     <div class="divider reveal d3"></div>
-    <div class="stat-hero green reveal d4" style="font-size:clamp(2.5rem,6vw,4.5rem);display:inline-block;min-width:20ch;text-align:center;" data-counter data-target="1140000" data-prefix="$" data-suffix=" CAD / year">$1,140,000 CAD / year</div>
+    <div class="stat-hero green reveal d4" style="font-size:clamp(2.5rem,6vw,4.5rem);" data-splitflap data-target="1140000" data-prefix="$" data-suffix=" CAD / year">$1,140,000 CAD / year</div>
     <p class="stat-label reveal d5" style="font-size:clamp(0.75rem,1.2vw,0.95rem);">saved vs. bank's new pricing</p>
   </div>
 
@@ -1362,6 +1373,51 @@ document.addEventListener('touchend', e => {
   if (Math.abs(dx) > 50) { dx < 0 ? next() : prev(); }
 });
 
+/* ─── SPLIT-FLAP ANIMATION ─── */
+function animateSplitFlap(el) {
+  const target = parseInt(el.getAttribute('data-target'));
+  const prefix = el.getAttribute('data-prefix') || '';
+  const suffix = el.getAttribute('data-suffix') || '';
+  const finalStr = prefix + target.toLocaleString() + suffix;
+  const DIGITS = '0123456789';
+
+  el.style.display = 'inline-flex';
+  el.style.alignItems = 'baseline';
+  el.innerHTML = '';
+
+  const entries = [...finalStr].map(ch => {
+    const span = document.createElement('span');
+    span.className = 'sf-cell';
+    const isDigit = /[0-9]/.test(ch);
+    span.textContent = isDigit ? DIGITS[Math.floor(Math.random() * 10)] : ch;
+    el.appendChild(span);
+    return { span, ch, isDigit };
+  });
+
+  entries.forEach(({ span, ch, isDigit }, i) => {
+    if (!isDigit) return;
+    const totalFlips = 5 + i * 2;
+    let flips = 0;
+
+    function doFlip() {
+      const isFinal = flips >= totalFlips;
+      const next = isFinal ? ch : DIGITS[Math.floor(Math.random() * 10)];
+      span.style.animation = 'none';
+      void span.offsetWidth;
+      span.style.animation = 'sf-flip 0.11s linear';
+      setTimeout(() => { span.textContent = next; }, 55);
+      if (!isFinal) {
+        flips++;
+        const p = flips / totalFlips;
+        const interval = p < 0.5 ? 120 : 120 + (p - 0.5) * 2 * 300;
+        setTimeout(doFlip, interval);
+      }
+    }
+
+    setTimeout(doFlip, 80 + i * 80);
+  });
+}
+
 /* ─── COUNTER ANIMATION ─── */
 function animateCounter(el) {
   const raw = el.getAttribute('data-target');
@@ -1393,6 +1449,9 @@ function triggerCounters(slide) {
   if (!slide) return;
   slide.querySelectorAll('[data-counter]').forEach(el => {
     setTimeout(() => animateCounter(el), 250);
+  });
+  slide.querySelectorAll('[data-splitflap]').forEach(el => {
+    setTimeout(() => animateSplitFlap(el), 250);
   });
 }
 
