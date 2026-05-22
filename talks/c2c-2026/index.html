@@ -665,7 +665,7 @@
     <ul class="big-list reveal d2">
       <li><strong>Excel doing database work.</strong> The universal tell.</li>
       <li><em>We have to manually…</em> Every dev's ears should perk up.</li>
-      <li><strong>Procurement shaped problems.</strong> Pain that's been normalized<br>because the alternative seems too expensive.</li>
+      <li><strong>Software everyone hates but nobody challenges.</strong> Pain that's been accepted because replacing it seems impossible.</li>
     </ul>
   </div>
 
@@ -1297,13 +1297,13 @@ let overviewOpen = false;
 /* ─── GO TO SLIDE ─── */
 function goTo(n) {
   if (n < 1 || n > TOTAL) return;
-  const prev = slides[current - 1];
-  const next = slides[n - 1];
-  if (prev) prev.classList.remove('active');
-  if (next) {
-    next.classList.add('active');
-    triggerCounters(next);
-    triggerTypewriter(next);
+  const fromSlide = slides[current - 1];
+  const toSlide = slides[n - 1];
+  if (fromSlide) fromSlide.classList.remove('active');
+  if (toSlide) {
+    toSlide.classList.add('active');
+    triggerCounters(toSlide);
+    triggerTypewriter(toSlide);
   }
   current = n;
   document.getElementById('counter').textContent = `${current} / ${TOTAL}`;
