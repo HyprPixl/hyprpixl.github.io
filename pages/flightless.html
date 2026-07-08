@@ -55,17 +55,27 @@
   }
   #hud .stat b{ display:block; font-size:20px; color:var(--yellow); }
   #hud .stat span{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
-  #fuel-wrap{ display:none; }
+  #alt-wrap, #spd-wrap, #fuel-wrap, #burner-wrap{ display:none; }
   #fuel-bar-outer{
     width:110px; height:10px; margin:6px auto 2px;
     border:1px solid var(--border); background:#060818;
   }
   #fuel-bar{ height:100%; width:100%; background:linear-gradient(90deg,#ff5e00,#ffd000); }
+  #burner-wrap b{ font-size:14px !important; padding-top:4px; }
+  #burner-wrap b.spent{ color:#555b9e !important; }
   #hint{
     position:absolute; bottom:14px; left:0; right:0; z-index:10;
     text-align:center; color:var(--muted); font-size:13px;
     text-shadow:1px 1px 2px #000; pointer-events:none; display:none;
   }
+  #ff-btn{
+    position:absolute; bottom:12px; right:12px; z-index:14; display:none;
+    background:rgba(0,0,128,0.7); color:var(--yellow);
+    border:2px solid var(--yellow); padding:8px 14px;
+    font-family:inherit; font-weight:bold; font-size:15px; cursor:pointer;
+    user-select:none; -webkit-user-select:none; touch-action:none;
+  }
+  #ff-btn.on{ background:var(--yellow); color:var(--navy); }
   #popup-layer{ position:absolute; inset:0; z-index:11; pointer-events:none; overflow:hidden; }
   .popup{
     position:absolute; transform:translate(-50%,-50%);
@@ -77,7 +87,7 @@
     75%{ opacity:1; } 100%{ opacity:0; margin-top:-50px; }
   }
 
-  /* ── Panels (shop / results) ── */
+  /* ── Panels (shop / results / intro) ── */
   .panel{
     position:absolute; inset:0; z-index:20; display:none;
     overflow-y:auto; padding:20px 12px 40px;
@@ -102,15 +112,21 @@
   .topline .chip b{ color:var(--yellow); }
   .topline .chip.money b{ color:var(--cash); }
 
+  .section-label{
+    color:var(--muted); font-size:12px; letter-spacing:2px; text-transform:uppercase;
+    margin:14px 2px 6px;
+  }
   .shop-grid{
     display:grid; grid-template-columns:repeat(auto-fill, minmax(215px, 1fr));
-    gap:10px; margin-bottom:14px;
+    gap:10px; margin-bottom:4px;
   }
   .upg{
     background:var(--panel); border:2px solid var(--border);
     padding:10px; display:flex; flex-direction:column; gap:6px;
   }
   .upg.maxed{ border-color:var(--cash); }
+  .upg.gear{ border-style:dashed; }
+  .upg.gear.owned{ border-color:var(--cash); border-style:solid; }
   .upg .upg-head{ display:flex; align-items:center; gap:8px; }
   .upg .upg-icon{ font-size:22px; }
   .upg .upg-name{ font-weight:bold; color:var(--yellow); font-size:14px; }
@@ -131,7 +147,7 @@
 
   .goals{
     background:var(--panel); border:2px solid var(--border);
-    padding:10px 14px; margin-bottom:16px; font-size:13px;
+    padding:10px 14px; margin-bottom:4px; font-size:13px;
   }
   .goals h3{ margin:0 0 6px; color:var(--yellow); font-size:14px; text-transform:uppercase; letter-spacing:1px;}
   .goals ul{ margin:0; padding:0; list-style:none; display:flex; flex-wrap:wrap; gap:6px 16px; }
@@ -140,7 +156,7 @@
   .goals li.next{ color:var(--yellow); font-weight:bold; }
 
   .big-btn{
-    display:block; margin:0 auto; padding:14px 60px;
+    display:block; margin:18px auto 0; padding:14px 60px;
     font-family:inherit; font-size:22px; font-weight:bold; letter-spacing:3px;
     background:var(--red); color:#fff; border:3px solid var(--yellow);
     cursor:pointer; text-transform:uppercase;
@@ -153,6 +169,13 @@
     font-size:11px; background:none; border:none; cursor:pointer;
     font-family:inherit; text-decoration:underline; width:100%;
   }
+
+  /* ── Intro ── */
+  #intro{ text-align:center; }
+  #intro .panel-inner{ max-width:600px; padding-top:10vh; }
+  #intro .penguin-face{ font-size:64px; margin:10px 0; }
+  #intro p{ font-size:15px; line-height:1.7; }
+  #intro .controls-note{ color:var(--muted); font-size:12.5px; }
 
   /* ── Results ── */
   #results .panel-inner{ max-width:520px; }
@@ -167,6 +190,7 @@
   .res-row .rec{ color:var(--red); font-weight:bold; margin-left:6px; }
   .res-row .val{ color:var(--text); }
   .res-row .cash{ color:var(--cash); min-width:90px; text-align:right; }
+  .res-row .cash.locked{ color:#555b9e; font-size:11.5px; }
   .res-row.bonus .val, .res-row.bonus{ color:var(--yellow); }
   .res-row.total{ border-bottom:none; border-top:2px solid var(--border); margin-top:6px; padding-top:10px; font-weight:bold; font-size:18px; }
   .res-row.total .cash{ color:var(--cash); }
@@ -180,13 +204,17 @@
   /* ── Touch controls ── */
   #touch{ position:absolute; bottom:0; left:0; right:0; z-index:15; display:none; justify-content:space-between; padding:0 14px 18px; pointer-events:none; }
   #touch .tbtn{
-    pointer-events:auto; width:70px; height:70px; border-radius:50%;
+    pointer-events:auto; width:66px; height:66px; border-radius:50%;
     background:rgba(0,0,128,0.6); border:2px solid var(--yellow);
-    color:var(--yellow); font-size:26px; font-family:inherit;
+    color:var(--yellow); font-size:24px; font-family:inherit;
     user-select:none; -webkit-user-select:none; touch-action:none;
   }
-  #touch .tgroup{ display:flex; gap:12px; }
-  @media (pointer:coarse){ #touch.flying{ display:flex; } }
+  #touch .tbtn.hidden{ display:none; }
+  #touch .tgroup{ display:flex; gap:10px; }
+  @media (pointer:coarse){
+    #touch.flying{ display:flex; }
+    #ff-btn{ bottom:96px; }
+  }
 </style>
 </head>
 <body>
@@ -196,11 +224,13 @@
 
 <div id="hud">
   <div class="stat"><b id="hud-dist">0 m</b><span>distance</span></div>
-  <div class="stat"><b id="hud-alt">0 m</b><span>altitude</span></div>
-  <div class="stat"><b id="hud-spd">0</b><span>speed m/s</span></div>
+  <div class="stat" id="alt-wrap"><b id="hud-alt">0 m</b><span>altitude</span></div>
+  <div class="stat" id="spd-wrap"><b id="hud-spd">0</b><span>speed m/s</span></div>
   <div class="stat" id="fuel-wrap"><div id="fuel-bar-outer"><div id="fuel-bar"></div></div><span>fuel</span></div>
+  <div class="stat" id="burner-wrap"><b id="hud-burner">&#128165; READY</b><span>afterburner [X]</span></div>
 </div>
 <div id="hint"></div>
+<button id="ff-btn">&#9193; hold</button>
 <div id="popup-layer"></div>
 
 <div id="touch">
@@ -209,7 +239,23 @@
     <button class="tbtn" id="t-down">&#8681;</button>
   </div>
   <div class="tgroup">
+    <button class="tbtn hidden" id="t-burner">&#128165;</button>
     <button class="tbtn" id="t-boost">&#128293;</button>
+  </div>
+</div>
+
+<!-- ── INTRO (first visit) ── -->
+<div class="panel" id="intro">
+  <div class="panel-inner">
+    <h1 class="game-title">&#128039; Flightless</h1>
+    <p class="subtitle">a Learn to Fly-inspired launch game</p>
+    <div class="penguin-face">&#128039;</div>
+    <p>The other penguins say you can't fly.<br>
+    There's a ramp. There's an ocean of ice.<br>
+    <b>Prove them wrong.</b></p>
+    <button class="big-btn" id="intro-launch-btn">&#128640; Launch</button>
+    <p class="small-note">press ENTER</p>
+    <p class="controls-note">&#8679;/&#8681; steer in the air &middot; dive to gain speed, pull up to glide<br>(you'll need to buy wings first&hellip;)</p>
   </div>
 </div>
 
@@ -217,7 +263,7 @@
 <div class="panel" id="shop">
   <div class="panel-inner">
     <h1 class="game-title">&#128039; Flightless</h1>
-    <p class="subtitle">a Learn to Fly-inspired launch game &mdash; penguins can't fly. prove them wrong.</p>
+    <p class="subtitle">penguins can't fly. prove them wrong.</p>
     <div class="topline">
       <div class="chip money">&#128176; <b id="shop-money">$0</b></div>
       <div class="chip">&#128197; Day <b id="shop-day">1</b></div>
@@ -227,9 +273,12 @@
       <h3>&#127937; Goals</h3>
       <ul id="goal-list"></ul>
     </div>
+    <div class="section-label">Upgrades</div>
     <div class="shop-grid" id="shop-grid"></div>
+    <div class="section-label">Gear &mdash; one-time buys</div>
+    <div class="shop-grid" id="gear-grid"></div>
     <button class="big-btn" id="launch-btn">&#128640; Launch</button>
-    <p class="small-note">&#8679;/&#8681; or W/S to steer &middot; SPACE to fire rocket &middot; ENTER to launch</p>
+    <p class="small-note">&#8679;/&#8681; or W/S to steer &middot; SPACE rocket &middot; X afterburner &middot; F fast-forward &middot; ENTER to launch</p>
     <button class="reset-link" id="reset-btn">reset all progress</button>
   </div>
 </div>
@@ -256,7 +305,7 @@
 <div class="panel" id="victory">
   <div class="panel-inner">
     <h1>&#128039;&#128640; YOU LEARNED TO FLY</h1>
-    <p>20 kilometres. The other penguins said it couldn't be done.<br>
+    <p>35 kilometres. The other penguins said it couldn't be done.<br>
     They said you were <i>flightless</i>. Look at you now.</p>
     <p style="color:var(--muted);font-size:13px;">You can keep flying for fun &mdash; the sky was never the limit.</p>
     <button class="big-btn" id="victory-btn">Keep Flying</button>
@@ -281,12 +330,21 @@ function hash01(n){ let x=Math.sin(n*127.1+311.7)*43758.5453; return x-Math.floo
 const SAVE_KEY = 'flightless-save-v1';
 const defaultState = () => ({
   money:0, day:1, lvl:{ramp:0,aero:0,wings:0,rocket:0,fuel:0,sling:0,bounce:0,sponsor:0},
-  best:{dist:0,alt:0,spd:0}, claimed:[], won:false, muted:false,
+  perm:{speedo:false,alti:false,burner:false,tank:false},
+  best:{dist:0,alt:0,spd:0}, claimed:[], won:false, muted:false, started:false,
 });
 let state = defaultState();
 try{
   const raw = localStorage.getItem(SAVE_KEY);
-  if(raw){ const s = JSON.parse(raw); state = Object.assign(defaultState(), s); state.lvl = Object.assign(defaultState().lvl, s.lvl||{}); state.best = Object.assign(defaultState().best, s.best||{}); }
+  if(raw){
+    const s = JSON.parse(raw);
+    state = Object.assign(defaultState(), s);
+    state.lvl = Object.assign(defaultState().lvl, s.lvl||{});
+    state.perm = Object.assign(defaultState().perm, s.perm||{});
+    state.best = Object.assign(defaultState().best, s.best||{});
+    // pre-gear saves: skip the intro if they've clearly played before
+    state.started = state.started || state.day>1 || state.best.dist>0;
+  }
 }catch(e){ /* corrupted save -> fresh start */ }
 function save(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }catch(e){} }
 
@@ -296,11 +354,11 @@ const UPGRADES = [
     desc:'A taller ramp means a faster launch.',
     val:l=>`${derive({ramp:l}).rampH.toFixed(0)} m tall` },
   { id:'wings',   icon:'\u{1FABD}', name:'Glider Wings', base:25,  mul:1.55, max:10,
-    desc:'Steer in the air. Turn falling into flying.',
-    val:l=> l===0 ? 'no control' : `steering ${(l*10)}%` },
+    desc:'Steer with ⇧/⇩. Dive to gain speed, pull up to glide it out.',
+    val:l=> l===0 ? 'no control' : `control ${(l*10)}%` },
   { id:'aero',    icon:'\u{1F9CA}', name:'Slick Suit',   base:20,  mul:1.55, max:10,
     desc:'Waxed feathers. Less drag on the ramp, in the air, and on the ground.',
-    val:l=>`top speed ~${60+14*l} m/s` },
+    val:l=>`top speed ~${55+13*l} m/s` },
   { id:'rocket',  icon:'\u{1F680}', name:'Rocket',       base:100, mul:1.55, max:10,
     desc:'A strap-on booster. Hold SPACE to burn.',
     val:l=> l===0 ? 'not installed' : `${10+8*l} m/s² thrust` },
@@ -317,6 +375,16 @@ const UPGRADES = [
     desc:'Fish Co. pays you more for every flight.',
     val:l=>`×${(1+0.35*l).toFixed(2)} cash` },
 ];
+const GEAR = [
+  { id:'speedo', icon:'\u{1F4DF}', name:'Speedometer', cost:60,
+    desc:'See your speed in flight — and get paid for your top speed.' },
+  { id:'alti',   icon:'\u{1F4E1}', name:'Altimeter',   cost:200,
+    desc:'See your altitude in flight — and get paid for your peak height.' },
+  { id:'burner', icon:'\u{1F4A5}', name:'Afterburner', cost:2500,
+    desc:'Once per flight, press X: an instant +75 m/s kick. No fuel needed.' },
+  { id:'tank',   icon:'\u{1F6E2}', name:'Reserve Tank', cost:6000,
+    desc:'Your rocket refuels to half on your first ground bounce.' },
+];
 const upgCost = u => Math.round(u.base * Math.pow(u.mul, state.lvl[u.id]));
 
 // physical stats derived from upgrade levels (overrides let upgrade cards preview values)
@@ -325,8 +393,9 @@ function derive(over){
   return {
     rampH:  4 + 3*L.ramp + 0.5*L.ramp*L.ramp,
     mu:     Math.max(0.02, 0.05 - 0.003*L.aero),
-    vt:     60 + 14*L.aero,
-    steer:  L.wings * 0.35,
+    vt:     55 + 13*L.aero,
+    auth:   0.4*L.wings,
+    lift:   0.75*Math.pow(L.wings/10, 0.8),
     thrust: L.rocket ? 10 + 8*L.rocket : 0,
     fuelMax:L.rocket ? 2 + 1.3*L.fuel : 0,
     sling:  L.sling * 15,
@@ -338,9 +407,9 @@ function derive(over){
 
 const MILESTONES = [
   [100,150],[250,300],[500,600],[1000,1200],[2500,3000],
-  [5000,7500],[10000,20000],[15000,40000],[20000,100000],
+  [5000,7000],[10000,15000],[20000,35000],[35000,100000],
 ];
-const WIN_DIST = 20000;
+const WIN_DIST = 35000;
 
 /* ════════════════ sound ════════════════ */
 const SFX = {
@@ -389,6 +458,7 @@ const SFX = {
   tick(){ this.blip(1400,0.03,'square',0.03); },
   buy(){ this.blip(660,0.08,'square',0.06); setTimeout(()=>this.blip(990,0.1,'square',0.06), 70); },
   thump(){ this.blip(90,0.15,'sine',0.15); },
+  boom(){ this.blip(55,0.5,'sawtooth',0.22); this.blip(220,0.25,'square',0.1); },
   setThrust(on){
     if(state.muted || !this.thrustGain) { if(this.thrustGain) this.thrustGain.gain.value=0; return; }
     this.thrustGain.gain.setTargetAtTime(on?0.12:0, this.ctx.currentTime, 0.05);
@@ -462,14 +532,16 @@ function newRun(){
     x:start.x, y:start.y, vx:0, vy:0,
     head:start.th, rampS:0, rampV:0.5,
     fuel:st.fuelMax, sliding:false, done:false,
-    dist:0, maxAlt:start.y, maxSpd:0, t:0,
-    thrusting:false,
+    dist:0, maxAlt:0, maxSpd:0, t:0,          // records only count once airborne
+    thrusting:false, tumble:0, stalled:false,
+    burnerUsed:false, tankUsed:false,
+    trail:[], trailT:0,
     msQueue: MILESTONES.map(m=>m[0]).filter(d=>!state.claimed.includes(d)),
   };
 }
 
 /* ════════════════ input ════════════════ */
-const input = { up:false, down:false, boost:false };
+const input = { up:false, down:false, boost:false, ff:false };
 function bindHold(el, prop){
   const on = e => { e.preventDefault(); input[prop]=true; SFX.ensure(); };
   const off = () => { input[prop]=false; };
@@ -481,6 +553,20 @@ function bindHold(el, prop){
 bindHold(document.getElementById('t-up'), 'up');
 bindHold(document.getElementById('t-down'), 'down');
 bindHold(document.getElementById('t-boost'), 'boost');
+bindHold(document.getElementById('ff-btn'), 'ff');
+document.getElementById('t-burner').addEventListener('pointerdown', e => { e.preventDefault(); fireAfterburner(); });
+
+function fireAfterburner(){
+  if(phase!=='flight' || !run || run.sliding || run.done) return;
+  if(!state.perm.burner || run.burnerUsed) return;
+  run.burnerUsed = true;
+  run.vx += Math.cos(run.head)*75;
+  run.vy += Math.sin(run.head)*75;
+  cam.shake = Math.min(16, cam.shake+10);
+  SFX.boom();
+  popup('\u{1F4A5} AFTERBURNER!', 28);
+  burst(run.x - Math.cos(run.head)*2, run.y - Math.sin(run.head)*2, 24, '#ff8c1a', 14, run.head+Math.PI);
+}
 
 window.addEventListener('keydown', e => {
   if(e.repeat) return;
@@ -488,8 +574,11 @@ window.addEventListener('keydown', e => {
     case 'ArrowUp': case 'KeyW': case 'ArrowLeft': case 'KeyA': input.up=true; e.preventDefault(); break;
     case 'ArrowDown': case 'KeyS': case 'ArrowRight': case 'KeyD': input.down=true; e.preventDefault(); break;
     case 'Space': input.boost=true; e.preventDefault(); break;
+    case 'KeyF': input.ff=true; break;
+    case 'KeyX': fireAfterburner(); break;
     case 'Enter':
-      if(phase==='shop' && shopEl.classList.contains('show')) startLaunch();
+      if(introEl.classList.contains('show')) startLaunch();
+      else if(phase==='shop' && shopEl.classList.contains('show')) startLaunch();
       else if(phase==='results') closeResults();
       else if(phase==='flight' && run && run.sliding) skipSlide();
       break;
@@ -500,6 +589,7 @@ window.addEventListener('keyup', e => {
     case 'ArrowUp': case 'KeyW': case 'ArrowLeft': case 'KeyA': input.up=false; break;
     case 'ArrowDown': case 'KeyS': case 'ArrowRight': case 'KeyD': input.down=false; break;
     case 'Space': input.boost=false; break;
+    case 'KeyF': input.ff=false; break;
   }
 });
 
@@ -531,7 +621,6 @@ function stepRamp(dt){
 function stepFlight(dt){
   run.t += dt;
   const rho = Math.exp(-run.y/5500);
-  let sp = Math.hypot(run.vx, run.vy);
 
   if(run.sliding){
     // grinding along the ice
@@ -544,7 +633,7 @@ function stepFlight(dt){
   } else {
     // pitch control
     const pitch = (input.up?1:0) - (input.down?1:0);
-    run.head = clamp(run.head + pitch*2.6*dt, -85*RAD, 85*RAD);
+    run.head = clamp(run.head + pitch*3.0*dt, -88*RAD, 88*RAD);
 
     // rocket
     run.thrusting = input.boost && st.thrust>0 && run.fuel>0;
@@ -556,24 +645,59 @@ function stepFlight(dt){
     }
     SFX.setThrust(run.thrusting);
 
-    sp = Math.hypot(run.vx, run.vy);
-    // air steering: velocity swings toward where the nose points (this is "flying")
-    if(sp > 1){
+    let sp = Math.hypot(run.vx, run.vy);
+    if(sp > 2){
       let dir = Math.atan2(run.vy, run.vx);
-      const rate = (0.15 + st.steer) * rho * Math.min(sp/18, 1);   // rad/s
-      const turn = clamp(angDiff(run.head, dir), -rate*dt, rate*dt);
+      const want = angDiff(run.head, dir);
+      // wings swing velocity toward the nose, mostly conserving speed:
+      // dive to build speed, pull up to turn it into horizontal glide.
+      // stalls below ~15 m/s, weaker in thin air.
+      const auth = (st.auth>0 ? st.auth*clamp((sp-15)/20, 0, 1.6) : 0.05) * (0.35+0.65*rho);
+      const turn = clamp(want, -auth*dt, auth*dt);
       dir += turn;
-      sp = Math.max(0, sp*(1 - 0.25*Math.abs(turn)) - 8*Math.abs(turn)); // induced drag
-      run.vx = Math.cos(dir)*sp; run.vy = Math.sin(dir)*sp;
+      sp *= (1 - 0.15*Math.abs(turn));            // induced drag on the turn
+      run.vx = Math.cos(dir)*sp;
+      run.vy = Math.sin(dir)*sp;
+      // lift: fights gravity when fast, aligned, and level-ish
+      const align = Math.max(0, Math.cos(want*1.5));
+      const horiz = Math.cos(dir)*Math.cos(dir);
+      const ls = clamp((sp-15)/30, 0, 1);
+      run.vy += G * st.lift * ls*ls * align * horiz * (0.3+0.7*rho) * dt;
     }
-    // gravity + quadratic drag (thinner air up high)
+    // gravity
     run.vy -= G*dt;
     sp = Math.hypot(run.vx, run.vy);
+    // mush: below ~50 m/s the nose drops faster than wings can hold — no slow hover.
+    // rotates velocity toward straight-down whichever way we're moving.
+    if(!run.thrusting && run.y > 1 && run.vy < 3 && sp > 1){
+      const mush = 0.9 * clamp((50-sp)/30, 0, 1.5) * dt;
+      if(mush > 0){
+        const dir0 = Math.atan2(run.vy, run.vx);
+        const d2 = dir0 + clamp(angDiff(-Math.PI/2, dir0), -mush, mush);
+        run.vx = Math.cos(d2)*sp;
+        run.vy = Math.sin(d2)*sp;
+      }
+    }
+    // quadratic drag (thinner air up high)
     if(sp > 0.01){
       const aDrag = G * rho * (sp*sp)/(st.vt*st.vt);
       const f = Math.max(0, 1 - aDrag*dt/sp);
       run.vx *= f; run.vy *= f;
     }
+    // stall tumble (visual) + one-time teaching popup
+    if(sp < 15 && run.y > 4 && !run.thrusting){
+      run.tumble += 8*dt;
+      if(!run.stalled && st.auth>0){ run.stalled = true; popup('STALL! dive to recover', 18); }
+    } else {
+      run.tumble *= Math.pow(0.02, dt);
+      if(sp > 22) run.stalled = false;
+    }
+    // reentry heat: screaming through thick air
+    if(sp > 230 && rho > 0.35 && Math.random() < 0.6){
+      const dir2 = Math.atan2(run.vy, run.vx);
+      burst(run.x, run.y, 1, '#ff6a00', 8, dir2+Math.PI);
+    }
+
     run.x += run.vx*dt;
     run.y += run.vy*dt;
 
@@ -581,6 +705,10 @@ function stepFlight(dt){
     if(run.y <= 0 && run.vy < 0){
       run.y = 0;
       const impact = -run.vy;
+      if(state.perm.tank && !run.tankUsed && st.fuelMax > 0){
+        run.tankUsed = true;
+        if(run.fuel < st.fuelMax*0.5){ run.fuel = st.fuelMax*0.5; popup('\u{1F6E2} RESERVE TANK!', 22); }
+      }
       if(st.rest>0 && impact>4){
         run.vy = impact*st.rest;
         run.vx *= 0.92;
@@ -596,15 +724,26 @@ function stepFlight(dt){
       }
       if(run.sliding){ run.thrusting=false; SFX.setThrust(false); }
     }
+
+    // records only count in the air, off the ramp
+    run.maxAlt = Math.max(run.maxAlt, run.y);
+    run.maxSpd = Math.max(run.maxSpd, Math.hypot(run.vx, run.vy));
   }
+
+  // flight trail
+  run.trailT -= dt;
+  if(!run.sliding && run.trailT <= 0){
+    run.trail.push({x:run.x, y:run.y});
+    if(run.trail.length > 80) run.trail.shift();
+    run.trailT = 0.07;
+  }
+
+  run.dist = Math.max(run.dist, run.x);
   if(run.msQueue.length && run.dist >= run.msQueue[0]){
     popup(`\u{1F3C1} ${fmtDist(run.msQueue[0])}!`, 26);
     SFX.ding();
     run.msQueue.shift();
   }
-  run.dist = Math.max(run.dist, run.x);
-  run.maxAlt = Math.max(run.maxAlt, run.y);
-  run.maxSpd = Math.max(run.maxSpd, Math.hypot(run.vx, run.vy));
   if(run.t > 900) finishRun();  // safety valve
 }
 
@@ -737,6 +876,19 @@ function draw(dtReal){
   }
 
   drawRamp();
+
+  // flight trail
+  if(run && run.trail.length > 1){
+    ctx.lineWidth = 2;
+    for(let i=1;i<run.trail.length;i++){
+      ctx.strokeStyle = `rgba(255,255,255,${0.28*i/run.trail.length})`;
+      ctx.beginPath();
+      ctx.moveTo(w2sX(run.trail[i-1].x), w2sY(run.trail[i-1].y));
+      ctx.lineTo(w2sX(run.trail[i].x), w2sY(run.trail[i].y));
+      ctx.stroke();
+    }
+  }
+
   // particles
   for(const pt of particles){
     ctx.globalAlpha = clamp(pt.life*2, 0, 1);
@@ -747,19 +899,31 @@ function draw(dtReal){
   ctx.globalAlpha = 1;
 
   if(run){
+    const px = w2sX(run.x), py = w2sY(run.y);
+    const dir = Math.atan2(run.vy, run.vx);
+    const rho = Math.exp(-run.y/5500);
     // speed lines
     if(sp > 70 && !run.sliding){
-      const dir = Math.atan2(run.vy, run.vx);
       ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.5;
       for(let i=0;i<6;i++){
         const off = (hash01(i*31+Math.floor(timeSim*10))-0.5)*160;
-        const px = w2sX(run.x) - Math.cos(dir)*40 + Math.cos(dir+Math.PI/2)*off;
-        const py = w2sY(run.y) + Math.sin(dir)*40 + -Math.sin(dir+Math.PI/2)*off;
+        const lx = px - Math.cos(dir)*40 + Math.cos(dir+Math.PI/2)*off;
+        const ly = py + Math.sin(dir)*40 + -Math.sin(dir+Math.PI/2)*off;
         const l = 20 + sp*0.15;
-        ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(px-Math.cos(dir)*l, py+Math.sin(dir)*l); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(lx-Math.cos(dir)*l, ly+Math.sin(dir)*l); ctx.stroke();
       }
     }
-    drawPenguin(w2sX(run.x), w2sY(run.y), run.head, Math.max(cam.z*1.3, 13));
+    // reentry glow
+    if(sp > 230 && rho > 0.35 && !run.sliding){
+      const heat = clamp((sp-230)/200, 0, 1) * clamp((rho-0.35)/0.5, 0, 1);
+      const gsize = 30 + heat*40;
+      const gl = ctx.createRadialGradient(px, py, 4, px, py, gsize);
+      gl.addColorStop(0, `rgba(255,180,60,${0.55*heat})`);
+      gl.addColorStop(1, 'rgba(255,80,0,0)');
+      ctx.fillStyle = gl;
+      ctx.beginPath(); ctx.arc(px, py, gsize, 0, 7); ctx.fill();
+    }
+    drawPenguin(px, py, run.head + run.tumble, Math.max(cam.z*1.3, 13));
   }
   ctx.restore();
 }
@@ -839,34 +1003,55 @@ function drawPenguin(px, py, ang, s){
 const hudEl = document.getElementById('hud');
 const hintEl = document.getElementById('hint');
 const touchEl = document.getElementById('touch');
+const ffBtn = document.getElementById('ff-btn');
 const hudDist = document.getElementById('hud-dist');
 const hudAlt = document.getElementById('hud-alt');
 const hudSpd = document.getElementById('hud-spd');
+const altWrap = document.getElementById('alt-wrap');
+const spdWrap = document.getElementById('spd-wrap');
 const fuelWrap = document.getElementById('fuel-wrap');
 const fuelBar = document.getElementById('fuel-bar');
+const burnerWrap = document.getElementById('burner-wrap');
+const hudBurner = document.getElementById('hud-burner');
 
 function renderHUD(){
   hudDist.textContent = fmtDist(Math.max(0, run.dist));
-  hudAlt.textContent = fmtDist(Math.max(0, run.y));
-  hudSpd.textContent = Math.round(Math.hypot(run.vx, run.vy));
+  if(state.perm.alti){
+    altWrap.style.display = 'block';
+    hudAlt.textContent = fmtDist(Math.max(0, run.y));
+  } else altWrap.style.display = 'none';
+  if(state.perm.speedo){
+    spdWrap.style.display = 'block';
+    hudSpd.textContent = Math.round(Math.hypot(run.vx, run.vy));
+  } else spdWrap.style.display = 'none';
   if(st.fuelMax > 0){
     fuelWrap.style.display = 'block';
     fuelBar.style.width = (run.fuel/st.fuelMax*100)+'%';
   } else fuelWrap.style.display = 'none';
+  if(state.perm.burner){
+    burnerWrap.style.display = 'block';
+    hudBurner.textContent = run.burnerUsed ? 'SPENT' : '\u{1F4A5} READY';
+    hudBurner.className = run.burnerUsed ? 'spent' : '';
+  } else burnerWrap.style.display = 'none';
+  ffBtn.classList.toggle('on', input.ff);
   if(run.sliding){
     hintEl.textContent = 'sliding… press ENTER to skip ahead';
     hintEl.style.display = 'block';
-  } else if(state.day <= 2 && phase==='flight'){
-    hintEl.textContent = st.steer>0 ? '⇧/⇩ to steer' + (st.thrust>0?' · hold SPACE to boost':'') : 'no wings yet… enjoy the flop';
+  } else if(state.day <= 3 && phase==='flight'){
+    hintEl.textContent = st.auth>0
+      ? '⇧ pull up · ⇩ dive for speed' + (st.thrust>0 ? ' · SPACE rocket' : '') + ' · F fast-forward'
+      : 'no wings yet… enjoy the flop';
     hintEl.style.display = 'block';
   } else hintEl.style.display = 'none';
 }
 
 /* ════════════════ shop UI ════════════════ */
+const introEl = document.getElementById('intro');
 const shopEl = document.getElementById('shop');
 const resultsEl = document.getElementById('results');
 const victoryEl = document.getElementById('victory');
 const shopGrid = document.getElementById('shop-grid');
+const gearGrid = document.getElementById('gear-grid');
 
 function renderShop(){
   document.getElementById('shop-money').textContent = fmtCash(state.money);
@@ -919,6 +1104,31 @@ function renderShop(){
     }
     shopGrid.appendChild(card);
   }
+
+  // gear cards (one-time permanent buys)
+  gearGrid.innerHTML = '';
+  for(const g of GEAR){
+    const owned = state.perm[g.id];
+    const card = document.createElement('div');
+    card.className = 'upg gear' + (owned ? ' owned' : '');
+    card.innerHTML = `
+      <div class="upg-head"><span class="upg-icon">${g.icon}</span><span class="upg-name">${g.name}</span></div>
+      <div class="upg-desc">${g.desc}</div>
+      <button ${owned?'class="maxed-btn" disabled':''} ${(!owned && state.money<g.cost)?'disabled':''}>
+        ${owned ? 'OWNED' : 'Buy — '+fmtCash(g.cost)}
+      </button>`;
+    if(!owned){
+      card.querySelector('button').addEventListener('click', () => {
+        if(state.money < g.cost) return;
+        state.money -= g.cost;
+        state.perm[g.id] = true;
+        SFX.buy();
+        save();
+        renderShop();
+      });
+    }
+    gearGrid.appendChild(card);
+  }
 }
 
 /* ════════════════ results UI ════════════════ */
@@ -947,9 +1157,9 @@ function finishRun(){
   phase = 'results';
 
   const dist = Math.max(0, run.dist);
-  const cashDist = Math.pow(dist, 0.95)*0.35;
-  const cashAlt = run.maxAlt*0.25;
-  const cashSpd = run.maxSpd*1.5;
+  const cashDist = 5 + 1.8*Math.pow(dist, 0.9);
+  const cashAlt = state.perm.alti ? run.maxAlt*0.3 : 0;
+  const cashSpd = state.perm.speedo ? run.maxSpd*1.6 : 0;
   const subtotal = (cashDist+cashAlt+cashSpd) * st.mult;
 
   // milestones
@@ -972,7 +1182,7 @@ function finishRun(){
   const headline = dist < 30 ? 'THAT WAS… A START' :
                    dist < 200 ? 'GETTING SOMEWHERE' :
                    dist < 1000 ? 'NOW WE’RE FLYING' :
-                   dist < 10000 ? 'INCREDIBLE FLIGHT' : 'ABSOLUTELY LEGENDARY';
+                   dist < 8000 ? 'INCREDIBLE FLIGHT' : 'ABSOLUTELY LEGENDARY';
   document.getElementById('res-headline').textContent = headline;
   document.getElementById('res-dist').textContent = fmtDist(dist);
   document.getElementById('res-alt').textContent = fmtDist(run.maxAlt);
@@ -1001,8 +1211,16 @@ function finishRun(){
   countUpTimers.forEach(cancelAnimationFrame);
   countUpTimers = [];
   animateCash(document.getElementById('cash-dist'), Math.round(cashDist*st.mult), 200, 700);
-  animateCash(document.getElementById('cash-alt'), Math.round(cashAlt*st.mult), 550, 500);
-  animateCash(document.getElementById('cash-spd'), Math.round(cashSpd*st.mult), 850, 500);
+  const altCashEl = document.getElementById('cash-alt');
+  const spdCashEl = document.getElementById('cash-spd');
+  if(state.perm.alti){
+    altCashEl.className = 'cash';
+    animateCash(altCashEl, Math.round(cashAlt*st.mult), 550, 500);
+  } else { altCashEl.className = 'cash locked'; altCashEl.textContent = 'needs Altimeter'; }
+  if(state.perm.speedo){
+    spdCashEl.className = 'cash';
+    animateCash(spdCashEl, Math.round(cashSpd*st.mult), 850, 500);
+  } else { spdCashEl.className = 'cash locked'; spdCashEl.textContent = 'needs Speedometer'; }
   animateCash(document.getElementById('cash-total'), total, 1300+newBonuses.length*250, 900);
 
   state.day++;
@@ -1010,6 +1228,8 @@ function finishRun(){
 
   hudEl.style.display = 'none';
   hintEl.style.display = 'none';
+  ffBtn.style.display = 'none';
+  input.ff = false;
   touchEl.classList.remove('flying');
   resultsEl.classList.add('show');
 }
@@ -1038,13 +1258,18 @@ function openShop(){
 
 function startLaunch(){
   SFX.ensure();
+  if(!state.started){ state.started = true; save(); }
+  introEl.classList.remove('show');
   shopEl.classList.remove('show');
   newRun();
   phase = 'ramp';
   hudEl.style.display = 'flex';
+  ffBtn.style.display = 'block';
   touchEl.classList.add('flying');
+  document.getElementById('t-burner').classList.toggle('hidden', !state.perm.burner);
 }
 
+document.getElementById('intro-launch-btn').addEventListener('click', startLaunch);
 document.getElementById('launch-btn').addEventListener('click', startLaunch);
 document.getElementById('continue-btn').addEventListener('click', closeResults);
 document.getElementById('victory-btn').addEventListener('click', () => {
@@ -1056,6 +1281,7 @@ document.getElementById('reset-btn').addEventListener('click', () => {
   const muted = state.muted;
   state = defaultState();
   state.muted = muted;
+  state.started = true;   // they know the drill
   save();
   openShop();
 });
@@ -1068,9 +1294,13 @@ function loop(now){
   lastT = now;
   timeSim += dtReal;
 
-  // time scale: fast-forward the long slide-out and long ramp rides
-  const scale = (phase==='flight' && run && run.sliding) ? 2.5
-              : (phase==='ramp' && ramp) ? clamp(ramp.len/60, 1, 3) : 1;
+  // time scale: player fast-forward, plus auto-FF for slide-outs and long ramp rides
+  let scale = 1;
+  if(phase==='flight' && run){
+    scale = input.ff ? 3 : (run.sliding ? 2.5 : 1);
+  } else if(phase==='ramp' && ramp){
+    scale = clamp(ramp.len/60, 1, 3);
+  }
   let dt = dtReal*scale;
 
   // fixed-ish substeps for stable physics
@@ -1086,7 +1316,15 @@ function loop(now){
   if((phase==='ramp'||phase==='flight') && run) renderHUD();
 }
 
-openShop();
+// boot: first-ever visit goes straight to the ramp, no shop
+st = derive();
+ramp = buildRamp(st.rampH);
+if(!state.started){
+  phase = 'shop';           // idle camera on the ramp behind the intro
+  introEl.classList.add('show');
+} else {
+  openShop();
+}
 requestAnimationFrame(loop);
 })();
 </script>
