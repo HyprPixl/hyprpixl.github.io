@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flightless — Learn to Fly</title>
+<meta name="description" content="A Learn to Fly-inspired launch game. Hurl a penguin off a ramp, earn cash, buy upgrades, learn to fly.">
+<style>
+  :root{
+    --navy:#000080;
+    --yellow:#FFFF00;
+    --red:#FF0000;
+    --panel:#0d1030;
+    --panel2:#141850;
+    --text:#eef1ff;
+    --muted:#9aa3d8;
+    --cash:#7CFC00;
+    --border:#3a41a8;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    font-family:"Courier New", Courier, monospace;
+    background:#05060f;
+    color:var(--text);
+    overflow:hidden;
+  }
+  #game{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+
+  .overlay-link{
+    position:absolute; top:10px; left:12px; z-index:30;
+    color:var(--yellow); background:rgba(0,0,128,0.85);
+    border:2px solid var(--yellow); padding:4px 10px;
+    text-decoration:none; font-weight:bold; font-size:13px;
+  }
+  .overlay-link:hover{ background:var(--yellow); color:var(--navy); }
+  #mute-btn{
+    position:absolute; top:10px; right:12px; z-index:30;
+    background:rgba(0,0,128,0.85); color:var(--yellow);
+    border:2px solid var(--yellow); padding:4px 10px;
+    font-family:inherit; font-weight:bold; font-size:13px; cursor:pointer;
+  }
+
+  /* ── Flight HUD ── */
+  #hud{
+    position:absolute; top:0; left:0; right:0; z-index:10;
+    display:none; justify-content:center; gap:14px;
+    padding:10px; pointer-events:none;
+    text-shadow:1px 1px 2px rgba(0,0,0,0.7);
+    flex-wrap:wrap;
+  }
+  #hud .stat{
+    background:rgba(5,8,30,0.65); border:1px solid var(--border);
+    padding:4px 12px; border-radius:4px; text-align:center; min-width:110px;
+  }
+  #hud .stat b{ display:block; font-size:20px; color:var(--yellow); }
+  #hud .stat span{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+  #fuel-wrap{ display:none; }
+  #fuel-bar-outer{
+    width:110px; height:10px; margin:6px auto 2px;
+    border:1px solid var(--border); background:#060818;
+  }
+  #fuel-bar{ height:100%; width:100%; background:linear-gradient(90deg,#ff5e00,#ffd000); }
+  #hint{
+    position:absolute; bottom:14px; left:0; right:0; z-index:10;
+    text-align:center; color:var(--muted); font-size:13px;
+    text-shadow:1px 1px 2px #000; pointer-events:none; display:none;
+  }
+  #popup-layer{ position:absolute; inset:0; z-index:11; pointer-events:none; overflow:hidden; }
+  .popup{
+    position:absolute; transform:translate(-50%,-50%);
+    font-weight:bold; color:var(--yellow); text-shadow:2px 2px 0 #000;
+    animation:pop-rise 1.6s ease-out forwards; white-space:nowrap;
+  }
+  @keyframes pop-rise{
+    0%{ opacity:0; margin-top:10px; } 15%{ opacity:1; }
+    75%{ opacity:1; } 100%{ opacity:0; margin-top:-50px; }
+  }
+
+  /* ── Panels (shop / results) ── */
+  .panel{
+    position:absolute; inset:0; z-index:20; display:none;
+    overflow-y:auto; padding:20px 12px 40px;
+    background:radial-gradient(circle at 50% 20%, rgba(13,16,48,0.92) 0%, rgba(4,5,16,0.96) 100%);
+  }
+  .panel.show{ display:block; }
+  .panel-inner{ max-width:980px; margin:0 auto; }
+  h1.game-title{
+    text-align:center; color:var(--yellow); text-transform:uppercase;
+    letter-spacing:4px; text-shadow:3px 3px 0 var(--red); margin:6px 0 2px;
+    font-size:clamp(26px, 5vw, 44px);
+  }
+  .subtitle{ text-align:center; color:var(--muted); margin:0 0 16px; font-size:13px; }
+
+  .topline{
+    display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-bottom:16px;
+  }
+  .topline .chip{
+    background:var(--panel); border:2px solid var(--border);
+    padding:6px 14px; font-size:14px;
+  }
+  .topline .chip b{ color:var(--yellow); }
+  .topline .chip.money b{ color:var(--cash); }
+
+  .shop-grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(215px, 1fr));
+    gap:10px; margin-bottom:14px;
+  }
+  .upg{
+    background:var(--panel); border:2px solid var(--border);
+    padding:10px; display:flex; flex-direction:column; gap:6px;
+  }
+  .upg.maxed{ border-color:var(--cash); }
+  .upg .upg-head{ display:flex; align-items:center; gap:8px; }
+  .upg .upg-icon{ font-size:22px; }
+  .upg .upg-name{ font-weight:bold; color:var(--yellow); font-size:14px; }
+  .upg .upg-desc{ font-size:11.5px; color:var(--muted); min-height:30px; }
+  .upg .upg-stat{ font-size:12px; color:var(--text); }
+  .upg .pips{ display:flex; gap:3px; }
+  .upg .pip{ width:12px; height:8px; background:#20255e; border:1px solid var(--border); }
+  .upg .pip.on{ background:var(--yellow); border-color:var(--yellow); }
+  .upg button{
+    font-family:inherit; font-weight:bold; font-size:13px;
+    background:var(--navy); color:var(--yellow);
+    border:2px solid var(--yellow); padding:6px; cursor:pointer;
+  }
+  .upg button:hover:not(:disabled){ background:var(--yellow); color:var(--navy); }
+  .upg button:disabled{ opacity:0.45; cursor:not-allowed; }
+  .upg button.maxed-btn{ border-color:var(--cash); color:var(--cash); }
+  .upg .locked-note{ font-size:11px; color:var(--red); }
+
+  .goals{
+    background:var(--panel); border:2px solid var(--border);
+    padding:10px 14px; margin-bottom:16px; font-size:13px;
+  }
+  .goals h3{ margin:0 0 6px; color:var(--yellow); font-size:14px; text-transform:uppercase; letter-spacing:1px;}
+  .goals ul{ margin:0; padding:0; list-style:none; display:flex; flex-wrap:wrap; gap:6px 16px; }
+  .goals li{ color:var(--muted); }
+  .goals li.done{ color:var(--cash); text-decoration:line-through; }
+  .goals li.next{ color:var(--yellow); font-weight:bold; }
+
+  .big-btn{
+    display:block; margin:0 auto; padding:14px 60px;
+    font-family:inherit; font-size:22px; font-weight:bold; letter-spacing:3px;
+    background:var(--red); color:#fff; border:3px solid var(--yellow);
+    cursor:pointer; text-transform:uppercase;
+    box-shadow:0 0 25px rgba(255,255,0,0.35);
+  }
+  .big-btn:hover{ background:var(--yellow); color:var(--red); }
+  .small-note{ text-align:center; color:var(--muted); font-size:11px; margin-top:8px; }
+  .reset-link{
+    display:block; text-align:center; margin-top:22px; color:#555b9e;
+    font-size:11px; background:none; border:none; cursor:pointer;
+    font-family:inherit; text-decoration:underline; width:100%;
+  }
+
+  /* ── Results ── */
+  #results .panel-inner{ max-width:520px; }
+  .results-box{
+    background:var(--panel); border:3px double var(--yellow); padding:18px 22px; margin-bottom:18px;
+  }
+  .results-box h2{ margin:0 0 12px; color:var(--yellow); text-align:center; letter-spacing:2px; }
+  .res-row{
+    display:flex; justify-content:space-between; padding:5px 0; font-size:15px;
+    border-bottom:1px dashed #2a2f70;
+  }
+  .res-row .rec{ color:var(--red); font-weight:bold; margin-left:6px; }
+  .res-row .val{ color:var(--text); }
+  .res-row .cash{ color:var(--cash); min-width:90px; text-align:right; }
+  .res-row.bonus .val, .res-row.bonus{ color:var(--yellow); }
+  .res-row.total{ border-bottom:none; border-top:2px solid var(--border); margin-top:6px; padding-top:10px; font-weight:bold; font-size:18px; }
+  .res-row.total .cash{ color:var(--cash); }
+
+  /* ── Victory ── */
+  #victory{ text-align:center; }
+  #victory .panel-inner{ max-width:560px; padding-top:8vh; }
+  #victory h1{ color:var(--yellow); text-shadow:3px 3px 0 var(--red); font-size:40px; letter-spacing:4px; }
+  #victory p{ color:var(--text); font-size:15px; line-height:1.6; }
+
+  /* ── Touch controls ── */
+  #touch{ position:absolute; bottom:0; left:0; right:0; z-index:15; display:none; justify-content:space-between; padding:0 14px 18px; pointer-events:none; }
+  #touch .tbtn{
+    pointer-events:auto; width:70px; height:70px; border-radius:50%;
+    background:rgba(0,0,128,0.6); border:2px solid var(--yellow);
+    color:var(--yellow); font-size:26px; font-family:inherit;
+    user-select:none; -webkit-user-select:none; touch-action:none;
+  }
+  #touch .tgroup{ display:flex; gap:12px; }
+  @media (pointer:coarse){ #touch.flying{ display:flex; } }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<a class="overlay-link" href="/index.html">&larr; caleb's site</a>
+<button id="mute-btn" title="toggle sound">&#128266;</button>
+
+<div id="hud">
+  <div class="stat"><b id="hud-dist">0 m</b><span>distance</span></div>
+  <div class="stat"><b id="hud-alt">0 m</b><span>altitude</span></div>
+  <div class="stat"><b id="hud-spd">0</b><span>speed m/s</span></div>
+  <div class="stat" id="fuel-wrap"><div id="fuel-bar-outer"><div id="fuel-bar"></div></div><span>fuel</span></div>
+</div>
+<div id="hint"></div>
+<div id="popup-layer"></div>
+
+<div id="touch">
+  <div class="tgroup">
+    <button class="tbtn" id="t-up">&#8679;</button>
+    <button class="tbtn" id="t-down">&#8681;</button>
+  </div>
+  <div class="tgroup">
+    <button class="tbtn" id="t-boost">&#128293;</button>
+  </div>
+</div>
+
+<!-- ── SHOP ── -->
+<div class="panel" id="shop">
+  <div class="panel-inner">
+    <h1 class="game-title">&#128039; Flightless</h1>
+    <p class="subtitle">a Learn to Fly-inspired launch game &mdash; penguins can't fly. prove them wrong.</p>
+    <div class="topline">
+      <div class="chip money">&#128176; <b id="shop-money">$0</b></div>
+      <div class="chip">&#128197; Day <b id="shop-day">1</b></div>
+      <div class="chip">&#127942; Best <b id="shop-best">0 m</b></div>
+    </div>
+    <div class="goals">
+      <h3>&#127937; Goals</h3>
+      <ul id="goal-list"></ul>
+    </div>
+    <div class="shop-grid" id="shop-grid"></div>
+    <button class="big-btn" id="launch-btn">&#128640; Launch</button>
+    <p class="small-note">&#8679;/&#8681; or W/S to steer &middot; SPACE to fire rocket &middot; ENTER to launch</p>
+    <button class="reset-link" id="reset-btn">reset all progress</button>
+  </div>
+</div>
+
+<!-- ── RESULTS ── -->
+<div class="panel" id="results">
+  <div class="panel-inner">
+    <h1 class="game-title" style="font-size:30px;">Day <span id="res-day">1</span> Results</h1>
+    <div class="results-box">
+      <h2 id="res-headline">FLIGHT REPORT</h2>
+      <div class="res-row"><span class="val">Distance: <span id="res-dist">0</span><span class="rec" id="rec-dist"></span></span><span class="cash" id="cash-dist">$0</span></div>
+      <div class="res-row"><span class="val">Max altitude: <span id="res-alt">0</span><span class="rec" id="rec-alt"></span></span><span class="cash" id="cash-alt">$0</span></div>
+      <div class="res-row"><span class="val">Top speed: <span id="res-spd">0</span><span class="rec" id="rec-spd"></span></span><span class="cash" id="cash-spd">$0</span></div>
+      <div class="res-row" id="res-mult-row" style="display:none;"><span class="val">Sponsor deal</span><span class="cash" id="cash-mult">&times;1.0</span></div>
+      <div id="res-bonuses"></div>
+      <div class="res-row total"><span class="val">TOTAL</span><span class="cash" id="cash-total">$0</span></div>
+    </div>
+    <button class="big-btn" id="continue-btn">Continue</button>
+    <p class="small-note">press ENTER</p>
+  </div>
+</div>
+
+<!-- ── VICTORY ── -->
+<div class="panel" id="victory">
+  <div class="panel-inner">
+    <h1>&#128039;&#128640; YOU LEARNED TO FLY</h1>
+    <p>20 kilometres. The other penguins said it couldn't be done.<br>
+    They said you were <i>flightless</i>. Look at you now.</p>
+    <p style="color:var(--muted);font-size:13px;">You can keep flying for fun &mdash; the sky was never the limit.</p>
+    <button class="big-btn" id="victory-btn">Keep Flying</button>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ════════════════ helpers ════════════════ */
+const RAD = Math.PI/180;
+const clamp = (v,a,b) => v<a?a : v>b?b : v;
+const lerp  = (a,b,t) => a+(b-a)*t;
+function angDiff(a,b){ let d=a-b; while(d> Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI; return d; }
+function fmtDist(m){ return m>=10000 ? (m/1000).toFixed(1)+' km' : Math.round(m).toLocaleString()+' m'; }
+function fmtCash(n){ return '$'+Math.round(n).toLocaleString(); }
+// deterministic pseudo-random from an integer (for clouds/stars)
+function hash01(n){ let x=Math.sin(n*127.1+311.7)*43758.5453; return x-Math.floor(x); }
+
+/* ════════════════ save state ════════════════ */
+const SAVE_KEY = 'flightless-save-v1';
+const defaultState = () => ({
+  money:0, day:1, lvl:{ramp:0,aero:0,wings:0,rocket:0,fuel:0,sling:0,bounce:0,sponsor:0},
+  best:{dist:0,alt:0,spd:0}, claimed:[], won:false, muted:false,
+});
+let state = defaultState();
+try{
+  const raw = localStorage.getItem(SAVE_KEY);
+  if(raw){ const s = JSON.parse(raw); state = Object.assign(defaultState(), s); state.lvl = Object.assign(defaultState().lvl, s.lvl||{}); state.best = Object.assign(defaultState().best, s.best||{}); }
+}catch(e){ /* corrupted save -> fresh start */ }
+function save(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }catch(e){} }
+
+/* ════════════════ upgrades ════════════════ */
+const UPGRADES = [
+  { id:'ramp',    icon:'\u{1F6DD}', name:'Ramp Height',  base:15,  mul:1.55, max:12,
+    desc:'A taller ramp means a faster launch.',
+    val:l=>`${derive({ramp:l}).rampH.toFixed(0)} m tall` },
+  { id:'wings',   icon:'\u{1FABD}', name:'Glider Wings', base:25,  mul:1.55, max:10,
+    desc:'Steer in the air. Turn falling into flying.',
+    val:l=> l===0 ? 'no control' : `steering ${(l*10)}%` },
+  { id:'aero',    icon:'\u{1F9CA}', name:'Slick Suit',   base:20,  mul:1.55, max:10,
+    desc:'Waxed feathers. Less drag on the ramp, in the air, and on the ground.',
+    val:l=>`top speed ~${60+14*l} m/s` },
+  { id:'rocket',  icon:'\u{1F680}', name:'Rocket',       base:100, mul:1.55, max:10,
+    desc:'A strap-on booster. Hold SPACE to burn.',
+    val:l=> l===0 ? 'not installed' : `${10+8*l} m/s² thrust` },
+  { id:'fuel',    icon:'⛽',    name:'Fuel Tank',    base:60,  mul:1.55, max:10,
+    desc:'More burn time for the rocket.', requires:'rocket',
+    val:l=>`${(2+1.3*l).toFixed(1)} s of burn` },
+  { id:'sling',   icon:'\u{1F3AF}', name:'Launcher',     base:400, mul:1.55, max:8,
+    desc:'A giant elastic slingshot at the ramp’s lip. Free speed.',
+    val:l=> l===0 ? 'not installed' : `+${15*l} m/s at launch` },
+  { id:'bounce',  icon:'\u{1F3C0}', name:'Rubber Belly', base:150, mul:1.55, max:6,
+    desc:'Bounce off the ice and keep your momentum.',
+    val:l=> l===0 ? 'splat' : `${Math.round((0.12+0.09*l)*100)}% bounce` },
+  { id:'sponsor', icon:'\u{1F4B0}', name:'Sponsor Deal', base:250, mul:1.55, max:6,
+    desc:'Fish Co. pays you more for every flight.',
+    val:l=>`×${(1+0.35*l).toFixed(2)} cash` },
+];
+const upgCost = u => Math.round(u.base * Math.pow(u.mul, state.lvl[u.id]));
+
+// physical stats derived from upgrade levels (overrides let upgrade cards preview values)
+function derive(over){
+  const L = Object.assign({}, state.lvl, over||{});
+  return {
+    rampH:  4 + 3*L.ramp + 0.5*L.ramp*L.ramp,
+    mu:     Math.max(0.02, 0.05 - 0.003*L.aero),
+    vt:     60 + 14*L.aero,
+    steer:  L.wings * 0.35,
+    thrust: L.rocket ? 10 + 8*L.rocket : 0,
+    fuelMax:L.rocket ? 2 + 1.3*L.fuel : 0,
+    sling:  L.sling * 15,
+    rest:   L.bounce ? 0.12 + 0.09*L.bounce : 0,
+    mult:   1 + 0.35*L.sponsor,
+    slideDecel: Math.max(3, 6.5 - 0.35*L.aero),
+  };
+}
+
+const MILESTONES = [
+  [100,150],[250,300],[500,600],[1000,1200],[2500,3000],
+  [5000,7500],[10000,20000],[15000,40000],[20000,100000],
+];
+const WIN_DIST = 20000;
+
+/* ════════════════ sound ════════════════ */
+const SFX = {
+  ctx:null, thrustGain:null,
+  ensure(){
+    if(state.muted) return null;
+    if(!this.ctx){
+      try{ this.ctx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; }
+      // looping noise buffer for the rocket
+      const len = this.ctx.sampleRate * 0.5;
+      const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for(let i=0;i<len;i++) d[i] = Math.random()*2-1;
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      const filt = this.ctx.createBiquadFilter();
+      filt.type='lowpass'; filt.frequency.value = 500;
+      this.thrustGain = this.ctx.createGain();
+      this.thrustGain.gain.value = 0;
+      src.connect(filt); filt.connect(this.thrustGain); this.thrustGain.connect(this.ctx.destination);
+      src.start();
+    }
+    if(this.ctx.state==='suspended') this.ctx.resume();
+    return this.ctx;
+  },
+  blip(freq, dur, type, vol){
+    const c = this.ensure(); if(!c) return;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type||'square'; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol||0.08, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + (dur||0.1));
+    o.connect(g); g.connect(c.destination);
+    o.start(); o.stop(c.currentTime + (dur||0.1) + 0.02);
+  },
+  launch(){
+    const c = this.ensure(); if(!c) return;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type='sawtooth';
+    o.frequency.setValueAtTime(120, c.currentTime);
+    o.frequency.exponentialRampToValueAtTime(700, c.currentTime+0.5);
+    g.gain.setValueAtTime(0.1, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime+0.6);
+    o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime+0.7);
+  },
+  ding(){ this.blip(880,0.15,'sine',0.1); setTimeout(()=>this.blip(1320,0.25,'sine',0.1), 110); },
+  tick(){ this.blip(1400,0.03,'square',0.03); },
+  buy(){ this.blip(660,0.08,'square',0.06); setTimeout(()=>this.blip(990,0.1,'square',0.06), 70); },
+  thump(){ this.blip(90,0.15,'sine',0.15); },
+  setThrust(on){
+    if(state.muted || !this.thrustGain) { if(this.thrustGain) this.thrustGain.gain.value=0; return; }
+    this.thrustGain.gain.setTargetAtTime(on?0.12:0, this.ctx.currentTime, 0.05);
+  },
+};
+const muteBtn = document.getElementById('mute-btn');
+function renderMute(){ muteBtn.innerHTML = state.muted ? '&#128263;' : '&#128266;'; }
+muteBtn.addEventListener('click', () => {
+  state.muted = !state.muted; save(); renderMute();
+  if(state.muted) SFX.setThrust(false);
+});
+renderMute();
+
+/* ════════════════ canvas & camera ════════════════ */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W=0, Hpx=0, DPR=1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  W = window.innerWidth; Hpx = window.innerHeight;
+  canvas.width = W*DPR; canvas.height = Hpx*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', resize); resize();
+
+const cam = { x:0, y:0, z:6, shake:0 };
+const w2sX = x => (x-cam.x)*cam.z + W*0.5;
+const w2sY = y => Hpx*0.72 - (y-cam.y)*cam.z;
+
+/* ════════════════ game objects ════════════════ */
+// phases: 'shop' | 'ramp' | 'flight' | 'results'
+let phase = 'shop';
+let st = derive();            // stats for current run
+let ramp = null;              // {pts:[{x,y,th}], cum:[], len, exitTh}
+let run = null;               // per-run mutable state
+let particles = [];
+let timeSim = 0;
+
+function buildRamp(H){
+  const th0 = -78*RAD, th1 = 12*RAD;
+  const R = H / (Math.cos(th1) - Math.cos(th0));   // radius so total drop = H
+  const pts = [];
+  const N = 48;
+  for(let i=0;i<=N;i++){
+    const th = th0 + (th1-th0)*i/N;
+    pts.push({ x: R*(Math.sin(th)-Math.sin(th0)), y: R*(Math.cos(th0)-Math.cos(th)), th });
+  }
+  // translate so the exit lip sits at x=0, y=2.5 (a small platform above the ice)
+  const last = pts[pts.length-1];
+  const dx = -last.x, dy = 2.5 - last.y;
+  for(const p of pts){ p.x += dx; p.y += dy; }
+  const cum = [0];
+  for(let i=1;i<pts.length;i++)
+    cum.push(cum[i-1] + Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y));
+  return { pts, cum, len:cum[cum.length-1], exitTh:th1 };
+}
+function rampPoint(s){
+  const {pts, cum} = ramp;
+  s = clamp(s, 0, ramp.len);
+  let i = 1;
+  while(i<cum.length-1 && cum[i]<s) i++;
+  const t = (s-cum[i-1]) / (cum[i]-cum[i-1] || 1);
+  return { x:lerp(pts[i-1].x, pts[i].x, t), y:lerp(pts[i-1].y, pts[i].y, t), th:lerp(pts[i-1].th, pts[i].th, t) };
+}
+
+function newRun(){
+  st = derive();
+  ramp = buildRamp(st.rampH);
+  const start = rampPoint(0);
+  run = {
+    x:start.x, y:start.y, vx:0, vy:0,
+    head:start.th, rampS:0, rampV:0.5,
+    fuel:st.fuelMax, sliding:false, done:false,
+    dist:0, maxAlt:start.y, maxSpd:0, t:0,
+    thrusting:false,
+    msQueue: MILESTONES.map(m=>m[0]).filter(d=>!state.claimed.includes(d)),
+  };
+}
+
+/* ════════════════ input ════════════════ */
+const input = { up:false, down:false, boost:false };
+function bindHold(el, prop){
+  const on = e => { e.preventDefault(); input[prop]=true; SFX.ensure(); };
+  const off = () => { input[prop]=false; };
+  el.addEventListener('pointerdown', on);
+  el.addEventListener('pointerup', off);
+  el.addEventListener('pointercancel', off);
+  el.addEventListener('pointerleave', off);
+}
+bindHold(document.getElementById('t-up'), 'up');
+bindHold(document.getElementById('t-down'), 'down');
+bindHold(document.getElementById('t-boost'), 'boost');
+
+window.addEventListener('keydown', e => {
+  if(e.repeat) return;
+  switch(e.code){
+    case 'ArrowUp': case 'KeyW': case 'ArrowLeft': case 'KeyA': input.up=true; e.preventDefault(); break;
+    case 'ArrowDown': case 'KeyS': case 'ArrowRight': case 'KeyD': input.down=true; e.preventDefault(); break;
+    case 'Space': input.boost=true; e.preventDefault(); break;
+    case 'Enter':
+      if(phase==='shop' && shopEl.classList.contains('show')) startLaunch();
+      else if(phase==='results') closeResults();
+      else if(phase==='flight' && run && run.sliding) skipSlide();
+      break;
+  }
+});
+window.addEventListener('keyup', e => {
+  switch(e.code){
+    case 'ArrowUp': case 'KeyW': case 'ArrowLeft': case 'KeyA': input.up=false; break;
+    case 'ArrowDown': case 'KeyS': case 'ArrowRight': case 'KeyD': input.down=false; break;
+    case 'Space': input.boost=false; break;
+  }
+});
+
+/* ════════════════ physics ════════════════ */
+const G = 9.8;
+
+function stepRamp(dt){
+  const th = rampPoint(run.rampS).th;
+  const acc = -G*Math.sin(th) - st.mu*G*Math.cos(th)*Math.sign(run.rampV);
+  run.rampV = Math.max(0.3, run.rampV + acc*dt);
+  run.rampS += run.rampV*dt;
+  const p = rampPoint(run.rampS);
+  run.x=p.x; run.y=p.y; run.head=p.th;
+  run.vx = Math.cos(p.th)*run.rampV; run.vy = Math.sin(p.th)*run.rampV;
+  if(run.rampS >= ramp.len){
+    // launch! apply slingshot bonus along the kicker direction
+    let v = run.rampV + st.sling;
+    run.vx = Math.cos(ramp.exitTh)*v;
+    run.vy = Math.sin(ramp.exitTh)*v;
+    run.head = ramp.exitTh;
+    phase = 'flight';
+    cam.shake = Math.min(14, 4 + st.sling*0.08);
+    SFX.launch();
+    if(st.sling>0) popup(`LAUNCHER +${st.sling} m/s!`, 26);
+    burst(run.x, run.y, 18, '#ffe066', 8);
+  }
+}
+
+function stepFlight(dt){
+  run.t += dt;
+  const rho = Math.exp(-run.y/5500);
+  let sp = Math.hypot(run.vx, run.vy);
+
+  if(run.sliding){
+    // grinding along the ice
+    const dec = st.slideDecel;
+    if(Math.abs(run.vx) <= dec*dt || Math.abs(run.vx) < 0.5){ run.vx=0; finishRun(); return; }
+    run.vx -= dec*dt*Math.sign(run.vx);
+    run.x += run.vx*dt;
+    run.head = lerp(run.head, 0, 0.1);
+    if(Math.random()<0.4) burst(run.x, 0.3, 1, '#cfe8ff', 2);
+  } else {
+    // pitch control
+    const pitch = (input.up?1:0) - (input.down?1:0);
+    run.head = clamp(run.head + pitch*2.6*dt, -85*RAD, 85*RAD);
+
+    // rocket
+    run.thrusting = input.boost && st.thrust>0 && run.fuel>0;
+    if(run.thrusting){
+      run.fuel = Math.max(0, run.fuel - dt);
+      run.vx += Math.cos(run.head)*st.thrust*dt;
+      run.vy += Math.sin(run.head)*st.thrust*dt;
+      burst(run.x - Math.cos(run.head)*1.5, run.y - Math.sin(run.head)*1.5, 2, '#ff8c1a', 3, run.head+Math.PI);
+    }
+    SFX.setThrust(run.thrusting);
+
+    sp = Math.hypot(run.vx, run.vy);
+    // air steering: velocity swings toward where the nose points (this is "flying")
+    if(sp > 1){
+      let dir = Math.atan2(run.vy, run.vx);
+      const rate = (0.15 + st.steer) * rho * Math.min(sp/18, 1);   // rad/s
+      const turn = clamp(angDiff(run.head, dir), -rate*dt, rate*dt);
+      dir += turn;
+      sp = Math.max(0, sp*(1 - 0.25*Math.abs(turn)) - 8*Math.abs(turn)); // induced drag
+      run.vx = Math.cos(dir)*sp; run.vy = Math.sin(dir)*sp;
+    }
+    // gravity + quadratic drag (thinner air up high)
+    run.vy -= G*dt;
+    sp = Math.hypot(run.vx, run.vy);
+    if(sp > 0.01){
+      const aDrag = G * rho * (sp*sp)/(st.vt*st.vt);
+      const f = Math.max(0, 1 - aDrag*dt/sp);
+      run.vx *= f; run.vy *= f;
+    }
+    run.x += run.vx*dt;
+    run.y += run.vy*dt;
+
+    // ground contact
+    if(run.y <= 0 && run.vy < 0){
+      run.y = 0;
+      const impact = -run.vy;
+      if(st.rest>0 && impact>4){
+        run.vy = impact*st.rest;
+        run.vx *= 0.92;
+        cam.shake = Math.min(10, impact*0.12);
+        SFX.thump();
+        burst(run.x, 0.5, 10, '#cfe8ff', 5);
+        if(run.vy < 2.5){ run.vy=0; run.sliding=true; }
+      } else {
+        run.vy=0; run.vx*=0.75; run.sliding=true;
+        cam.shake = Math.min(10, impact*0.15);
+        SFX.thump();
+        burst(run.x, 0.5, 12, '#cfe8ff', 5);
+      }
+      if(run.sliding){ run.thrusting=false; SFX.setThrust(false); }
+    }
+  }
+  if(run.msQueue.length && run.dist >= run.msQueue[0]){
+    popup(`\u{1F3C1} ${fmtDist(run.msQueue[0])}!`, 26);
+    SFX.ding();
+    run.msQueue.shift();
+  }
+  run.dist = Math.max(run.dist, run.x);
+  run.maxAlt = Math.max(run.maxAlt, run.y);
+  run.maxSpd = Math.max(run.maxSpd, Math.hypot(run.vx, run.vy));
+  if(run.t > 900) finishRun();  // safety valve
+}
+
+function skipSlide(){
+  if(!run || !run.sliding || run.done) return;
+  run.x += (run.vx*run.vx) / (2*st.slideDecel) * Math.sign(run.vx);
+  run.vx = 0;
+  run.dist = Math.max(run.dist, run.x);
+  finishRun();
+}
+
+/* ════════════════ particles / popups ════════════════ */
+function burst(x, y, n, color, spread, dirBias){
+  for(let i=0;i<n;i++){
+    const a = dirBias!==undefined ? dirBias + (Math.random()-0.5)*0.9 : Math.random()*Math.PI*2;
+    const s = Math.random()*spread;
+    particles.push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:0.5+Math.random()*0.5, color, size:0.15+Math.random()*0.3 });
+  }
+  if(particles.length > 400) particles.splice(0, particles.length-400);
+}
+function stepParticles(dt){
+  for(let i=particles.length-1;i>=0;i--){
+    const p = particles[i];
+    p.life -= dt; p.x += p.vx*dt; p.y += p.vy*dt; p.vy -= 4*dt;
+    if(p.life<=0 || p.y<0) particles.splice(i,1);
+  }
+}
+const popupLayer = document.getElementById('popup-layer');
+function popup(text, size){
+  const el = document.createElement('div');
+  el.className = 'popup';
+  el.style.left = '50%'; el.style.top = '32%';
+  el.style.fontSize = (size||20)+'px';
+  el.textContent = text;
+  popupLayer.appendChild(el);
+  setTimeout(()=>el.remove(), 1700);
+}
+
+/* ════════════════ rendering ════════════════ */
+function skyColor(alt){
+  const t = clamp(alt/8000, 0, 1);
+  const top =    [lerp(0x6d,0x02,t), lerp(0xb3,0x02,t), lerp(0xf2,0x10,t)];
+  const bottom = [lerp(0xae,0x0b,t), lerp(0xe4,0x10,t), lerp(0xff,0x30,t)];
+  const rgb = c => `rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
+  return { top:rgb(top), bottom:rgb(bottom), space:t };
+}
+
+const stars = Array.from({length:130}, (_,i)=>({ x:hash01(i), y:hash01(i+500), r:0.5+hash01(i+900)*1.3 }));
+
+function draw(dtReal){
+  const p = run || { x:0, y:0, vx:0, vy:0 };
+  const sp = Math.hypot(p.vx, p.vy);
+
+  // camera
+  let tz, tx, ty;
+  if(phase==='shop'){
+    tz = clamp(300/(st.rampH+14), 1.5, 8);
+    tx = -ramp.len*0.28; ty = st.rampH*0.32;
+  } else {
+    tz = clamp(1100/(70 + 2.4*sp + 0.30*p.y), 1.1, 9);
+    tx = p.x + p.vx*0.35;
+    ty = Math.max(0, p.y - (Hpx*0.30)/tz);
+  }
+  cam.z = lerp(cam.z, tz, 1-Math.pow(0.02, dtReal));
+  cam.x = lerp(cam.x, tx, 1-Math.pow(0.001, dtReal));
+  cam.y = lerp(cam.y, ty, 1-Math.pow(0.001, dtReal));
+  let shx=0, shy=0;
+  if(cam.shake>0.2){
+    shx=(Math.random()-0.5)*cam.shake; shy=(Math.random()-0.5)*cam.shake;
+    cam.shake *= Math.pow(0.001, dtReal);
+  }
+  ctx.save();
+  ctx.translate(shx, shy);
+
+  // sky
+  const sky = skyColor(cam.y + Hpx*0.4/cam.z);
+  const grad = ctx.createLinearGradient(0,0,0,Hpx);
+  grad.addColorStop(0, sky.top); grad.addColorStop(1, sky.bottom);
+  ctx.fillStyle = grad;
+  ctx.fillRect(-10,-10,W+20,Hpx+20);
+
+  // stars
+  if(sky.space > 0.25){
+    ctx.fillStyle = '#fff';
+    for(const s of stars){
+      ctx.globalAlpha = clamp((sky.space-0.25)*1.6,0,1) * (0.4+0.6*hash01(s.x*997));
+      ctx.beginPath(); ctx.arc(s.x*W, s.y*Hpx, s.r, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // clouds (deterministic per 500 m cell, below ~4500 m)
+  const cell = 500;
+  const i0 = Math.floor((cam.x - W/cam.z)/cell), i1 = Math.ceil((cam.x + W/cam.z)/cell);
+  for(let i=i0;i<=i1;i++){
+    if(hash01(i*3+1) < 0.35) continue;
+    const cx = i*cell + hash01(i)*420;
+    const cy = 150 + hash01(i*7+2)*4300;
+    const cs = (30+hash01(i*13+5)*70) * cam.z;
+    const sx = w2sX(cx), sy = w2sY(cy);
+    if(sx<-cs*2||sx>W+cs*2||sy<-cs||sy>Hpx+cs) continue;
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, cs, cs*0.35, 0, 0, 7);
+    ctx.ellipse(sx-cs*0.5, sy+cs*0.1, cs*0.55, cs*0.25, 0, 0, 7);
+    ctx.ellipse(sx+cs*0.55, sy+cs*0.12, cs*0.5, cs*0.22, 0, 0, 7);
+    ctx.fill();
+  }
+
+  // ground
+  const gy = w2sY(0);
+  if(gy < Hpx+20){
+    const gg = ctx.createLinearGradient(0,gy,0,gy+90);
+    gg.addColorStop(0,'#eaf6ff'); gg.addColorStop(0.12,'#bcd9ee'); gg.addColorStop(1,'#5d7f9c');
+    ctx.fillStyle = gg;
+    ctx.fillRect(-10, gy, W+20, Hpx-gy+20);
+    // distance markers
+    const step = cam.z>6 ? 50 : cam.z>2.2 ? 250 : cam.z>0.9 ? 1000 : 5000;
+    const m0 = Math.max(0, Math.floor((cam.x - W/cam.z)/step)*step);
+    const m1 = (cam.x + W/cam.z);
+    ctx.fillStyle = '#33506b'; ctx.strokeStyle = '#33506b';
+    ctx.font = `${Math.max(10,Math.min(13, cam.z*2+8))}px "Courier New", monospace`;
+    ctx.textAlign = 'center';
+    for(let m=m0; m<=m1; m+=step){
+      if(m===0) continue;
+      const sx = w2sX(m);
+      ctx.beginPath(); ctx.moveTo(sx, gy); ctx.lineTo(sx, gy+8); ctx.stroke();
+      ctx.fillText(m>=1000 ? (m/1000)+'km' : m+'m', sx, gy+22);
+    }
+  }
+
+  drawRamp();
+  // particles
+  for(const pt of particles){
+    ctx.globalAlpha = clamp(pt.life*2, 0, 1);
+    ctx.fillStyle = pt.color;
+    const s = Math.max(2, pt.size*cam.z);
+    ctx.fillRect(w2sX(pt.x)-s/2, w2sY(pt.y)-s/2, s, s);
+  }
+  ctx.globalAlpha = 1;
+
+  if(run){
+    // speed lines
+    if(sp > 70 && !run.sliding){
+      const dir = Math.atan2(run.vy, run.vx);
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.5;
+      for(let i=0;i<6;i++){
+        const off = (hash01(i*31+Math.floor(timeSim*10))-0.5)*160;
+        const px = w2sX(run.x) - Math.cos(dir)*40 + Math.cos(dir+Math.PI/2)*off;
+        const py = w2sY(run.y) + Math.sin(dir)*40 + -Math.sin(dir+Math.PI/2)*off;
+        const l = 20 + sp*0.15;
+        ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(px-Math.cos(dir)*l, py+Math.sin(dir)*l); ctx.stroke();
+      }
+    }
+    drawPenguin(w2sX(run.x), w2sY(run.y), run.head, Math.max(cam.z*1.3, 13));
+  }
+  ctx.restore();
+}
+
+function drawRamp(){
+  if(!ramp) return;
+  const pts = ramp.pts;
+  // support struts
+  ctx.strokeStyle = '#7a4a21'; ctx.lineWidth = Math.max(1.5, cam.z*0.35);
+  for(let i=0;i<pts.length;i+=6){
+    const sx = w2sX(pts[i].x);
+    ctx.beginPath(); ctx.moveTo(sx, w2sY(pts[i].y)); ctx.lineTo(sx, w2sY(0)); ctx.stroke();
+  }
+  // track
+  ctx.strokeStyle = '#a0622d'; ctx.lineWidth = Math.max(3, cam.z*0.7);
+  ctx.beginPath();
+  ctx.moveTo(w2sX(pts[0].x), w2sY(pts[0].y));
+  for(const p of pts) ctx.lineTo(w2sX(p.x), w2sY(p.y));
+  ctx.stroke();
+  ctx.strokeStyle = '#e8f4ff'; ctx.lineWidth = Math.max(1.2, cam.z*0.25);
+  ctx.beginPath();
+  ctx.moveTo(w2sX(pts[0].x), w2sY(pts[0].y));
+  for(const p of pts) ctx.lineTo(w2sX(p.x), w2sY(p.y));
+  ctx.stroke();
+  // flag on top
+  const top = pts[0];
+  const fx = w2sX(top.x), fy = w2sY(top.y);
+  ctx.strokeStyle = '#ddd'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx, fy-26); ctx.stroke();
+  ctx.fillStyle = '#FF0000';
+  ctx.beginPath(); ctx.moveTo(fx, fy-26); ctx.lineTo(fx+20, fy-20); ctx.lineTo(fx, fy-14); ctx.fill();
+}
+
+function drawPenguin(px, py, ang, s){
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(-ang);
+  // rocket pack
+  if(st.thrust > 0){
+    ctx.fillStyle = '#b8bec9';
+    ctx.fillRect(-s*0.75, -s*0.85, s*0.9, s*0.42);
+    ctx.fillStyle = '#FF0000';
+    ctx.beginPath(); ctx.moveTo(s*0.15, -s*0.85); ctx.lineTo(s*0.45, -s*0.64); ctx.lineTo(s*0.15, -s*0.43); ctx.fill();
+    if(run && run.thrusting){
+      ctx.fillStyle = '#ffb020';
+      ctx.beginPath();
+      ctx.moveTo(-s*0.75, -s*0.82); ctx.lineTo(-s*(1.3+Math.random()*0.5), -s*0.64); ctx.lineTo(-s*0.75, -s*0.46);
+      ctx.fill();
+    }
+  }
+  // body
+  ctx.fillStyle = '#1b2430';
+  ctx.beginPath(); ctx.ellipse(0, 0, s, s*0.62, 0, 0, 7); ctx.fill();
+  // belly
+  ctx.fillStyle = '#f4f6f8';
+  ctx.beginPath(); ctx.ellipse(s*0.08, s*0.2, s*0.7, s*0.38, 0, 0, 7); ctx.fill();
+  // wing
+  ctx.fillStyle = '#101720';
+  ctx.beginPath(); ctx.ellipse(-s*0.15, -s*0.05, s*0.42, s*0.2, 0.5, 0, 7); ctx.fill();
+  // beak
+  ctx.fillStyle = '#ff9d00';
+  ctx.beginPath(); ctx.moveTo(s*0.95, -s*0.12); ctx.lineTo(s*1.35, s*0.02); ctx.lineTo(s*0.9, s*0.16); ctx.fill();
+  // eye + goggle band
+  ctx.strokeStyle = '#ff2255'; ctx.lineWidth = Math.max(1.5, s*0.09);
+  ctx.beginPath(); ctx.moveTo(s*0.25, -s*0.38); ctx.lineTo(s*0.85, -s*0.28); ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(s*0.62, -s*0.18, s*0.15, 0, 7); ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.arc(s*0.67, -s*0.18, s*0.07, 0, 7); ctx.fill();
+  // feet
+  ctx.fillStyle = '#ff9d00';
+  ctx.beginPath(); ctx.ellipse(-s*0.75, s*0.28, s*0.22, s*0.1, -0.3, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+/* ════════════════ HUD ════════════════ */
+const hudEl = document.getElementById('hud');
+const hintEl = document.getElementById('hint');
+const touchEl = document.getElementById('touch');
+const hudDist = document.getElementById('hud-dist');
+const hudAlt = document.getElementById('hud-alt');
+const hudSpd = document.getElementById('hud-spd');
+const fuelWrap = document.getElementById('fuel-wrap');
+const fuelBar = document.getElementById('fuel-bar');
+
+function renderHUD(){
+  hudDist.textContent = fmtDist(Math.max(0, run.dist));
+  hudAlt.textContent = fmtDist(Math.max(0, run.y));
+  hudSpd.textContent = Math.round(Math.hypot(run.vx, run.vy));
+  if(st.fuelMax > 0){
+    fuelWrap.style.display = 'block';
+    fuelBar.style.width = (run.fuel/st.fuelMax*100)+'%';
+  } else fuelWrap.style.display = 'none';
+  if(run.sliding){
+    hintEl.textContent = 'sliding… press ENTER to skip ahead';
+    hintEl.style.display = 'block';
+  } else if(state.day <= 2 && phase==='flight'){
+    hintEl.textContent = st.steer>0 ? '⇧/⇩ to steer' + (st.thrust>0?' · hold SPACE to boost':'') : 'no wings yet… enjoy the flop';
+    hintEl.style.display = 'block';
+  } else hintEl.style.display = 'none';
+}
+
+/* ════════════════ shop UI ════════════════ */
+const shopEl = document.getElementById('shop');
+const resultsEl = document.getElementById('results');
+const victoryEl = document.getElementById('victory');
+const shopGrid = document.getElementById('shop-grid');
+
+function renderShop(){
+  document.getElementById('shop-money').textContent = fmtCash(state.money);
+  document.getElementById('shop-day').textContent = state.day;
+  document.getElementById('shop-best').textContent = fmtDist(state.best.dist);
+
+  // goals
+  const gl = document.getElementById('goal-list');
+  gl.innerHTML = '';
+  let nextMarked = false;
+  for(const [dist, cash] of MILESTONES){
+    const li = document.createElement('li');
+    const done = state.claimed.includes(dist);
+    li.textContent = `${fmtDist(dist)} (${fmtCash(cash)})`;
+    if(done) li.className = 'done';
+    else if(!nextMarked){ li.className = 'next'; li.textContent = '▶ '+li.textContent; nextMarked = true; }
+    gl.appendChild(li);
+  }
+
+  // upgrade cards
+  shopGrid.innerHTML = '';
+  for(const u of UPGRADES){
+    const lvl = state.lvl[u.id];
+    const maxed = lvl >= u.max;
+    const cost = upgCost(u);
+    const locked = u.requires && state.lvl[u.requires] === 0;
+    const card = document.createElement('div');
+    card.className = 'upg' + (maxed ? ' maxed' : '');
+    const pips = Array.from({length:u.max}, (_,i)=>`<div class="pip${i<lvl?' on':''}"></div>`).join('');
+    const nextVal = maxed ? '' : ` → <b style="color:var(--yellow)">${u.val(lvl+1)}</b>`;
+    card.innerHTML = `
+      <div class="upg-head"><span class="upg-icon">${u.icon}</span><span class="upg-name">${u.name}</span></div>
+      <div class="upg-desc">${u.desc}</div>
+      <div class="upg-stat">${u.val(lvl)}${nextVal}</div>
+      <div class="pips">${pips}</div>
+      ${locked ? `<div class="locked-note">requires ${UPGRADES.find(x=>x.id===u.requires).name}</div>` : ''}
+      <button ${maxed?'class="maxed-btn" disabled':''} ${(!maxed && (locked || state.money<cost))?'disabled':''}>
+        ${maxed ? 'MAXED' : 'Buy — '+fmtCash(cost)}
+      </button>`;
+    if(!maxed){
+      card.querySelector('button').addEventListener('click', () => {
+        if(state.money < cost || locked) return;
+        state.money -= cost;
+        state.lvl[u.id]++;
+        SFX.buy();
+        save();
+        renderShop();
+        st = derive(); ramp = buildRamp(st.rampH);   // live-preview taller ramp behind the shop
+      });
+    }
+    shopGrid.appendChild(card);
+  }
+}
+
+/* ════════════════ results UI ════════════════ */
+let countUpTimers = [];
+function animateCash(el, target, delay, dur){
+  el.textContent = '$0';
+  const t0 = performance.now() + delay;
+  let lastTick = 0;
+  function frame(now){
+    if(now < t0){ countUpTimers.push(requestAnimationFrame(frame)); return; }
+    const t = clamp((now-t0)/dur, 0, 1);
+    const eased = 1-Math.pow(1-t,3);
+    el.textContent = fmtCash(target*eased);
+    if(t<1){
+      if(now-lastTick > 60 && target>0){ SFX.tick(); lastTick = now; }
+      countUpTimers.push(requestAnimationFrame(frame));
+    }
+  }
+  countUpTimers.push(requestAnimationFrame(frame));
+}
+
+function finishRun(){
+  if(run.done) return;
+  run.done = true;
+  SFX.setThrust(false);
+  phase = 'results';
+
+  const dist = Math.max(0, run.dist);
+  const cashDist = Math.pow(dist, 0.95)*0.35;
+  const cashAlt = run.maxAlt*0.25;
+  const cashSpd = run.maxSpd*1.5;
+  const subtotal = (cashDist+cashAlt+cashSpd) * st.mult;
+
+  // milestones
+  let bonusTotal = 0;
+  const newBonuses = [];
+  for(const [d, cash] of MILESTONES){
+    if(dist >= d && !state.claimed.includes(d)){
+      state.claimed.push(d); bonusTotal += cash; newBonuses.push([d, cash]);
+    }
+  }
+  const total = Math.round(subtotal + bonusTotal);
+  state.money += total;
+
+  const recD = dist > state.best.dist, recA = run.maxAlt > state.best.alt, recS = run.maxSpd > state.best.spd;
+  state.best.dist = Math.max(state.best.dist, dist);
+  state.best.alt = Math.max(state.best.alt, run.maxAlt);
+  state.best.spd = Math.max(state.best.spd, run.maxSpd);
+
+  document.getElementById('res-day').textContent = state.day;
+  const headline = dist < 30 ? 'THAT WAS… A START' :
+                   dist < 200 ? 'GETTING SOMEWHERE' :
+                   dist < 1000 ? 'NOW WE’RE FLYING' :
+                   dist < 10000 ? 'INCREDIBLE FLIGHT' : 'ABSOLUTELY LEGENDARY';
+  document.getElementById('res-headline').textContent = headline;
+  document.getElementById('res-dist').textContent = fmtDist(dist);
+  document.getElementById('res-alt').textContent = fmtDist(run.maxAlt);
+  document.getElementById('res-spd').textContent = Math.round(run.maxSpd)+' m/s';
+  document.getElementById('rec-dist').textContent = recD ? '★ NEW BEST' : '';
+  document.getElementById('rec-alt').textContent = recA ? '★' : '';
+  document.getElementById('rec-spd').textContent = recS ? '★' : '';
+
+  const multRow = document.getElementById('res-mult-row');
+  if(st.mult > 1){
+    multRow.style.display = 'flex';
+    document.getElementById('cash-mult').textContent = '×'+st.mult.toFixed(2);
+  } else multRow.style.display = 'none';
+
+  const bonusBox = document.getElementById('res-bonuses');
+  bonusBox.innerHTML = '';
+  newBonuses.forEach(([d, cash], i) => {
+    const row = document.createElement('div');
+    row.className = 'res-row bonus';
+    row.innerHTML = `<span class="val">\u{1F3C1} Milestone: ${fmtDist(d)}!</span><span class="cash"></span>`;
+    bonusBox.appendChild(row);
+    animateCash(row.querySelector('.cash'), cash, 1300+i*250, 500);
+  });
+  if(newBonuses.length) setTimeout(()=>SFX.ding(), 1300);
+
+  countUpTimers.forEach(cancelAnimationFrame);
+  countUpTimers = [];
+  animateCash(document.getElementById('cash-dist'), Math.round(cashDist*st.mult), 200, 700);
+  animateCash(document.getElementById('cash-alt'), Math.round(cashAlt*st.mult), 550, 500);
+  animateCash(document.getElementById('cash-spd'), Math.round(cashSpd*st.mult), 850, 500);
+  animateCash(document.getElementById('cash-total'), total, 1300+newBonuses.length*250, 900);
+
+  state.day++;
+  save();
+
+  hudEl.style.display = 'none';
+  hintEl.style.display = 'none';
+  touchEl.classList.remove('flying');
+  resultsEl.classList.add('show');
+}
+
+function closeResults(){
+  resultsEl.classList.remove('show');
+  countUpTimers.forEach(cancelAnimationFrame);
+  countUpTimers = [];
+  if(!state.won && state.best.dist >= WIN_DIST){
+    state.won = true; save();
+    victoryEl.classList.add('show');
+    SFX.ding();
+    return;
+  }
+  openShop();
+}
+
+function openShop(){
+  phase = 'shop';
+  run = null;
+  st = derive();
+  ramp = buildRamp(st.rampH);
+  renderShop();
+  shopEl.classList.add('show');
+}
+
+function startLaunch(){
+  SFX.ensure();
+  shopEl.classList.remove('show');
+  newRun();
+  phase = 'ramp';
+  hudEl.style.display = 'flex';
+  touchEl.classList.add('flying');
+}
+
+document.getElementById('launch-btn').addEventListener('click', startLaunch);
+document.getElementById('continue-btn').addEventListener('click', closeResults);
+document.getElementById('victory-btn').addEventListener('click', () => {
+  victoryEl.classList.remove('show');
+  openShop();
+});
+document.getElementById('reset-btn').addEventListener('click', () => {
+  if(!confirm('Wipe all progress and start over from Day 1?')) return;
+  const muted = state.muted;
+  state = defaultState();
+  state.muted = muted;
+  save();
+  openShop();
+});
+
+/* ════════════════ main loop ════════════════ */
+let lastT = performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  let dtReal = Math.min((now-lastT)/1000, 0.1);
+  lastT = now;
+  timeSim += dtReal;
+
+  // time scale: fast-forward the long slide-out and long ramp rides
+  const scale = (phase==='flight' && run && run.sliding) ? 2.5
+              : (phase==='ramp' && ramp) ? clamp(ramp.len/60, 1, 3) : 1;
+  let dt = dtReal*scale;
+
+  // fixed-ish substeps for stable physics
+  const steps = Math.max(1, Math.ceil(dt/(1/120)));
+  const h = dt/steps;
+  for(let i=0;i<steps;i++){
+    if(phase==='ramp') stepRamp(h);
+    else if(phase==='flight' && run && !run.done) stepFlight(h);
+    if(phase==='results') break;
+  }
+  stepParticles(dt);
+  draw(dtReal);
+  if((phase==='ramp'||phase==='flight') && run) renderHUD();
+}
+
+openShop();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
