@@ -537,7 +537,7 @@ function newRun(){
     fuel:st.fuelMax, sliding:false, done:false,
     dist:0, maxAlt:0, maxSpd:0, t:0,          // records only count once airborne
     thrusting:false, tumble:0, stalled:false,
-    burnerUsed:false, tankUsed:false,
+    burnerUsed:false, tankUsed:false, slingRemaining:0,
     trail:[], trailT:0,
     msQueue: MILESTONES.map(m=>m[0]).filter(d=>!state.claimed.includes(d)),
   };
@@ -608,12 +608,15 @@ function stepRamp(dt){
   run.x=p.x; run.y=p.y; run.head=p.th;
   run.vx = Math.cos(p.th)*run.rampV; run.vy = Math.sin(p.th)*run.rampV;
   if(run.rampS >= ramp.len){
-    // launch! apply slingshot bonus along the kicker direction
-    let v = run.rampV + st.sling;
-    run.vx = Math.cos(ramp.exitTh)*v;
-    run.vy = Math.sin(ramp.exitTh)*v;
+    // launch! the slingshot bonus is applied smoothly over the next few
+    // frames (see stepFlight) rather than as one instant velocity jump —
+    // an instant jump was snapping the camera's zoom/look-ahead hard right
+    // at the ramp's exit.
+    run.vx = Math.cos(ramp.exitTh)*run.rampV;
+    run.vy = Math.sin(ramp.exitTh)*run.rampV;
     run.head = ramp.exitTh;
     phase = 'flight';
+    run.slingRemaining = st.sling;
     cam.shake = Math.min(14, 4 + st.sling*0.08);
     SFX.launch();
     if(st.sling>0) popup(`LAUNCHER +${st.sling} m/s!`, 26);
@@ -624,6 +627,16 @@ function stepRamp(dt){
 function stepFlight(dt){
   run.t += dt;
   const rho = Math.exp(-run.y/5500);
+
+  if(run.slingRemaining > 0){
+    // spread the launcher's kick over ~0.2s of flight instead of one instant
+    // velocity jump, so the camera eases into the new speed instead of snapping
+    const SLING_TIME = 0.2;
+    const kick = Math.min(run.slingRemaining, (st.sling/SLING_TIME)*dt);
+    run.vx += Math.cos(run.head)*kick;
+    run.vy += Math.sin(run.head)*kick;
+    run.slingRemaining -= kick;
+  }
 
   if(run.sliding){
     // grinding along the ice
@@ -812,14 +825,23 @@ function draw(dtReal){
   const p = run || { x:0, y:0, vx:0, vy:0 };
   const sp = Math.hypot(p.vx, p.vy);
 
-  // camera
+  // camera — the zoom/look-ahead targets are driven off a lightly smoothed
+  // velocity, not the raw instantaneous one, so a sudden physics event
+  // (launch kick, afterburner, thrust ignition) eases the camera in over a
+  // few frames instead of snapping it in one, which reads as a hard hitch.
+  if(cam.vxS===undefined){ cam.vxS = p.vx; cam.vyS = p.vy; }
+  const velSmooth = 1-Math.pow(0.0006, dtReal);
+  cam.vxS = lerp(cam.vxS, p.vx, velSmooth);
+  cam.vyS = lerp(cam.vyS, p.vy, velSmooth);
+  const spCam = Math.hypot(cam.vxS, cam.vyS);
+
   let tz, tx, ty;
   if(phase==='shop'){
     tz = clamp(300/(st.rampH+14), 1.5, 8);
     tx = -ramp.len*0.28; ty = st.rampH*0.32;
   } else {
-    tz = clamp(1100/(70 + 2.4*sp + 0.30*p.y), 1.1, 9);
-    tx = p.x + p.vx*0.35;
+    tz = clamp(1100/(70 + 2.4*spCam + 0.30*p.y), 1.1, 9);
+    tx = p.x + cam.vxS*0.35;
     ty = Math.max(0, p.y - (Hpx*0.30)/tz);
   }
   cam.z = lerp(cam.z, tz, 1-Math.pow(0.02, dtReal));
