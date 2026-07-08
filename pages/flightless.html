@@ -639,6 +639,18 @@ function stepFlight(dt){
     const pitchRate = st.wingAuth * (0.35 + 0.65*rho);
     run.head = clamp(run.head + pitch*pitchRate*dt, -88*RAD, 88*RAD);
 
+    // fly-by-wire AoA limiter: the nose can't wander so far from the velocity
+    // vector that lift collapses — without this, holding "up" through a dive
+    // overshoots into deep stall and the flight degenerates into a ballistic
+    // line no matter how much speed you built up.
+    let sp0 = Math.hypot(run.vx, run.vy);
+    if(sp0 > 2){
+      const velAngle0 = Math.atan2(run.vy, run.vx);
+      const maxAoA = 20*RAD;
+      const d0 = angDiff(run.head, velAngle0);
+      if(Math.abs(d0) > maxAoA) run.head = velAngle0 + Math.sign(d0)*maxAoA;
+    }
+
     // rocket
     run.thrusting = input.boost && st.thrust>0 && run.fuel>0;
     if(run.thrusting){
@@ -654,11 +666,12 @@ function stepFlight(dt){
       const velAngle = Math.atan2(run.vy, run.vx);
       const aoa = angDiff(run.head, velAngle);  // angle of attack
 
-      // Lift coefficient curve: peaks around 8-10°, stalls beyond ~16°
+      // Lift coefficient curve: broad plateau so a hard pull-up out of a dive
+      // still bites instead of vanishing past a hair-trigger stall angle.
       let cl;
       const aoaDeg = aoa * 180/Math.PI;
-      if(Math.abs(aoaDeg) > 20) cl = 0.1;  // deep stall
-      else cl = Math.sin(aoa*1.2) * Math.max(0, 1 - Math.abs(aoaDeg)/22);
+      if(Math.abs(aoaDeg) > 34) cl = 0.08*Math.sign(aoaDeg);  // deep stall (low-speed drift only, pitch is already clamped above)
+      else cl = Math.sin(aoa*1.1) * Math.max(0.25, 1 - Math.abs(aoaDeg)/38);
 
       // Drag: parasite drag + induced drag
       const cd = st.cd0 + 0.08*cl*cl;
@@ -735,7 +748,7 @@ function stepFlight(dt){
   // flight trail
   run.trailT -= dt;
   if(!run.sliding && run.trailT <= 0){
-    run.trail.push({x:run.x, y:run.y});
+    run.trail.push({x:run.x, y:run.y, spd:sp});
     if(run.trail.length > 80) run.trail.shift();
     run.trailT = 0.07;
   }
@@ -879,14 +892,18 @@ function draw(dtReal){
 
   drawRamp();
 
-  // flight trail
+  // flight trail — width & tint track speed so dives/climbs actually read as motion
   if(run && run.trail.length > 1){
-    ctx.lineWidth = 2;
     for(let i=1;i<run.trail.length;i++){
-      ctx.strokeStyle = `rgba(255,255,255,${0.28*i/run.trail.length})`;
+      const a = run.trail[i-1], b = run.trail[i];
+      const age = i/run.trail.length;
+      const fast = clamp((b.spd-40)/180, 0, 1);
+      ctx.lineWidth = lerp(1.2, 3.2, fast) * clamp(cam.z, 0.6, 1.6);
+      const r = lerp(255,120,fast), g = lerp(255,220,fast), bcol = 255;
+      ctx.strokeStyle = `rgba(${r|0},${g|0},${bcol},${0.32*age})`;
       ctx.beginPath();
-      ctx.moveTo(w2sX(run.trail[i-1].x), w2sY(run.trail[i-1].y));
-      ctx.lineTo(w2sX(run.trail[i].x), w2sY(run.trail[i].y));
+      ctx.moveTo(w2sX(a.x), w2sY(a.y));
+      ctx.lineTo(w2sX(b.x), w2sY(b.y));
       ctx.stroke();
     }
   }
@@ -1040,7 +1057,7 @@ function renderHUD(){
     hintEl.textContent = 'sliding… press ENTER to skip ahead';
     hintEl.style.display = 'block';
   } else if(state.day <= 3 && phase==='flight'){
-    hintEl.textContent = st.auth>0
+    hintEl.textContent = state.lvl.wings>0
       ? '⇧ pull up · ⇩ dive for speed' + (st.thrust>0 ? ' · SPACE rocket' : '') + ' · F fast-forward'
       : 'no wings yet… enjoy the flop';
     hintEl.style.display = 'block';
