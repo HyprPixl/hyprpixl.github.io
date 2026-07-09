@@ -16,10 +16,9 @@ class LinkParser(HTMLParser):
 
 
 def is_external(url):
-    parsed = urlparse(url)
-    if parsed.scheme in ("http", "https", "mailto", "tel"):
-        return True
-    return False
+    # Any URL with a scheme (http, https, mailto, tel, data, javascript, ...)
+    # is not a local file path, so there is nothing to check on disk.
+    return urlparse(url).scheme != ""
 
 
 def check_html_file(path, root_dir):
