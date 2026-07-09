@@ -168,6 +168,7 @@
   .upg button:disabled{ opacity:0.45; cursor:not-allowed; }
   .upg button.maxed-btn{ border-color:var(--cash); color:var(--cash); }
   .upg .locked-note{ font-size:10.5px; color:var(--red); }
+  .upg input[type=range]{ width:100%; margin:3px 0 0; accent-color:var(--yellow); cursor:pointer; }
 
   .goals{
     background:var(--panel); border:2px solid var(--border);
@@ -363,7 +364,8 @@ function hash01(n){ let x=Math.sin(n*127.1+311.7)*43758.5453; return x-Math.floo
 const SAVE_KEY = 'flightless-save-v1';
 const defaultState = () => ({
   money:0, day:1, lvl:{ramp:0,aero:0,wings:0,rocket:0,fuel:0,sling:0,bounce:0,sponsor:0},
-  perm:{speedo:false,alti:false,burner:false,tank:false},
+  perm:{speedo:false,alti:false,burner:false,tank:false,curve:false},
+  rampTh:12,   // ramp exit angle, degrees (adjustable once Curve Kit is owned)
   best:{dist:0,alt:0,spd:0}, claimed:[], won:false, muted:false, started:false,
 });
 let state = defaultState();
@@ -377,6 +379,7 @@ try{
     state.best = Object.assign(defaultState().best, s.best||{});
     // pre-gear saves: skip the intro if they've clearly played before
     state.started = state.started || state.day>1 || state.best.dist>0;
+    state.rampTh = Number.isFinite(+state.rampTh) ? clamp(+state.rampTh, -5, 45) : 12;
   }
 }catch(e){ /* corrupted save -> fresh start */ }
 function save(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }catch(e){} }
@@ -412,6 +415,8 @@ const UPGRADES = [
 const GEAR = [
   { id:'speedo', icon:'\u{1F4DF}', name:'Speedometer', cost:60,
     desc:'See your speed — and get paid for top speed.' },
+  { id:'curve',  icon:'\u{1F4D0}', name:'Curve Kit', cost:100,
+    desc:'Reshape the ramp lip: pick your own launch angle.' },
   { id:'alti',   icon:'\u{1F4E1}', name:'Altimeter',   cost:200,
     desc:'See your altitude — and get paid for peak height.' },
   { id:'burner', icon:'\u{1F4A5}', name:'Afterburner', cost:2500,
@@ -541,8 +546,13 @@ let run = null;               // per-run mutable state
 let particles = [];
 let timeSim = 0;
 
+// exit angle in degrees: fixed 12° until the Curve Kit is owned
+function rampExitDeg(){
+  return state.perm.curve ? clamp(Math.round(state.rampTh), -5, 45) : 12;
+}
+
 function buildRamp(H){
-  const th0 = -78*RAD, th1 = 12*RAD;
+  const th0 = -78*RAD, th1 = rampExitDeg()*RAD;
   const R = H / (Math.cos(th1) - Math.cos(th0));   // radius so total drop = H
   const pts = [];
   const N = 48;
@@ -1207,6 +1217,22 @@ function renderShop(){
     const owned = state.perm[g.id];
     const card = document.createElement('div');
     card.className = 'upg gear' + (owned ? ' owned' : '');
+    if(g.id==='curve' && owned){
+      // owned Curve Kit turns into a live angle control
+      card.innerHTML = `
+        <div class="upg-head"><span class="upg-icon">${g.icon}</span><span class="upg-name">${g.name}</span></div>
+        <div class="upg-desc">flat lip = distance &middot; steep lip = height</div>
+        <input type="range" min="-5" max="45" step="1" value="${rampExitDeg()}" aria-label="ramp exit angle">
+        <div class="upg-stat">exit angle: <b style="color:var(--yellow)" id="curve-deg">${rampExitDeg()}&deg;</b></div>`;
+      card.querySelector('input').addEventListener('input', e => {
+        state.rampTh = clamp(+e.target.value, -5, 45);
+        document.getElementById('curve-deg').innerHTML = state.rampTh+'&deg;';
+        st = derive(); ramp = buildRamp(st.rampH);   // live-preview the new curve behind the shop
+        save();
+      });
+      gearGrid.appendChild(card);
+      continue;
+    }
     card.innerHTML = `
       <div class="upg-head"><span class="upg-icon">${g.icon}</span><span class="upg-name">${g.name}</span></div>
       <div class="upg-desc">${g.desc}</div>
@@ -1221,6 +1247,7 @@ function renderShop(){
         SFX.buy();
         save();
         renderShop();
+        st = derive(); ramp = buildRamp(st.rampH);   // curve kit affects the ramp preview
       });
     }
     gearGrid.appendChild(card);
