@@ -43,6 +43,8 @@ body.modern-style header {
   padding: 1.5rem 1rem;
   position: relative;
   overflow: hidden;
+  isolation: isolate;
+  transform: translateZ(0);
 }
 
 /* Soft aurora glow behind the header */
@@ -103,10 +105,16 @@ body.modern-style nav a {
   padding: 0.6rem 1.2rem;
   color: #f8fafc;
   font-weight: 500;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: none;
   position: relative;
   overflow: hidden;
+  /* Isolate into its own compositing layer so repaints elsewhere on the
+     page (e.g. hovering sidebar links) don't corrupt this blurred backdrop */
+  isolation: isolate;
+  transform: translateZ(0);
 }
 
 body.modern-style nav a::before {
@@ -514,8 +522,21 @@ body.modern-style time {
   text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
 }
 
-/* Smooth transitions for all elements */
-body.modern-style * {
+/* Smooth transitions for elements without their own explicit transition
+   (kept scoped, rather than a body-wide "*" rule, so hovering one part of
+   the page — e.g. a reading-list link — doesn't force a repaint/transition
+   pass on unrelated elements like the backdrop-filtered nav buttons) */
+body.modern-style .main-column,
+body.modern-style .reading-sidebar,
+body.modern-style .blog-sidebar,
+body.modern-style .project-section li,
+body.modern-style .card,
+body.modern-style .hero,
+body.modern-style .btn,
+body.modern-style .pill,
+body.modern-style .badge,
+body.modern-style .stat,
+body.modern-style details {
   transition: background 0.35s ease, color 0.35s ease, border 0.35s ease, transform 0.35s ease;
 }
 
