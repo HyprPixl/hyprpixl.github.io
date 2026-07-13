@@ -363,7 +363,7 @@ function hash01(n){ let x=Math.sin(n*127.1+311.7)*43758.5453; return x-Math.floo
 /* ════════════════ save state ════════════════ */
 const SAVE_KEY = 'flightless-save-v1';
 const defaultState = () => ({
-  money:0, day:1, lvl:{ramp:0,aero:0,wings:0,rocket:0,fuel:0,sling:0,bounce:0,sponsor:0,gun:0},
+  money:0, day:1, lvl:{ramp:0,aero:0,wings:0,rocket:0,fuel:0,sling:0,bounce:0,sponsor:0,gun:0,struts:0},
   perm:{speedo:false,alti:false,burner:false,tank:false},
   best:{dist:0,alt:0,spd:0}, claimed:[], won:false, muted:false, started:false,
 });
@@ -397,6 +397,9 @@ const UPGRADES = [
   { id:'bounce',  icon:'\u{1F3C0}', name:'Rubber Belly', base:150, mul:1.55, max:6, unlock:0,
     desc:'Spring back on landing. Keep momentum for distance.',
     val:l=> l===0 ? 'splat' : `${Math.round((0.12+0.09*l)*100)}% bounce` },
+  { id:'struts',  icon:'\u{1F529}', name:'Wing Struts',  base:180, mul:1.55, max:6, unlock:250, requires:'wings',
+    desc:'Stiffer spars pull harder turns at speed without folding.',
+    val:l=>`${derive({struts:l}).gMax.toFixed(1)}g max pull` },
   { id:'rocket',  icon:'\u{1F680}', name:'Rocket',       base:100, mul:1.55, max:10, unlock:100,
     desc:'A strap-on booster. Hold SPACE to climb faster.',
     val:l=> l===0 ? 'not installed' : `${10+8*l} m/s² thrust` },
@@ -421,7 +424,7 @@ const GEAR = [
   { id:'alti',   icon:'\u{1F4E1}', name:'Altimeter',   cost:200,  unlock:100,
     desc:'See your altitude — and get paid for peak height.' },
   { id:'burner', icon:'\u{1F4A5}', name:'Afterburner', cost:2500, unlock:1000,
-    desc:'Once per flight, press X: instant +75 m/s. No fuel.' },
+    desc:'Once per flight, press X: instant +90 m/s. No fuel.' },
   { id:'tank',   icon:'\u{1F6E2}', name:'Reserve Tank', cost:6000, unlock:2500,
     desc:'Rocket refuels to half on your first ground bounce.' },
 ];
@@ -431,11 +434,11 @@ const upgCost = u => Math.round(u.base * Math.pow(u.mul, state.lvl[u.id]));
 function derive(over){
   const L = Object.assign({}, state.lvl, over||{});
   const wings = L.wings;
-  const mass  = 6;                                        // kg, penguin + kit
+  const mass  = 10;                                       // kg, penguin + kit
   const wingS = wings===0 ? 0.02 : 0.10 + 0.09*wings;     // m² lifting area
   const ar    = wings===0 ? 1.2  : 3 + 0.55*wings;        // wing aspect ratio
-  const cdA   = Math.max(0.012, 0.030 - 0.0018*L.aero);   // m², body parasite drag area
-  const cd0w  = 0.012;                                    // clean-wing profile drag coeff
+  const cdA   = Math.max(0.006, 0.022 - 0.0016*L.aero);   // m², body parasite drag area
+  const cd0w  = 0.008;                                    // clean-wing profile drag coeff
   const k     = 1/(Math.PI*ar*0.85);                      // induced drag factor (e = 0.85)
   const cd0eff = cdA/wingS + cd0w;
   return {
@@ -443,7 +446,8 @@ function derive(over){
     clSlope: 2*Math.PI*ar/(ar+2),                         // finite-wing lift slope, /rad
     rampH:  4 + 3*L.ramp + 0.5*L.ramp*L.ramp,
     mu:     Math.max(0.02, 0.05 - 0.003*L.aero),
-    wingAuth: wings===0 ? 1.5 : 2.2 + 0.35*wings,         // pitch authority rad/s
+    wingAuth: wings===0 ? 1.5 : 2.4 + 0.35*wings,         // pitch authority rad/s
+    gMax:   4 + 0.9*L.struts,                             // structural load limit, g
     thrust: L.rocket ? 10 + 8*L.rocket : 0,
     fuelMax:L.rocket ? 2 + 1.3*L.fuel : 0,
     sling:  L.sling * 15,
@@ -736,8 +740,8 @@ function fireAfterburner(){
   if(phase!=='flight' || !run || run.sliding || run.done) return;
   if(!state.perm.burner || run.burnerUsed) return;
   run.burnerUsed = true;
-  run.vx += Math.cos(run.head)*75;
-  run.vy += Math.sin(run.head)*75;
+  run.vx += Math.cos(run.head)*90;
+  run.vy += Math.sin(run.head)*90;
   cam.shake = Math.min(16, cam.shake+10);
   SFX.boom();
   popup('\u{1F4A5} AFTERBURNER!', 28);
@@ -779,7 +783,7 @@ const G = 9.81;
 const RHO0 = 1.225;           // sea-level air density, kg/m³
 const SCALE_H = 8500;         // atmospheric scale height, m
 const A_STALL = 15*RAD;       // stall angle of attack
-const TRIM = 3*RAD;           // hands-off trim AoA (stable glide attitude)
+const GLIDE_ANG = -7*RAD;     // hands-off trim seeks this shallow glide slope
 
 // 0 below stall, 1 fully separated, smooth in between
 function stallBlend(aoa){
@@ -862,17 +866,30 @@ function stepFlight(h){
   const q = 0.5*rho*sp*sp;
 
   // ── attitude ──
-  // Control power and weathervane stability both scale with dynamic
-  // pressure: slow (or in thin air) the penguin gets mushy, and a stable
-  // glider naturally trims its nose toward the velocity vector. Yanking
-  // full "up" settles a little past the stall angle — mushy but flyable —
-  // while feathering the input holds the efficient glide.
-  const airEff = clamp(q/300, 0.15, 1);
+  // The stick commands angle of attack, not a direction: lift is what bends
+  // the flight path, so agility comes from speed, wing area and the airframe
+  // g-limit — fast flight carves wide arcs, slow flight mushes. Hands-off,
+  // the penguin trims to exactly carry its weight: a steady cruise that
+  // holds its line instead of ballooning upward. Past the g-limit the pull
+  // input is capped, so a high-speed pull uses a small, efficient AoA.
   const stick = (input.up?1:0) - (input.down?1:0);
-  const aoa0 = angDiff(run.head, velA);
-  const headRate = stick*st.wingAuth*airEff
-                 + 1.1*st.wingAuth*Math.sin(clamp(TRIM - aoa0, -1.2, 1.2))*airEff;
-  run.head = clamp(run.head + headRate*h, -88*RAD, 88*RAD);
+  const qS = Math.max(q*st.wingS*st.clSlope, 1e-6);
+  const aoaG = st.gMax*st.mass*G/qS;      // AoA that pulls the structural limit
+  // hands-off trim: enough lift to carry the weight, plus a gentle (≤0.6 g)
+  // correction toward a shallow glide — climbs arc over, dives ease out,
+  // and level flight settles into a steady descent instead of ballooning up.
+  // Under rocket power the seek is off: the rocket flies the line it's on.
+  const boosting = input.boost && st.thrust>0 && run.fuel>0;
+  const gCorr = G*Math.max(Math.cos(velA), 0)
+              + (boosting ? 0 : clamp(sp*0.5*(GLIDE_ANG - velA), -0.6*G, 0.6*G));
+  const aoaHold = clamp(st.mass*gCorr/qS, -2*RAD, A_STALL*0.75);
+  const aoaTgt = stick>0 ? Math.min(A_STALL*1.3, aoaG)
+               : stick<0 ? Math.max(-A_STALL*0.4, -aoaG*0.6)
+               : aoaHold;
+  const airEff = clamp(q/120, 0.15, 1);
+  const slew = st.wingAuth*(0.35+0.65*airEff)*h;
+  const aoa1 = angDiff(run.head, velA);
+  run.head = velA + clamp(aoa1 + clamp(aoaTgt-aoa1, -slew, slew), -0.9, 0.9);
 
   // ── forces (accelerations, m/s²) ──
   let ax = 0, ay = -G;
@@ -906,13 +923,11 @@ function stepFlight(h){
 
   // stall feedback: buffet as the wing lets go, tumble in a deep stall
   if(stallS > 0.05 && q*st.wingS > 15) cam.shake = Math.min(cam.shake + 20*h*stallS, 3);
-  if(stallS > 0.8 && spNew < 20 && run.y > 4 && !run.thrusting){
-    run.tumble += 9*h;
+  if(stallS > 0.8 && spNew < 22 && run.y > 4 && !run.thrusting) run.tumble += 9*h;
+  else run.tumble *= Math.pow(0.01, h);
+  if(stallS > 0.5 && spNew < 26 && run.y > 4 && !run.thrusting){
     if(!run.stalled && st.wingS > 0.05){ run.stalled = true; popup('STALL! nose down to recover', 18); }
-  } else {
-    run.tumble *= Math.pow(0.01, h);
-    if(stallS < 0.2) run.stalled = false;
-  }
+  } else if(stallS < 0.2) run.stalled = false;
 
   // reentry heat: screaming through thick air
   if(spNew > 200 && rhoN > 0.35 && Math.random() < h*140){
@@ -1012,6 +1027,23 @@ function skyColor(alt){
 
 const stars = Array.from({length:130}, (_,i)=>({ x:hash01(i), y:hash01(i+500), r:0.5+hash01(i+900)*1.3 }));
 
+// silhouette mountain ridge on the horizon; f is the parallax factor
+function drawRidge(f, hpx, color, gy){
+  const seg = 120;
+  const off = cam.x*cam.z*f;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(-14, gy+2);
+  for(let sx=-14; sx<=W+14; sx+=seg*0.5){
+    const u = (sx+off)/seg;
+    const i = Math.floor(u), t = u-i, sm = t*t*(3-2*t);
+    const hN = lerp(hash01(i*7+f*997), hash01((i+1)*7+f*997), sm);
+    ctx.lineTo(sx, gy+2 - hpx*(0.2+0.8*hN));
+  }
+  ctx.lineTo(W+14, gy+2);
+  ctx.closePath(); ctx.fill();
+}
+
 function draw(dtReal){
   const p = run || { x:0, y:0, vx:0, vy:0 };
   const sp = Math.hypot(p.vx, p.vy);
@@ -1031,7 +1063,7 @@ function draw(dtReal){
     tz = clamp(300/(st.rampH+14), 1.5, 8);
     tx = -ramp.len*0.28; ty = st.rampH*0.32;
   } else {
-    tz = clamp(1100/(70 + 2.4*spCam + 0.30*p.y), 1.1, 9);
+    tz = clamp(1200/(80 + 2.0*spCam + 0.32*p.y), 0.8, 9);
     tx = p.x + cam.vxS*0.35;
     ty = Math.max(0, p.y - (Hpx*0.30)/tz);
   }
@@ -1063,6 +1095,34 @@ function draw(dtReal){
     ctx.globalAlpha = 1;
   }
 
+  // sun — soft glow that sharpens as the air thins
+  {
+    const sx0 = W*0.78, sy0 = Hpx*0.17;
+    const sunR = 80 + 30*sky.space;
+    const sg = ctx.createRadialGradient(sx0, sy0, 3, sx0, sy0, sunR);
+    sg.addColorStop(0, 'rgba(255,250,220,0.95)');
+    sg.addColorStop(0.2, `rgba(255,240,170,${0.5-0.25*sky.space})`);
+    sg.addColorStop(1, 'rgba(255,240,170,0)');
+    ctx.fillStyle = sg;
+    ctx.beginPath(); ctx.arc(sx0, sy0, sunR, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff6d8';
+    ctx.beginPath(); ctx.arc(sx0, sy0, 13, 0, 7); ctx.fill();
+  }
+
+  // distant cloud haze — a screen-space band with gentle parallax
+  if(sky.space < 0.65){
+    const fade = 1 - sky.space/0.65;
+    ctx.fillStyle = `rgba(255,255,255,${(0.16*fade).toFixed(3)})`;
+    const drift = cam.x*cam.z*0.05;
+    for(let i=0;i<9;i++){
+      const cw = 70 + hash01(i*13+4)*120;
+      const m = W + 2*cw;
+      const sx = (((hash01(i*3+8)*1.7*W - drift) % m) + m) % m - cw;
+      const sy = Hpx*(0.10 + hash01(i*7+2)*0.38);
+      ctx.beginPath(); ctx.ellipse(sx, sy, cw, cw*0.26, 0, 0, 7); ctx.fill();
+    }
+  }
+
   // clouds (deterministic per 500 m cell, below ~4500 m)
   const cell = 500;
   const i0 = Math.floor((cam.x - W/cam.z)/cell), i1 = Math.ceil((cam.x + W/cam.z)/cell);
@@ -1079,6 +1139,16 @@ function draw(dtReal){
     ctx.ellipse(sx-cs*0.5, sy+cs*0.1, cs*0.55, cs*0.25, 0, 0, 7);
     ctx.ellipse(sx+cs*0.55, sy+cs*0.12, cs*0.5, cs*0.22, 0, 0, 7);
     ctx.fill();
+  }
+
+  // parallax mountain ridges hugging the horizon
+  {
+    const gy0 = w2sY(0);
+    if(gy0 > -40 && gy0 < Hpx+320){
+      const mh = clamp(0.55 + cam.z*0.10, 0.6, 1.3);
+      drawRidge(0.10, 150*mh, 'rgba(168,192,220,0.5)', gy0);
+      drawRidge(0.26, 85*mh,  'rgba(120,150,186,0.65)', gy0);
+    }
   }
 
   drawCollectibles();
@@ -1103,6 +1173,18 @@ function draw(dtReal){
       const sx = w2sX(m);
       ctx.beginPath(); ctx.moveTo(sx, gy); ctx.lineTo(sx, gy+8); ctx.stroke();
       ctx.fillText(m>=1000 ? (m/1000)+'km' : m+'m', sx, gy+22);
+    }
+    // ice sheen streaks
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = 1;
+    const iceStep = 26;
+    const c0 = Math.floor((cam.x - W/cam.z)/iceStep), c1 = Math.ceil((cam.x + W/cam.z)/iceStep);
+    for(let i=c0;i<=c1;i++){
+      if(hash01(i*11+3) < 0.55) continue;
+      const sx = w2sX(i*iceStep + hash01(i*5+1)*iceStep);
+      const ln = (10+hash01(i*9+6)*40)*clamp(cam.z*0.4, 0.5, 3);
+      const yo = 8 + hash01(i*17+9)*46;
+      ctx.beginPath(); ctx.moveTo(sx, gy+yo); ctx.lineTo(sx+ln, gy+yo*1.04); ctx.stroke();
     }
   }
 
@@ -1157,6 +1239,14 @@ function draw(dtReal){
       gl.addColorStop(1, 'rgba(255,80,0,0)');
       ctx.fillStyle = gl;
       ctx.beginPath(); ctx.arc(px, py, gsize, 0, 7); ctx.fill();
+    }
+    // contact shadow when near the ground
+    const gy0 = w2sY(0);
+    if(run.y < 70 && gy0 < Hpx+20){
+      const shA = (1-run.y/70)*0.28;
+      ctx.fillStyle = `rgba(10,20,40,${shA.toFixed(3)})`;
+      const rs = Math.max(cam.z*1.3, 13)*(1.35 - run.y/110);
+      ctx.beginPath(); ctx.ellipse(px, gy0+3, rs, rs*0.25, 0, 0, 7); ctx.fill();
     }
     drawPenguin(px, py, run.head + run.tumble, Math.max(cam.z*1.3, 13));
   }
@@ -1311,15 +1401,29 @@ function drawPenguin(px, py, ang, s){
       ctx.fill();
     }
   }
+  // scarf, streaming behind and fluttering
+  {
+    const wave = Math.sin(timeSim*9)*0.5;
+    ctx.fillStyle = '#e0313f';
+    ctx.beginPath();
+    ctx.moveTo(s*0.35, -s*0.42);
+    ctx.quadraticCurveTo(-s*0.4, -s*(0.78+wave*0.25), -s*1.05, -s*(0.62+wave*0.4));
+    ctx.lineTo(-s*0.72, -s*(0.34+wave*0.2));
+    ctx.closePath(); ctx.fill();
+  }
   // body
   ctx.fillStyle = '#1b2430';
   ctx.beginPath(); ctx.ellipse(0, 0, s, s*0.62, 0, 0, 7); ctx.fill();
   // belly
   ctx.fillStyle = '#f4f6f8';
   ctx.beginPath(); ctx.ellipse(s*0.08, s*0.2, s*0.7, s*0.38, 0, 0, 7); ctx.fill();
-  // wing
-  ctx.fillStyle = '#101720';
-  ctx.beginPath(); ctx.ellipse(-s*0.15, -s*0.05, s*0.42, s*0.2, 0.5, 0, 7); ctx.fill();
+  // wing — angles with the stick, flaps in a panic on a hard pull
+  {
+    const pull = (run && !run.sliding && !run.done) ? ((input.up?1:0)-(input.down?1:0)) : 0;
+    const flap = pull>0 ? Math.sin(timeSim*16)*0.35 : 0;
+    ctx.fillStyle = '#101720';
+    ctx.beginPath(); ctx.ellipse(-s*0.15, -s*0.05, s*0.42, s*0.2, 0.5 - pull*0.25 + flap, 0, 7); ctx.fill();
+  }
   // beak
   ctx.fillStyle = '#ff9d00';
   ctx.beginPath(); ctx.moveTo(s*0.95, -s*0.12); ctx.lineTo(s*1.35, s*0.02); ctx.lineTo(s*0.9, s*0.16); ctx.fill();
@@ -1495,7 +1599,7 @@ function finishRun(){
   phase = 'results';
 
   const dist = Math.max(0, run.dist);
-  const cashDist = 5 + 1.8*Math.pow(dist, 0.9);
+  const cashDist = 6 + 2.0*Math.pow(dist, 0.9);
   const cashAlt = state.perm.alti ? run.maxAlt*0.3 : 0;
   const cashSpd = state.perm.speedo ? run.maxSpd*1.6 : 0;
   const subtotal = (cashDist+cashAlt+cashSpd) * st.mult;
