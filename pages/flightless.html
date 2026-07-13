@@ -148,9 +148,7 @@
     transition:all 0.15s ease;
   }
   .upg:hover{ border-color:var(--yellow); background:var(--panel2); }
-  .upg.maxed{ border-color:var(--cash); background:rgba(124,252,0,0.05); }
   .upg.gear{ border-left:4px solid var(--red); }
-  .upg.gear.owned{ background:rgba(124,252,0,0.08); border-left-color:var(--cash); }
   .upg .upg-head{ display:flex; align-items:center; gap:6px; }
   .upg .upg-icon{ font-size:16px; }
   .upg .upg-name{ font-weight:bold; color:var(--yellow); font-size:12px; }
@@ -166,7 +164,6 @@
   }
   .upg button:hover:not(:disabled){ background:var(--yellow); color:var(--navy); }
   .upg button:disabled{ opacity:0.45; cursor:not-allowed; }
-  .upg button.maxed-btn{ border-color:var(--cash); color:var(--cash); }
   .upg .locked-note{ font-size:10.5px; color:var(--red); }
 
   .goals{
@@ -265,6 +262,7 @@
   </div>
   <div class="tgroup">
     <button class="tbtn hidden" id="t-burner">&#128165;</button>
+    <button class="tbtn hidden" id="t-gun">&#128299;</button>
     <button class="tbtn" id="t-boost">&#128293;</button>
   </div>
 </div>
@@ -309,7 +307,7 @@
     <div class="shop-foot">
       <button class="big-btn" id="launch-btn">&#128640; Launch</button>
       <div class="notes">
-        <p class="small-note">&#8679;/&#8681; or W/S steer &middot; SPACE rocket &middot; X afterburner &middot; F fast-forward &middot; ENTER launch</p>
+        <p class="small-note">&#8679;/&#8681; or W/S steer &middot; SPACE rocket &middot; X afterburner &middot; C fire cannon &middot; F fast-forward &middot; ENTER launch</p>
         <button class="reset-link" id="reset-btn">reset all progress</button>
       </div>
     </div>
@@ -325,6 +323,9 @@
       <div class="res-row"><span class="val">Distance: <span id="res-dist">0</span><span class="rec" id="rec-dist"></span></span><span class="cash" id="cash-dist">$0</span></div>
       <div class="res-row"><span class="val">Max altitude: <span id="res-alt">0</span><span class="rec" id="rec-alt"></span></span><span class="cash" id="cash-alt">$0</span></div>
       <div class="res-row"><span class="val">Top speed: <span id="res-spd">0</span><span class="rec" id="rec-spd"></span></span><span class="cash" id="cash-spd">$0</span></div>
+      <div class="res-row" id="res-coins-row" style="display:none;"><span class="val">&#128031; Fish collected: <span id="res-coins-count">0</span></span><span class="cash" id="cash-coins">$0</span></div>
+      <div class="res-row" id="res-stars-row" style="display:none;"><span class="val">&starf; Stars passed: <span id="res-stars-count">0</span></span><span class="cash" id="cash-stars">$0</span></div>
+      <div class="res-row" id="res-gun-row" style="display:none;"><span class="val">&#128165; Targets destroyed: <span id="res-gun-count">0</span></span><span class="cash" id="cash-gun">$0</span></div>
       <div class="res-row" id="res-mult-row" style="display:none;"><span class="val">Sponsor deal</span><span class="cash" id="cash-mult">&times;1.0</span></div>
       <div id="res-bonuses"></div>
       <div class="res-row total"><span class="val">TOTAL</span><span class="cash" id="cash-total">$0</span></div>
@@ -362,7 +363,7 @@ function hash01(n){ let x=Math.sin(n*127.1+311.7)*43758.5453; return x-Math.floo
 /* ════════════════ save state ════════════════ */
 const SAVE_KEY = 'flightless-save-v1';
 const defaultState = () => ({
-  money:0, day:1, lvl:{ramp:0,aero:0,wings:0,rocket:0,fuel:0,sling:0,bounce:0,sponsor:0},
+  money:0, day:1, lvl:{ramp:0,aero:0,wings:0,rocket:0,fuel:0,sling:0,bounce:0,sponsor:0,gun:0},
   perm:{speedo:false,alti:false,burner:false,tank:false},
   best:{dist:0,alt:0,spd:0}, claimed:[], won:false, muted:false, started:false,
 });
@@ -383,40 +384,45 @@ function save(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }ca
 
 /* ════════════════ upgrades ════════════════ */
 const UPGRADES = [
-  { id:'ramp',    icon:'\u{1F6DD}', name:'Ramp Height',  base:15,  mul:1.55, max:12,
+  { id:'ramp',    icon:'\u{1F6DD}', name:'Ramp Height',  base:15,  mul:1.55, max:12, unlock:0,
     desc:'A taller ramp means a faster launch.',
     val:l=>`${derive({ramp:l}).rampH.toFixed(0)} m tall` },
-  { id:'wings',   icon:'\u{1FABD}', name:'Glider Wings', base:25,  mul:1.55, max:10,
+  { id:'wings',   icon:'\u{1FABD}', name:'Glider Wings', base:25,  mul:1.55, max:10, unlock:0,
     desc:'More lift, flatter glide. Ease off "up" to cruise.',
     val:l=>{ if(l===0) return 'no wings'; const d=derive({wings:l});
              return `${d.wingS.toFixed(2)} m² · ~${Math.max(1,Math.round(d.bestLD))}:1 glide`; } },
-  { id:'aero',    icon:'\u{1F9CA}', name:'Slick Suit',   base:20,  mul:1.55, max:10,
+  { id:'aero',    icon:'\u{1F9CA}', name:'Slick Suit',   base:20,  mul:1.55, max:10, unlock:0,
     desc:'Waxed feathers cut drag on the ramp, in the air, and on the ice.',
     val:l=>`dives to ~${Math.round(derive({aero:l}).vDive)} m/s` },
-  { id:'rocket',  icon:'\u{1F680}', name:'Rocket',       base:100, mul:1.55, max:10,
-    desc:'A strap-on booster. Hold SPACE to climb faster.',
-    val:l=> l===0 ? 'not installed' : `${10+8*l} m/s² thrust` },
-  { id:'fuel',    icon:'⛽',    name:'Fuel Tank',    base:60,  mul:1.55, max:10,
-    desc:'More burn time for sustained climbs.', requires:'rocket',
-    val:l=>`${(2+1.3*l).toFixed(1)} s of burn` },
-  { id:'sling',   icon:'\u{1F3AF}', name:'Launcher',     base:400, mul:1.55, max:8,
-    desc:"An elastic slingshot at the ramp's lip. Extra launch speed.",
-    val:l=> l===0 ? 'not installed' : `+${15*l} m/s boost` },
-  { id:'bounce',  icon:'\u{1F3C0}', name:'Rubber Belly', base:150, mul:1.55, max:6,
+  { id:'bounce',  icon:'\u{1F3C0}', name:'Rubber Belly', base:150, mul:1.55, max:6, unlock:0,
     desc:'Spring back on landing. Keep momentum for distance.',
     val:l=> l===0 ? 'splat' : `${Math.round((0.12+0.09*l)*100)}% bounce` },
-  { id:'sponsor', icon:'\u{1F4B0}', name:'Sponsor Deal', base:250, mul:1.55, max:6,
+  { id:'rocket',  icon:'\u{1F680}', name:'Rocket',       base:100, mul:1.55, max:10, unlock:100,
+    desc:'A strap-on booster. Hold SPACE to climb faster.',
+    val:l=> l===0 ? 'not installed' : `${10+8*l} m/s² thrust` },
+  { id:'fuel',    icon:'⛽',    name:'Fuel Tank',    base:60,  mul:1.55, max:10, unlock:100,
+    desc:'More burn time for sustained climbs.', requires:'rocket',
+    val:l=>`${(2+1.3*l).toFixed(1)} s of burn` },
+  { id:'sponsor', icon:'\u{1F4B0}', name:'Sponsor Deal', base:250, mul:1.55, max:6, unlock:250,
     desc:'Fish Co. multiplies your earnings on every flight.',
     val:l=>`×${(1+0.35*l).toFixed(2)} cash earned` },
+  { id:'sling',   icon:'\u{1F3AF}', name:'Launcher',     base:400, mul:1.55, max:8, unlock:500,
+    desc:"An elastic slingshot at the ramp's lip. Extra launch speed.",
+    val:l=> l===0 ? 'not installed' : `+${15*l} m/s boost` },
+  { id:'gun',     icon:'\u{1F52B}', name:'Sky Cannon',   base:3000, mul:1.7,  max:6, unlock:2500,
+    desc:'Press C to blast obstacles out of the sky. Upgrade for range and bigger targets.',
+    val:l=>{ if(l===0) return 'not installed';
+             const tier = l>=5?'planes':l>=3?'balloons':'birds';
+             return `range ${260+90*l}m · downs ${tier}`; } },
 ];
 const GEAR = [
-  { id:'speedo', icon:'\u{1F4DF}', name:'Speedometer', cost:60,
+  { id:'speedo', icon:'\u{1F4DF}', name:'Speedometer', cost:60,   unlock:0,
     desc:'See your speed — and get paid for top speed.' },
-  { id:'alti',   icon:'\u{1F4E1}', name:'Altimeter',   cost:200,
+  { id:'alti',   icon:'\u{1F4E1}', name:'Altimeter',   cost:200,  unlock:100,
     desc:'See your altitude — and get paid for peak height.' },
-  { id:'burner', icon:'\u{1F4A5}', name:'Afterburner', cost:2500,
+  { id:'burner', icon:'\u{1F4A5}', name:'Afterburner', cost:2500, unlock:1000,
     desc:'Once per flight, press X: instant +75 m/s. No fuel.' },
-  { id:'tank',   icon:'\u{1F6E2}', name:'Reserve Tank', cost:6000,
+  { id:'tank',   icon:'\u{1F6E2}', name:'Reserve Tank', cost:6000, unlock:2500,
     desc:'Rocket refuels to half on your first ground bounce.' },
 ];
 const upgCost = u => Math.round(u.base * Math.pow(u.mul, state.lvl[u.id]));
@@ -443,6 +449,8 @@ function derive(over){
     sling:  L.sling * 15,
     rest:   L.bounce ? 0.12 + 0.09*L.bounce : 0,
     mult:   1 + 0.35*L.sponsor,
+    gunLevel: L.gun,
+    gunRange: L.gun ? 260 + 90*L.gun : 0,
     slideDecel: Math.max(3, 6.5 - 0.35*L.aero),
     bestLD: 1/(2*Math.sqrt(cd0eff*k)),                    // best glide ratio
     vDive:  Math.sqrt(2*mass*9.81/(1.225*(cdA + wingS*cd0w))),
@@ -454,6 +462,127 @@ const MILESTONES = [
   [5000,7000],[10000,15000],[20000,35000],[35000,100000],
 ];
 const WIN_DIST = 35000;
+
+/* ════════════════ collectibles ════════════════ */
+// Fish are scattered through the low/mid sky on a 1-D cell grid along the
+// flight path; stars only exist once you're genuinely high up, on a 2-D
+// grid so they can be found at any altitude above the threshold.
+const COIN_CELL = 140, COIN_MIN_ALT = 15, COIN_MAX_ALT = 3200, COIN_R = 12;
+const STAR_CELL = 260, STAR_MIN_ALT = 3200, STAR_R = 20;
+function coinPos(i){
+  if(hash01(i*17+3) < 0.55) return null;
+  return {
+    x: i*COIN_CELL + 20 + hash01(i*5+11)*(COIN_CELL-40),
+    y: COIN_MIN_ALT + hash01(i*29+41)*(COIN_MAX_ALT-COIN_MIN_ALT),
+  };
+}
+function starPos(i, j){
+  if(hash01(i*53+j*97+7) < 0.6) return null;
+  const y = j*STAR_CELL + hash01(i*11+j*13+9)*STAR_CELL;
+  if(y < STAR_MIN_ALT) return null;
+  return { x: i*STAR_CELL + hash01(i*7+j*3+2)*STAR_CELL, y };
+}
+function checkCollectibles(){
+  const ci = Math.round(run.x/COIN_CELL);
+  for(let di=-1; di<=1; di++){
+    const i = ci+di, key = 'c'+i;
+    if(run.collected.has(key)) continue;
+    const c = coinPos(i);
+    if(!c){ run.collected.add(key); continue; }
+    if(Math.hypot(run.x-c.x, run.y-c.y) < COIN_R){
+      run.collected.add(key);
+      const val = 10 + Math.round(hash01(i*3+1)*15);
+      run.coinCash += val; run.coinCount++;
+      popup(`\u{1F41F} +${fmtCash(val)}`, 18);
+      SFX.tick();
+      burst(c.x, c.y, 10, '#ffd54a', 6);
+    }
+  }
+  if(run.y > STAR_MIN_ALT-50){
+    const si = Math.round(run.x/STAR_CELL), sj = Math.round(run.y/STAR_CELL);
+    for(let di=-1; di<=1; di++) for(let dj=-1; dj<=1; dj++){
+      const i=si+di, j=sj+dj, key = 's'+i+'_'+j;
+      if(run.collected.has(key)) continue;
+      const s = starPos(i,j);
+      if(!s){ run.collected.add(key); continue; }
+      if(Math.hypot(run.x-s.x, run.y-s.y) < STAR_R){
+        run.collected.add(key);
+        const val = 60 + Math.round(hash01(i*7+j*5)*60);
+        run.starCash += val; run.starCount++;
+        popup(`⭐ +${fmtCash(val)}`, 24);
+        SFX.ding();
+        cam.shake = Math.min(cam.shake+4, 14);
+        burst(s.x, s.y, 16, '#fff6c0', 9);
+      }
+    }
+  }
+}
+
+/* ════════════════ obstacles ════════════════ */
+// Birds, balloons and planes share one x-cell grid; each cell deterministically
+// rolls a type then an existence chance, same trick as the coin/star fields.
+const OBST_CELL = 320;
+const OBSTACLE_TYPES = [
+  { id:'bird',    tough:1, cash:40,  minAlt:40,   maxAlt:1400, r:16, skip:0.45 },
+  { id:'balloon', tough:3, cash:150, minAlt:600,  maxAlt:3200, r:28, skip:0.55 },
+  { id:'plane',   tough:5, cash:500, minAlt:1800, maxAlt:6000, r:36, skip:0.65 },
+];
+function obstaclePos(i){
+  const roll = hash01(i*61+13);
+  const type = roll < 0.5 ? OBSTACLE_TYPES[0] : roll < 0.82 ? OBSTACLE_TYPES[1] : OBSTACLE_TYPES[2];
+  if(hash01(i*19+37) < type.skip) return null;
+  return {
+    type,
+    x: i*OBST_CELL + 30 + hash01(i*7+5)*(OBST_CELL-60),
+    y: type.minAlt + hash01(i*23+41)*(type.maxAlt-type.minAlt),
+  };
+}
+function checkObstacles(){
+  const oi = Math.round(run.x/OBST_CELL);
+  for(let di=-1; di<=1; di++){
+    const i = oi+di, key = 'o'+i;
+    if(run.obGone.has(key)) continue;
+    const o = obstaclePos(i);
+    if(!o){ run.obGone.add(key); continue; }
+    if(Math.hypot(run.x-o.x, run.y-o.y) < o.type.r){
+      run.obGone.add(key);
+      run.vx *= 0.55; run.vy *= 0.55;
+      run.tumble += 6;
+      cam.shake = Math.min(cam.shake+10, 16);
+      SFX.thump();
+      popup(`\u{1F4A5} hit a ${o.type.id}!`, 20);
+      burst(o.x, o.y, 16, '#555b6e', 8);
+    }
+  }
+}
+function fireGun(){
+  if(phase!=='flight' || !run || run.sliding || run.done) return;
+  if(!st.gunLevel || run.gunCooldown > 0) return;
+  run.gunCooldown = 0.4;
+  const i0 = Math.floor((run.x-40)/OBST_CELL), i1 = Math.ceil((run.x+st.gunRange)/OBST_CELL);
+  let best=null, bestD=Infinity;
+  for(let i=i0;i<=i1;i++){
+    const key = 'o'+i;
+    if(run.obGone.has(key)) continue;
+    const o = obstaclePos(i);
+    if(!o || o.x < run.x-40) continue;
+    const d = Math.hypot(run.x-o.x, run.y-o.y);
+    if(d <= st.gunRange && d < bestD){ bestD = d; best = {i, o}; }
+  }
+  if(!best) return;
+  const {i, o} = best;
+  if(o.type.tough <= st.gunLevel){
+    run.obGone.add('o'+i);
+    run.gunCash += o.type.cash; run.gunKills++;
+    popup(`\u{1F4A5} ${o.type.id} down! +${fmtCash(o.type.cash)}`, 20);
+    SFX.boom();
+    cam.shake = Math.min(cam.shake+6, 16);
+    burst(o.x, o.y, 22, '#ffae42', 12);
+  } else {
+    popup('TOO TOUGH', 16);
+    SFX.blip(200, 0.1, 'square', 0.05);
+  }
+}
 
 /* ════════════════ sound ════════════════ */
 const SFX = {
@@ -580,6 +709,8 @@ function newRun(){
     thrusting:false, tumble:0, stalled:false,
     burnerUsed:false, tankUsed:false, slingRemaining:0,
     trail:[], trailT:0,
+    collected:new Set(), coinCash:0, coinCount:0, starCash:0, starCount:0,
+    obGone:new Set(), gunCash:0, gunKills:0, gunCooldown:0,
     msQueue: MILESTONES.map(m=>m[0]).filter(d=>!state.claimed.includes(d)),
   };
 }
@@ -599,6 +730,7 @@ bindHold(document.getElementById('t-down'), 'down');
 bindHold(document.getElementById('t-boost'), 'boost');
 bindHold(document.getElementById('ff-btn'), 'ff');
 document.getElementById('t-burner').addEventListener('pointerdown', e => { e.preventDefault(); fireAfterburner(); });
+document.getElementById('t-gun').addEventListener('pointerdown', e => { e.preventDefault(); fireGun(); });
 
 function fireAfterburner(){
   if(phase!=='flight' || !run || run.sliding || run.done) return;
@@ -620,6 +752,7 @@ window.addEventListener('keydown', e => {
     case 'Space': input.boost=true; e.preventDefault(); break;
     case 'KeyF': input.ff=true; break;
     case 'KeyX': fireAfterburner(); break;
+    case 'KeyC': fireGun(); break;
     case 'Enter':
       if(introEl.classList.contains('show')) startLaunch();
       else if(phase==='shop' && shopEl.classList.contains('show')) startLaunch();
@@ -698,6 +831,7 @@ function stepRamp(h){
 
 function stepFlight(h){
   run.t += h;
+  run.gunCooldown = Math.max(0, run.gunCooldown - h);
   const rhoN = Math.exp(-run.y/SCALE_H);   // 1 at sea level
   const rho = RHO0*rhoN;
 
@@ -737,7 +871,7 @@ function stepFlight(h){
   const stick = (input.up?1:0) - (input.down?1:0);
   const aoa0 = angDiff(run.head, velA);
   const headRate = stick*st.wingAuth*airEff
-                 + 3.2*st.wingAuth*Math.sin(clamp(TRIM - aoa0, -1.2, 1.2))*airEff;
+                 + 1.1*st.wingAuth*Math.sin(clamp(TRIM - aoa0, -1.2, 1.2))*airEff;
   run.head = clamp(run.head + headRate*h, -88*RAD, 88*RAD);
 
   // ── forces (accelerations, m/s²) ──
@@ -812,6 +946,8 @@ function stepFlight(h){
   // records only count in the air, off the ramp
   run.maxAlt = Math.max(run.maxAlt, run.y);
   run.maxSpd = Math.max(run.maxSpd, spNew);
+  checkCollectibles();
+  checkObstacles();
 
   // flight trail
   run.trailT -= h;
@@ -945,6 +1081,9 @@ function draw(dtReal){
     ctx.fill();
   }
 
+  drawCollectibles();
+  drawObstacles();
+
   // ground
   const gy = w2sY(0);
   if(gy < Hpx+20){
@@ -1022,6 +1161,108 @@ function draw(dtReal){
     drawPenguin(px, py, run.head + run.tumble, Math.max(cam.z*1.3, 13));
   }
   ctx.restore();
+}
+
+function drawFishIcon(x, y, s){
+  ctx.save();
+  ctx.translate(x, y + Math.sin(timeSim*3 + x*0.05)*s*0.15);
+  ctx.fillStyle = '#ffcf4a';
+  ctx.beginPath(); ctx.ellipse(0, 0, s, s*0.55, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-s*0.9,0); ctx.lineTo(-s*1.4,-s*0.5); ctx.lineTo(-s*1.4,s*0.5); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#7a4a00';
+  ctx.beginPath(); ctx.arc(s*0.55, -s*0.12, s*0.12, 0, 7); ctx.fill();
+  ctx.restore();
+}
+function drawStarIcon(x, y, s){
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.globalAlpha = 0.75 + 0.25*Math.sin(timeSim*4 + x*0.07 + y*0.05);
+  ctx.fillStyle = '#fff6c0';
+  ctx.beginPath();
+  for(let k=0;k<10;k++){
+    const a = -Math.PI/2 + k*Math.PI/5;
+    const r = k%2===0 ? s : s*0.42;
+    const px = Math.cos(a)*r, py = Math.sin(a)*r;
+    if(k===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  }
+  ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+function drawCollectibles(){
+  if(!run) return;
+  const ci0 = Math.floor((cam.x - W/cam.z)/COIN_CELL)-1, ci1 = Math.ceil((cam.x + W/cam.z)/COIN_CELL)+1;
+  for(let i=ci0;i<=ci1;i++){
+    if(run.collected.has('c'+i)) continue;
+    const c = coinPos(i);
+    if(!c) continue;
+    const sx=w2sX(c.x), sy=w2sY(c.y);
+    if(sx<-40||sx>W+40||sy<-40||sy>Hpx+40) continue;
+    drawFishIcon(sx, sy, Math.max(8, COIN_R*cam.z*0.7));
+  }
+  const si0 = Math.floor((cam.x - W/cam.z)/STAR_CELL)-1, si1 = Math.ceil((cam.x + W/cam.z)/STAR_CELL)+1;
+  const sj0 = Math.max(0, Math.floor((cam.y - Hpx/(2*cam.z))/STAR_CELL)-1), sj1 = Math.ceil((cam.y + Hpx/(2*cam.z))/STAR_CELL)+1;
+  for(let i=si0;i<=si1;i++) for(let j=sj0;j<=sj1;j++){
+    if(run.collected.has('s'+i+'_'+j)) continue;
+    const s = starPos(i,j);
+    if(!s) continue;
+    const sx=w2sX(s.x), sy=w2sY(s.y);
+    if(sx<-40||sx>W+40||sy<-40||sy>Hpx+40) continue;
+    drawStarIcon(sx, sy, Math.max(10, STAR_R*cam.z*0.7));
+  }
+}
+
+function drawBird(x, y, s, seed){
+  ctx.save();
+  ctx.translate(x, y);
+  const flap = Math.sin(timeSim*6 + seed)*0.5 + 0.5;
+  ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = Math.max(1.5, s*0.18);
+  ctx.beginPath();
+  ctx.moveTo(-s, -flap*s*0.6); ctx.lineTo(0, 0); ctx.lineTo(s, -flap*s*0.6);
+  ctx.stroke();
+  ctx.restore();
+}
+function drawBalloon(x, y, s, seed){
+  ctx.save();
+  ctx.translate(x, y);
+  const hue = Math.floor(hash01(seed)*300);
+  ctx.fillStyle = `hsl(${hue},70%,55%)`;
+  ctx.beginPath(); ctx.ellipse(0, -s*0.3, s, s*1.15, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#4a3418'; ctx.lineWidth = Math.max(1, s*0.06);
+  ctx.beginPath();
+  ctx.moveTo(-s*0.5, s*0.6); ctx.lineTo(-s*0.28, s*1.1);
+  ctx.moveTo(s*0.5, s*0.6); ctx.lineTo(s*0.28, s*1.1);
+  ctx.stroke();
+  ctx.fillStyle = '#5c4326';
+  ctx.fillRect(-s*0.3, s*1.05, s*0.6, s*0.35);
+  ctx.restore();
+}
+function drawPlane(x, y, s, seed){
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = '#d8dee8';
+  ctx.beginPath(); ctx.ellipse(0, 0, s*1.3, s*0.4, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#b7c0d1';
+  ctx.beginPath(); ctx.moveTo(-s*0.2,-s*0.15); ctx.lineTo(-s*1.1,-s*0.75); ctx.lineTo(-s*0.75,-s*0.15); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-s*0.2,s*0.15); ctx.lineTo(-s*1.1,s*0.75); ctx.lineTo(-s*0.75,s*0.15); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#e63946';
+  ctx.beginPath(); ctx.moveTo(s*1.0,0); ctx.lineTo(s*1.5,-s*0.3); ctx.lineTo(s*1.5,s*0.3); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+function drawObstacles(){
+  if(!run) return;
+  const i0 = Math.floor((cam.x - W/cam.z)/OBST_CELL)-1, i1 = Math.ceil((cam.x + W/cam.z)/OBST_CELL)+1;
+  for(let i=i0;i<=i1;i++){
+    if(run.obGone.has('o'+i)) continue;
+    const o = obstaclePos(i);
+    if(!o) continue;
+    const sx=w2sX(o.x), sy=w2sY(o.y);
+    if(sx<-80||sx>W+80||sy<-80||sy>Hpx+80) continue;
+    const s = Math.max(o.type.r*0.5, o.type.r*cam.z*0.55);
+    if(o.type.id==='bird') drawBird(sx, sy, s, i);
+    else if(o.type.id==='balloon') drawBalloon(sx, sy, s, i);
+    else drawPlane(sx, sy, s, i);
+  }
 }
 
 function drawRamp(){
@@ -1135,7 +1376,7 @@ function renderHUD(){
     hintEl.style.display = 'block';
   } else if(state.day <= 3 && phase==='flight'){
     hintEl.textContent = state.lvl.wings>0
-      ? '⇧ pull up · ⇩ dive for speed' + (st.thrust>0 ? ' · SPACE rocket' : '') + ' · F fast-forward'
+      ? '⇧ pull up · ⇩ dive for speed' + (st.thrust>0 ? ' · SPACE rocket' : '') + (st.gunLevel>0 ? ' · C fire cannon' : '') + ' · F fast-forward'
       : 'no wings yet… enjoy the flop';
     hintEl.style.display = 'block';
   } else hintEl.style.display = 'none';
@@ -1167,62 +1408,63 @@ function renderShop(){
     gl.appendChild(li);
   }
 
-  // upgrade cards
+  // upgrade cards — unlock at distance milestones; a maxed-out upgrade drops
+  // off the list entirely (its slot is free for a later "tier 2" upgrade),
+  // and a fresh one you can't afford yet stays hidden too, except the single
+  // cheapest one, which stays visible as the next thing to save toward.
   shopGrid.innerHTML = '';
-  for(const u of UPGRADES){
+  const upgAvail = UPGRADES.filter(u => state.best.dist >= (u.unlock||0) && state.lvl[u.id] < u.max);
+  const cheapestNewUpg = upgAvail
+    .filter(u => state.lvl[u.id]===0 && !(u.requires && state.lvl[u.requires]===0))
+    .reduce((min,u) => (!min || upgCost(u) < upgCost(min)) ? u : min, null);
+  for(const u of upgAvail){
     const lvl = state.lvl[u.id];
-    const maxed = lvl >= u.max;
     const cost = upgCost(u);
     const locked = u.requires && state.lvl[u.requires] === 0;
+    if(!locked && lvl===0 && state.money < cost && u !== cheapestNewUpg) continue;
     const card = document.createElement('div');
-    card.className = 'upg' + (maxed ? ' maxed' : '');
+    card.className = 'upg';
     const pips = Array.from({length:u.max}, (_,i)=>`<div class="pip${i<lvl?' on':''}"></div>`).join('');
-    const nextVal = maxed ? '' : ` → <b style="color:var(--yellow)">${u.val(lvl+1)}</b>`;
+    const nextVal = ` → <b style="color:var(--yellow)">${u.val(lvl+1)}</b>`;
     card.innerHTML = `
       <div class="upg-head"><span class="upg-icon">${u.icon}</span><span class="upg-name">${u.name}</span></div>
       <div class="upg-desc">${u.desc}</div>
       <div class="upg-stat">${u.val(lvl)}${nextVal}</div>
       <div class="pips">${pips}</div>
       ${locked ? `<div class="locked-note">requires ${UPGRADES.find(x=>x.id===u.requires).name}</div>` : ''}
-      <button ${maxed?'class="maxed-btn" disabled':''} ${(!maxed && (locked || state.money<cost))?'disabled':''}>
-        ${maxed ? 'MAXED' : 'Buy — '+fmtCash(cost)}
-      </button>`;
-    if(!maxed){
-      card.querySelector('button').addEventListener('click', () => {
-        if(state.money < cost || locked) return;
-        state.money -= cost;
-        state.lvl[u.id]++;
-        SFX.buy();
-        save();
-        renderShop();
-        st = derive(); ramp = buildRamp(st.rampH);   // live-preview taller ramp behind the shop
-      });
-    }
+      <button ${(locked || state.money<cost)?'disabled':''}>Buy — ${fmtCash(cost)}</button>`;
+    card.querySelector('button').addEventListener('click', () => {
+      if(state.money < cost || locked) return;
+      state.money -= cost;
+      state.lvl[u.id]++;
+      SFX.buy();
+      save();
+      renderShop();
+      st = derive(); ramp = buildRamp(st.rampH);   // live-preview taller ramp behind the shop
+    });
     shopGrid.appendChild(card);
   }
 
-  // gear cards (one-time permanent buys)
+  // gear cards (one-time permanent buys) — same unlock/hide rules as upgrades
   gearGrid.innerHTML = '';
-  for(const g of GEAR){
-    const owned = state.perm[g.id];
+  const gearAvail = GEAR.filter(g => state.best.dist >= (g.unlock||0) && !state.perm[g.id]);
+  const cheapestNewGear = gearAvail.reduce((min,g) => (!min || g.cost < min.cost) ? g : min, null);
+  for(const g of gearAvail){
+    if(state.money < g.cost && g !== cheapestNewGear) continue;
     const card = document.createElement('div');
-    card.className = 'upg gear' + (owned ? ' owned' : '');
+    card.className = 'upg gear';
     card.innerHTML = `
       <div class="upg-head"><span class="upg-icon">${g.icon}</span><span class="upg-name">${g.name}</span></div>
       <div class="upg-desc">${g.desc}</div>
-      <button ${owned?'class="maxed-btn" disabled':''} ${(!owned && state.money<g.cost)?'disabled':''}>
-        ${owned ? 'OWNED' : 'Buy — '+fmtCash(g.cost)}
-      </button>`;
-    if(!owned){
-      card.querySelector('button').addEventListener('click', () => {
-        if(state.money < g.cost) return;
-        state.money -= g.cost;
-        state.perm[g.id] = true;
-        SFX.buy();
-        save();
-        renderShop();
-      });
-    }
+      <button ${state.money<g.cost?'disabled':''}>Buy — ${fmtCash(g.cost)}</button>`;
+    card.querySelector('button').addEventListener('click', () => {
+      if(state.money < g.cost) return;
+      state.money -= g.cost;
+      state.perm[g.id] = true;
+      SFX.buy();
+      save();
+      renderShop();
+    });
     gearGrid.appendChild(card);
   }
 }
@@ -1266,7 +1508,7 @@ function finishRun(){
       state.claimed.push(d); bonusTotal += cash; newBonuses.push([d, cash]);
     }
   }
-  const total = Math.round(subtotal + bonusTotal);
+  const total = Math.round(subtotal + bonusTotal + run.coinCash + run.starCash + run.gunCash);
   state.money += total;
 
   const recD = dist > state.best.dist, recA = run.maxAlt > state.best.alt, recS = run.maxSpd > state.best.spd;
@@ -1317,6 +1559,26 @@ function finishRun(){
     spdCashEl.className = 'cash';
     animateCash(spdCashEl, Math.round(cashSpd*st.mult), 850, 500);
   } else { spdCashEl.className = 'cash locked'; spdCashEl.textContent = 'needs Speedometer'; }
+
+  const coinsRow = document.getElementById('res-coins-row');
+  if(run.coinCount > 0){
+    coinsRow.style.display = 'flex';
+    document.getElementById('res-coins-count').textContent = run.coinCount;
+    animateCash(document.getElementById('cash-coins'), run.coinCash, 950, 500);
+  } else coinsRow.style.display = 'none';
+  const starsRow = document.getElementById('res-stars-row');
+  if(run.starCount > 0){
+    starsRow.style.display = 'flex';
+    document.getElementById('res-stars-count').textContent = run.starCount;
+    animateCash(document.getElementById('cash-stars'), run.starCash, 1100, 500);
+  } else starsRow.style.display = 'none';
+  const gunRow = document.getElementById('res-gun-row');
+  if(run.gunKills > 0){
+    gunRow.style.display = 'flex';
+    document.getElementById('res-gun-count').textContent = run.gunKills;
+    animateCash(document.getElementById('cash-gun'), run.gunCash, 1250, 500);
+  } else gunRow.style.display = 'none';
+
   animateCash(document.getElementById('cash-total'), total, 1300+newBonuses.length*250, 900);
 
   state.day++;
@@ -1363,6 +1625,7 @@ function startLaunch(){
   ffBtn.style.display = 'block';
   touchEl.classList.add('flying');
   document.getElementById('t-burner').classList.toggle('hidden', !state.perm.burner);
+  document.getElementById('t-gun').classList.toggle('hidden', !state.lvl.gun);
 }
 
 document.getElementById('intro-launch-btn').addEventListener('click', startLaunch);
@@ -1397,7 +1660,7 @@ function loop(now){
   // time scale: player fast-forward, plus auto-FF for slide-outs and long ramp rides
   let scale = 1;
   if(phase==='flight' && run){
-    scale = input.ff ? 3 : (run.sliding ? 2.5 : 1);
+    scale = input.ff ? 3 : (run.sliding ? 2.5 : 2.4);
   } else if(phase==='ramp' && ramp){
     scale = clamp(ramp.len/60, 1, 3);
   }
