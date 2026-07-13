@@ -116,13 +116,16 @@
   .shop-foot .big-btn{ margin:0; padding:10px 44px; font-size:18px; }
   .shop-foot .notes{ display:flex; flex-direction:column; gap:2px; align-items:flex-start; }
   .ramp-shape{
-    display:flex; flex-direction:column; gap:2px;
+    display:flex; flex-direction:column; gap:3px;
     font-size:11px; color:var(--muted);
     background:var(--panel); border:2px solid var(--border); padding:6px 10px;
   }
   .ramp-shape label{ color:var(--text); font-size:12px; }
   .ramp-shape b{ color:var(--yellow); }
-  .ramp-shape input[type=range]{ width:170px; accent-color:var(--yellow); cursor:pointer; }
+  .ramp-shape canvas{
+    width:280px; height:130px; touch-action:none; cursor:grab;
+    background:#060818; border:1px solid var(--border);
+  }
   .shop-foot .small-note{ margin:0; text-align:left; }
   .shop-foot .reset-link{ margin:0; width:auto; text-align:left; }
   h1.game-title{
@@ -314,9 +317,9 @@
     </div>
     <div class="shop-foot">
       <div class="ramp-shape">
-        <label>&#127934; Ramp nose: <b id="nose-val">20&deg;</b></label>
-        <input type="range" id="nose-slider" min="0" max="32" step="1" value="20">
-        <span>flat = raw speed &middot; steep = launch height</span>
+        <label>&#128736; Ramp designer &middot; <b id="shape-info"></b></label>
+        <canvas id="ramp-editor"></canvas>
+        <span>drag the handles to reshape &middot; track length is fixed &mdash; buy more track</span>
       </div>
       <button class="big-btn" id="launch-btn">&#128640; Launch</button>
       <div class="notes">
@@ -379,7 +382,9 @@ const defaultState = () => ({
   money:0, day:1, lvl:{ramp:0,aero:0,wings:0,rocket:0,fuel:0,sling:0,bounce:0,sponsor:0,gun:0,struts:0},
   perm:{speedo:false,alti:false,burner:false,tank:false},
   best:{dist:0,alt:0,spd:0}, claimed:[], won:false, muted:false, started:false,
-  rampNose:20,
+  // ramp spline control points in unit shape space (gate → lip); the lip
+  // itself is fixed. Upgrades buy track length; this is the shape of it.
+  rampShape:[{x:0.03,y:0.95},{x:0.16,y:0.32},{x:0.72,y:0.02}],
 });
 let state = defaultState();
 try{
@@ -390,6 +395,11 @@ try{
     state.lvl = Object.assign(defaultState().lvl, s.lvl||{});
     state.perm = Object.assign(defaultState().perm, s.perm||{});
     state.best = Object.assign(defaultState().best, s.best||{});
+    // sanitize the ramp spline (older saves stored a nose angle instead)
+    if(!Array.isArray(state.rampShape) || state.rampShape.length!==3 ||
+       state.rampShape.some(p=>!p || typeof p.x!=='number' || typeof p.y!=='number' || !isFinite(p.x) || !isFinite(p.y)))
+      state.rampShape = defaultState().rampShape;
+    else state.rampShape = state.rampShape.map(p=>({ x:Math.min(Math.max(p.x,0),1), y:Math.min(Math.max(p.y,0.02),1) }));
     // pre-gear saves: skip the intro if they've clearly played before
     state.started = state.started || state.day>1 || state.best.dist>0;
   }
@@ -399,9 +409,9 @@ function save(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }ca
 /* ════════════════ upgrades ════════════════ */
 const UPGRADES = [
   { id:'ramp',    icon:'\u{1F6DD}', name:'Ramp Track',   base:15,  mul:1.55, max:12, unlock:0,
-    desc:'More track to build speed on. Tune the nose with the shape slider below.',
-    val:l=>{ const d=derive({ramp:l});
-             return `${Math.round(d.rampLen)} m · ${Math.round(d.rampH)} m drop · ~${Math.round(d.rampExitV)} m/s exit`; } },
+    desc:'More track to build speed on. Reshape it in the designer below.',
+    val:l=>{ const d=derive({ramp:l}); const r=buildRamp(d.rampLen);
+             return `${Math.round(d.rampLen)} m · ${Math.round(r.H)} m tall · ~${Math.round(rampExitEst(d, r))} m/s exit`; } },
   { id:'wings',   icon:'\u{1FABD}', name:'Glider Wings', base:25,  mul:1.55, max:10, unlock:0,
     desc:'More lift, flatter glide. Ease off "up" to cruise.',
     val:l=>{ if(l===0) return 'no wings'; const d=derive({wings:l});
@@ -456,24 +466,16 @@ function derive(over){
   const cd0w  = 0.008;                                    // clean-wing profile drag coeff
   const k     = 1/(Math.PI*ar*0.85);                      // induced drag factor (e = 0.85)
   const cd0eff = cdA/wingS + cd0w;
-  // ramp geometry: upgrades buy track length; the player-set nose angle
-  // shapes the whole arc (entry is a fixed steep -84° drop), so drop height
-  // and exit speed both fall out of length + shape
+  // upgrades buy ramp track length; the player-drawn spline (state.rampShape)
+  // decides what that length is spent on — see buildRamp
   const rampLen = 16 + 11*L.ramp + 1.2*L.ramp*L.ramp;
-  const rampNose = clamp(state.rampNose===undefined ? 20 : state.rampNose, 0, 32)*RAD;
-  const rampTh0 = -84*RAD;
-  const rampR = rampLen/(rampNose-rampTh0);
-  const rampH = rampR*(Math.cos(rampNose)-Math.cos(rampTh0));
   const mu = Math.max(0.008, 0.02 - 0.0012*L.aero);
   const sling = L.sling * 20;
   const rampV0 = 2 + sling;
-  // exact energy along the arc: gravity gain minus friction ∫μg·cosθ·R dθ
-  const rampExitV = Math.sqrt(Math.max(1,
-    rampV0*rampV0 + 2*9.81*rampH - 2*mu*9.81*rampR*(Math.sin(rampNose)-Math.sin(rampTh0))));
   return {
     mass, wingS, ar, cdA, cd0w, k,
     clSlope: 2*Math.PI*ar/(ar+2),                         // finite-wing lift slope, /rad
-    rampLen, rampNose, rampH, rampExitV, rampV0,
+    rampLen, rampV0,
     mu,
     wingAuth: wings===0 ? 1.5 : 2.4 + 0.35*wings,         // pitch authority rad/s
     gMax:   4 + 0.9*L.struts,                             // structural load limit, g
@@ -703,23 +705,52 @@ let run = null;               // per-run mutable state
 let particles = [];
 let timeSim = 0;
 
-function buildRamp(len, th1){
-  const th0 = -84*RAD;                             // fixed steep entry drop
-  const R = len/(th1-th0);                         // radius so the arc is `len` long
-  const pts = [];
-  const N = 48;
-  for(let i=0;i<=N;i++){
-    const th = th0 + (th1-th0)*i/N;
-    pts.push({ x: R*(Math.sin(th)-Math.sin(th0)), y: R*(Math.cos(th0)-Math.cos(th)), th });
+const RAMP_LIP = { x:1, y:0.10 };   // fixed exit point of the spline, shape space
+
+// Catmull-Rom through the control points (endpoints doubled for tangents)
+function sampleShape(ctrl){
+  const P = [ctrl[0], ...ctrl, ctrl[ctrl.length-1]];
+  const out = [];
+  for(let seg=0; seg<ctrl.length-1; seg++){
+    const p0=P[seg], p1=P[seg+1], p2=P[seg+2], p3=P[seg+3];
+    for(let i=(seg===0?0:1); i<=16; i++){
+      const t=i/16, t2=t*t, t3=t2*t;
+      out.push({
+        x: 0.5*(2*p1.x + (-p0.x+p2.x)*t + (2*p0.x-5*p1.x+4*p2.x-p3.x)*t2 + (-p0.x+3*p1.x-3*p2.x+p3.x)*t3),
+        y: 0.5*(2*p1.y + (-p0.y+p2.y)*t + (2*p0.y-5*p1.y+4*p2.y-p3.y)*t2 + (-p0.y+3*p1.y-3*p2.y+p3.y)*t3),
+      });
+    }
   }
-  // translate so the exit lip sits at x=0, y=2.5 (a small platform above the ice)
-  const last = pts[pts.length-1];
-  const dx = -last.x, dy = 2.5 - last.y;
-  for(const p of pts){ p.x += dx; p.y += dy; }
+  return out;
+}
+
+// The track is the player's spline scaled so its arc length is exactly `len`
+// (the material bought with upgrades), anchored at the exit lip (x=0, y=2.5)
+// and clamped so no part of it ever dips below the ice.
+function buildRamp(len){
+  const raw = sampleShape([...state.rampShape, RAMP_LIP]);
+  let L = 0;
+  for(let i=1;i<raw.length;i++) L += Math.hypot(raw[i].x-raw[i-1].x, raw[i].y-raw[i-1].y);
+  const s = len/Math.max(L, 0.01);
+  const lip = raw[raw.length-1];
+  const pts = raw.map(p => ({ x:(p.x-lip.x)*s, y:Math.max(2.5+(p.y-lip.y)*s, 0.4), th:0 }));
+  for(let i=0;i<pts.length-1;i++)
+    pts[i].th = Math.atan2(pts[i+1].y-pts[i].y, pts[i+1].x-pts[i].x);
+  pts[pts.length-1].th = pts[pts.length-2].th;
   const cum = [0];
   for(let i=1;i<pts.length;i++)
     cum.push(cum[i-1] + Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y));
-  return { pts, cum, len:cum[cum.length-1], exitTh:th1, H:R*(Math.cos(th1)-Math.cos(th0)) };
+  let H = 0;
+  for(const p of pts) H = Math.max(H, p.y);
+  return { pts, cum, len:cum[cum.length-1], exitTh:pts[pts.length-1].th, H };
+}
+
+// exit-speed estimate: gravity drop minus friction, which telescopes to
+// μg·Δx along any downhill-then-flat path (∫μg·cosθ ds = μg·dx)
+function rampExitEst(d, r){
+  const p0 = r.pts[0], lip = r.pts[r.pts.length-1];
+  return Math.sqrt(Math.max(1,
+    d.rampV0*d.rampV0 + 2*9.81*(p0.y-lip.y) - 2*d.mu*9.81*Math.max(0, lip.x-p0.x)));
 }
 function rampPoint(s){
   const {pts, cum} = ramp;
@@ -732,7 +763,7 @@ function rampPoint(s){
 
 function newRun(){
   st = derive();
-  ramp = buildRamp(st.rampLen, st.rampNose);
+  ramp = buildRamp(st.rampLen);
   const start = rampPoint(0);
   run = {
     x:start.x, y:start.y, vx:0, vy:0,
@@ -841,6 +872,19 @@ function stepRamp(h){
   run.rampV = Math.max(0.3, run.rampV + accS*h);
   run.rampS += run.rampV*h;
   if(Math.random() < h*run.rampV*1.5) burst(run.x, run.y+0.2, 1, '#e8f6ff', 2);
+  // a spline with an uphill stretch can eat all the momentum; rather than
+  // crawl the rest of the track forever, tip off it where the speed died
+  if(run.rampV < 0.6) run.rampCrawl = (run.rampCrawl||0) + h;
+  else run.rampCrawl = 0;
+  if(run.rampCrawl > 2.5){
+    const p = rampPoint(run.rampS);
+    run.x = p.x; run.y = p.y; run.head = p.th;
+    run.vx = Math.cos(p.th)*run.rampV;
+    run.vy = Math.sin(p.th)*run.rampV;
+    phase = 'flight';
+    popup('ran out of track speed…', 18);
+    return;
+  }
   if(run.rampS >= ramp.len){
     const over = run.rampS - ramp.len;
     const lip = rampPoint(ramp.len);
@@ -1526,21 +1570,83 @@ const victoryEl = document.getElementById('victory');
 const shopGrid = document.getElementById('shop-grid');
 const gearGrid = document.getElementById('gear-grid');
 
-// ramp shape slider: drag to reshape the whole arc, live-previewed behind
-// the shop; the card numbers refresh once the drag settles
-const noseSlider = document.getElementById('nose-slider');
-const noseVal = document.getElementById('nose-val');
-noseSlider.addEventListener('input', () => {
-  state.rampNose = +noseSlider.value;
-  noseVal.textContent = state.rampNose + '°';
-  st = derive();
-  ramp = buildRamp(st.rampLen, st.rampNose);
+// ── ramp designer ──
+// A mini canvas showing the track spline with three draggable handles; the
+// world ramp rebuilds live behind the shop while dragging, and the card
+// numbers refresh when the drag settles.
+const edCv = document.getElementById('ramp-editor');
+const edCtx = edCv.getContext('2d');
+const shapeInfo = document.getElementById('shape-info');
+const ED_W=280, ED_H=130, ED_PAD=14, ED_TOP=12, ED_GROUND=ED_H-16;
+edCv.width = ED_W*2; edCv.height = ED_H*2; edCtx.setTransform(2,0,0,2,0,0);
+const edX = p => ED_PAD + p.x*(ED_W-2*ED_PAD);
+const edY = p => ED_GROUND - p.y*(ED_GROUND-ED_TOP);
+let edDrag = -1;
+function drawEditor(){
+  edCtx.clearRect(0,0,ED_W,ED_H);
+  // the ice
+  edCtx.fillStyle = 'rgba(180,220,255,0.13)';
+  edCtx.fillRect(0, ED_GROUND, ED_W, ED_H-ED_GROUND);
+  edCtx.strokeStyle = '#9fc6e8'; edCtx.lineWidth = 1;
+  edCtx.beginPath(); edCtx.moveTo(0, ED_GROUND+0.5); edCtx.lineTo(ED_W, ED_GROUND+0.5); edCtx.stroke();
+  // the track
+  const raw = sampleShape([...state.rampShape, RAMP_LIP]);
+  edCtx.strokeStyle = '#FFFF00'; edCtx.lineWidth = 2;
+  edCtx.beginPath();
+  raw.forEach((p,i)=> i ? edCtx.lineTo(edX(p), Math.min(edY(p), ED_GROUND)) : edCtx.moveTo(edX(p), edY(p)));
+  edCtx.stroke();
+  // exit lip
+  edCtx.fillStyle = '#FF0000';
+  edCtx.fillRect(edX(RAMP_LIP)-3, edY(RAMP_LIP)-3, 6, 6);
+  // handles
+  state.rampShape.forEach((p,i)=>{
+    edCtx.fillStyle = i===edDrag ? '#ffffff' : '#ffd23f';
+    edCtx.strokeStyle = '#000080'; edCtx.lineWidth = 1.5;
+    edCtx.beginPath(); edCtx.arc(edX(p), edY(p), 6, 0, 7); edCtx.fill(); edCtx.stroke();
+  });
+  shapeInfo.textContent = `${Math.round(ramp.exitTh/RAD)}° nose · ${Math.round(ramp.H)} m tall`;
+}
+function edPos(e){
+  const r = edCv.getBoundingClientRect();
+  return { x:e.clientX-r.left, y:e.clientY-r.top };
+}
+edCv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const m = edPos(e);
+  let best=-1, bd=20*20;
+  state.rampShape.forEach((p,i)=>{
+    const d = (edX(p)-m.x)**2 + (edY(p)-m.y)**2;
+    if(d < bd){ bd = d; best = i; }
+  });
+  edDrag = best;
+  if(best >= 0) edCv.setPointerCapture(e.pointerId);
+  drawEditor();
 });
-noseSlider.addEventListener('change', () => { save(); renderShop(); });
+edCv.addEventListener('pointermove', e => {
+  if(edDrag < 0) return;
+  const m = edPos(e);
+  const s = state.rampShape;
+  const nx = clamp((m.x-ED_PAD)/(ED_W-2*ED_PAD), 0, 1);
+  let ny = clamp((ED_GROUND-m.y)/(ED_GROUND-ED_TOP), 0.02, 1);
+  if(edDrag === 0) ny = Math.max(ny, RAMP_LIP.y + 0.15);  // gate stays above the lip
+  const lo = edDrag===0 ? 0 : s[edDrag-1].x + 0.07;
+  const hi = edDrag===2 ? RAMP_LIP.x - 0.07 : s[edDrag+1].x - 0.07;
+  s[edDrag] = { x: clamp(nx, lo, hi), y: ny };
+  st = derive();
+  ramp = buildRamp(st.rampLen);
+  drawEditor();
+});
+const edUp = () => {
+  if(edDrag < 0) return;
+  edDrag = -1;
+  save();
+  renderShop();
+};
+edCv.addEventListener('pointerup', edUp);
+edCv.addEventListener('pointercancel', edUp);
 
 function renderShop(){
-  noseSlider.value = state.rampNose;
-  noseVal.textContent = state.rampNose + '°';
+  drawEditor();
   document.getElementById('shop-money').textContent = fmtCash(state.money);
   document.getElementById('shop-day').textContent = state.day;
   document.getElementById('shop-best').textContent = fmtDist(state.best.dist);
@@ -1590,7 +1696,7 @@ function renderShop(){
       SFX.buy();
       save();
       renderShop();
-      st = derive(); ramp = buildRamp(st.rampLen, st.rampNose);   // live-preview taller ramp behind the shop
+      st = derive(); ramp = buildRamp(st.rampLen);   // live-preview taller ramp behind the shop
     });
     shopGrid.appendChild(card);
   }
@@ -1759,7 +1865,7 @@ function openShop(){
   phase = 'shop';
   run = null;
   st = derive();
-  ramp = buildRamp(st.rampLen, st.rampNose);
+  ramp = buildRamp(st.rampLen);
   renderShop();
   shopEl.classList.add('show');
 }
@@ -1844,7 +1950,7 @@ function loop(now){
 
 // boot: first-ever visit goes straight to the ramp, no shop
 st = derive();
-ramp = buildRamp(st.rampLen, st.rampNose);
+ramp = buildRamp(st.rampLen);
 if(!state.started){
   phase = 'shop';           // idle camera on the ramp behind the intro
   introEl.classList.add('show');
