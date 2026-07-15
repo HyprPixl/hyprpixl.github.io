@@ -194,6 +194,14 @@
   .upg button:disabled{ opacity:0.45; cursor:not-allowed; }
   .upg .locked-note{ font-size:10.5px; color:var(--red); }
 
+  .medal-row{ display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; }
+  .medal{
+    font-size:17px; line-height:1; padding:5px 7px; cursor:help;
+    background:var(--panel); border:2px solid var(--border);
+  }
+  .medal.on{ border-color:var(--yellow); background:var(--panel2); }
+  .medal.off{ filter:grayscale(1); opacity:0.35; }
+
   .goals{
     background:var(--panel); border:2px solid var(--border);
     padding:5px 12px; margin:0; font-size:12px;
@@ -320,6 +328,7 @@
         <div class="chip money">&#128176; <b id="shop-money">$0</b></div>
         <div class="chip">&#128197; Day <b id="shop-day">1</b></div>
         <div class="chip">&#127942; Best <b id="shop-best">0 m</b></div>
+        <div class="chip">&#127941; <b id="shop-bp">0 BP</b></div>
       </div>
     </div>
     <div class="goals">
@@ -331,6 +340,10 @@
       <div class="shop-grid" id="shop-grid"></div>
       <div class="section-label">🛠 Permanent Gear</div>
       <div class="shop-grid" id="gear-grid"></div>
+      <div class="section-label">🏅 Medals</div>
+      <div class="medal-row" id="medal-row"></div>
+      <div class="section-label">✨ Bonus Shop — spend BP, keeps through resets</div>
+      <div class="shop-grid" id="bonus-grid"></div>
     </div>
     <div class="shop-foot">
       <div class="ramp-designer">
@@ -361,6 +374,7 @@
       <div class="res-row"><span class="val">Distance: <span id="res-dist">0</span><span class="rec" id="rec-dist"></span></span><span class="cash" id="cash-dist">$0</span></div>
       <div class="res-row"><span class="val">Max altitude: <span id="res-alt">0</span><span class="rec" id="rec-alt"></span></span><span class="cash" id="cash-alt">$0</span></div>
       <div class="res-row"><span class="val">Top speed: <span id="res-spd">0</span><span class="rec" id="rec-spd"></span></span><span class="cash" id="cash-spd">$0</span></div>
+      <div class="res-row"><span class="val">Airtime: <span id="res-air">0</span> s</span><span class="cash" id="cash-air">×1.00</span></div>
       <div class="res-row" id="res-coins-row" style="display:none;"><span class="val">&#128031; Fish collected: <span id="res-coins-count">0</span></span><span class="cash" id="cash-coins">$0</span></div>
       <div class="res-row" id="res-stars-row" style="display:none;"><span class="val">&starf; Stars passed: <span id="res-stars-count">0</span></span><span class="cash" id="cash-stars">$0</span></div>
       <div class="res-row" id="res-rings-row" style="display:none;"><span class="val">&#11093; Rings: <span id="res-rings-count">0</span></span><span class="cash" id="cash-rings">$0</span></div>
@@ -379,8 +393,8 @@
 <div class="panel" id="victory">
   <div class="panel-inner">
     <h1>&#128039;&#128640; YOU LEARNED TO FLY</h1>
-    <p>35 kilometres. The other penguins said it couldn't be done.<br>
-    They said you were <i>flightless</i>. Look at you now.</p>
+    <p>35 kilometres out, there was a wall. There isn't any more.<br>
+    They said you were <i>flightless</i>. They can come look at the rubble.</p>
     <p style="color:var(--muted);font-size:13px;">You can keep flying for fun &mdash; the sky was never the limit.</p>
     <button class="big-btn" id="victory-btn">Keep Flying</button>
   </div>
@@ -403,9 +417,13 @@ function hash01(n){ let x=Math.sin(n*127.1+311.7)*43758.5453; return x-Math.floo
 /* ════════════════ save state ════════════════ */
 const SAVE_KEY = 'flightless-save-v1';
 const defaultState = () => ({
-  money:0, day:1, lvl:{ramp:0,aero:0,wings:0,rocket:0,fuel:0,sling:0,bounce:0,sponsor:0,gun:0,struts:0},
+  money:0, day:1, lvl:{ramp:0,aero:0,wings:0,rocket:0,fuel:0,sling:0,bounce:0,sponsor:0,gun:0,struts:0,plating:0},
   perm:{speedo:false,alti:false,burner:false,tank:false},
   best:{dist:0,alt:0,spd:0}, claimed:[], won:false, muted:false, started:false,
+  // landmark hit points (persist between days), medals earned, bonus points,
+  // and permanent bonus-shop levels (these three survive a progress reset)
+  lmHP:{snowman:400, iceberg:2500, wall:12000},
+  medals:[], bp:0, bonus:{aero:0, cash:0, skull:0},
   // ramp spline control points in unit shape space (gate → lip); the last
   // point IS the lip. Upgrades buy track length; this is the shape of it.
   rampShape:[{x:0.03,y:0.95},{x:0.16,y:0.32},{x:0.72,y:0.02},{x:1,y:0.10}],
@@ -419,6 +437,10 @@ try{
     state.lvl = Object.assign(defaultState().lvl, s.lvl||{});
     state.perm = Object.assign(defaultState().perm, s.perm||{});
     state.best = Object.assign(defaultState().best, s.best||{});
+    state.lmHP = Object.assign(defaultState().lmHP, s.lmHP||{});
+    state.bonus = Object.assign(defaultState().bonus, s.bonus||{});
+    if(!Array.isArray(state.medals)) state.medals = [];
+    if(typeof state.bp !== 'number' || !isFinite(state.bp)) state.bp = 0;
     // sanitize the ramp spline (older saves stored a nose angle, or a
     // 3-point shape with an implicit fixed lip — append the old lip)
     if(Array.isArray(state.rampShape) && state.rampShape.length===3)
@@ -464,6 +486,10 @@ const UPGRADES = [
   { id:'sling',   icon:'\u{1F3AF}', name:'Catapult',     base:400, mul:1.55, max:8, unlock:500,
     desc:'An elastic winch flings you from the gate at the top of the track.',
     val:l=> l===0 ? 'not installed' : `+${20*l} m/s at the gate` },
+  { id:'plating', icon:'\u{1F6E1}', name:'Ram Plating',  base:600, mul:1.55, max:6, unlock:1500,
+    desc:'An armored belly plate. Smash landmarks harder and keep more speed on impact.',
+    val:l=>`×${(1+0.35*l).toFixed(2)} smash damage`,
+  },
   { id:'gun',     icon:'\u{1F52B}', name:'Sky Cannon',   base:3000, mul:1.7,  max:6, unlock:2500,
     desc:'Press C to blast obstacles out of the sky. Upgrade for range and bigger targets.',
     val:l=>{ if(l===0) return 'not installed';
@@ -485,11 +511,12 @@ const upgCost = u => Math.round(u.base * Math.pow(u.mul, state.lvl[u.id]));
 // physical stats derived from upgrade levels (overrides let upgrade cards preview values)
 function derive(over){
   const L = Object.assign({}, state.lvl, over||{});
+  const B = state.bonus;                                  // permanent bonus-shop levels
   const wings = L.wings;
   const mass  = 10;                                       // kg, penguin + kit
   const wingS = wings===0 ? 0.02 : 0.10 + 0.09*wings;     // m² lifting area
   const ar    = wings===0 ? 1.2  : 3 + 0.55*wings;        // wing aspect ratio
-  const cdA   = Math.max(0.006, 0.022 - 0.0016*L.aero);   // m², body parasite drag area
+  const cdA   = Math.max(0.006, 0.022 - 0.0016*L.aero) * (1 - 0.07*B.aero);  // m², body parasite drag area
   const cd0w  = 0.008;                                    // clean-wing profile drag coeff
   const k     = 1/(Math.PI*ar*0.85);                      // induced drag factor (e = 0.85)
   const cd0eff = cdA/wingS + cd0w;
@@ -510,7 +537,8 @@ function derive(over){
     fuelMax:L.rocket ? 2 + 1.3*L.fuel : 0,
     sling,
     rest:   L.bounce ? 0.12 + 0.09*L.bounce : 0,
-    mult:   1 + 0.35*L.sponsor,
+    mult:   (1 + 0.35*L.sponsor) * (1 + 0.12*B.cash),
+    smash:  (1 + 0.35*L.plating) * (1 + 0.4*B.skull),
     gunLevel: L.gun,
     gunRange: L.gun ? 260 + 90*L.gun : 0,
     slideDecel: Math.max(3, 6.5 - 0.35*L.aero),
@@ -562,6 +590,7 @@ function coinCluster(i){
 function comboMult(){
   run.combo = run.comboT > 0 ? run.combo+1 : 1;
   run.comboT = 3;
+  run.maxCombo = Math.max(run.maxCombo, run.combo);
   return Math.min(1 + 0.3*(run.combo-1), 3);
 }
 function starPos(i, j){
@@ -653,6 +682,7 @@ function checkObstacles(){
     if(!o){ run.obGone.add(key); continue; }
     if(Math.hypot(run.x-o.x, run.y-o.y) < o.type.r){
       run.obGone.add(key);
+      run.obHits++;
       // a glancing thud, not a brick wall — keep the run alive
       run.vx *= 0.72; run.vy *= 0.72;
       run.tumble = Math.min(run.tumble + 3.5, 7);
@@ -773,6 +803,75 @@ function contractsFor(day){
     return { id:c.id, text:c.txt(target), target, val:c.val, reward };
   });
 }
+
+/* ════════════════ landmarks ════════════════ */
+// Physical bosses standing on the ice. Fly into one to damage it — the hurt
+// persists between days — and bring it down for a payout. The Wall is the
+// real victory condition. You CAN fly over them, but they won't forget you.
+const LANDMARKS = [
+  { id:'snowman', x:2500,  w:34, h:75,   hp:400,   reward:2000,  name:'Giant Snowman', color:'#ffffff' },
+  { id:'iceberg', x:10000, w:70, h:300,  hp:2500,  reward:8000,  name:'The Iceberg',   color:'#bfe6ff' },
+  { id:'wall',    x:35000, w:46, h:1300, hp:12000, reward:30000, name:'THE WALL',      color:'#c9b8a0' },
+];
+function checkLandmarks(spNew){
+  for(const lm of LANDMARKS){
+    if(state.lmHP[lm.id] <= 0) continue;
+    const face = lm.x - lm.w*0.5;
+    if(run.vx > 0 && run.y < lm.h && run.x >= face && run.x <= lm.x + lm.w){
+      const dmg = Math.max(1, Math.round(spNew * st.smash));
+      state.lmHP[lm.id] = Math.max(0, state.lmHP[lm.id] - dmg);
+      if(state.lmHP[lm.id] <= 0){
+        run.smashCash += lm.reward;
+        popup(`\u{1F4A5} ${lm.name} DESTROYED! +${fmtCash(lm.reward)}`, 30);
+        SFX.boom();
+        cam.shake = 16;
+        burst(lm.x, Math.min(run.y+10, lm.h*0.6), 40, lm.color, 18);
+        run.vx *= 0.7;               // smash straight through the wreckage
+      } else {
+        popup(`\u{1F4A5} -${dmg} · ${lm.name} ${Math.ceil(state.lmHP[lm.id]/lm.hp*100)}%`, 22);
+        SFX.thump();
+        cam.shake = Math.min(16, 8 + spNew*0.02);
+        burst(face, run.y, 20, lm.color, 10);
+        run.x = face - 1;
+        run.vx = -Math.abs(run.vx)*(0.25 + 0.05*Math.min(state.lvl.plating,4));
+        run.tumble = Math.min(run.tumble + 5, 8);
+      }
+      save();
+      break;
+    }
+  }
+}
+
+/* ════════════════ medals & bonus shop ════════════════ */
+// Medals are permanent achievements worth Bonus Points; BP buys permanent
+// bonus-shop levels. All three survive a progress reset — the prestige loop.
+const MEDALS = [
+  { id:'first',   bp:1, icon:'\u{1F423}', name:'Leap of Faith',      desc:'Complete your first flight',        chk:r=>true },
+  { id:'century', bp:1, icon:'\u{1F4CF}', name:'Century',            desc:'Fly 100 m',                         chk:r=>r.dist>=100 },
+  { id:'kmclub',  bp:1, icon:'\u{1F6E3}', name:'Kilometre Club',     desc:'Fly 1 km',                          chk:r=>r.dist>=1000 },
+  { id:'fivek',   bp:2, icon:'\u{1F680}', name:'Frequent Flyer',     desc:'Fly 5 km',                          chk:r=>r.dist>=5000 },
+  { id:'stratos', bp:2, icon:'\u{1F30C}', name:'Stratospheric',      desc:'Reach 3,000 m altitude',            chk:r=>r.maxAlt>=3000 },
+  { id:'mach',    bp:2, icon:'\u{1F4A8}', name:'Mach Penguin',       desc:'Hit 200 m/s',                       chk:r=>r.maxSpd>=200 },
+  { id:'fish10',  bp:1, icon:'\u{1F41F}', name:'Fish Magnet',        desc:'Catch 10 fish in one flight',       chk:r=>r.coinCount>=10 },
+  { id:'combo5',  bp:2, icon:'\u{1F517}', name:'Chain Reaction',     desc:'Reach a ×5 combo',             chk:r=>r.maxCombo>=5 },
+  { id:'ring5',   bp:2, icon:'\u{2B55}',  name:'Ring Master',        desc:'Thread 5 rings in one flight',      chk:r=>r.ringCount>=5 },
+  { id:'skim10',  bp:2, icon:'\u{2744}',  name:'Belly Surfer',       desc:'Skim the ice for 10 s in one flight', chk:r=>r.skimT>=10 },
+  { id:'bounce6', bp:1, icon:'\u{1F3C0}', name:'Superball',          desc:'Bounce 6 times in one flight',      chk:r=>r.bounceCount>=6 },
+  { id:'ace',     bp:2, icon:'\u{1F3AF}', name:'Sky Ace',            desc:'Down 5 targets in one flight',      chk:r=>r.gunKills>=5 },
+  { id:'ouch',    bp:1, icon:'\u{1F915}', name:'Crash Test Penguin', desc:'Hit 3 obstacles in one flight',     chk:r=>r.obHits>=3 },
+  { id:'kit',     bp:2, icon:'\u{1F9F0}', name:'Fully Loaded',       desc:'Own every piece of permanent gear', chk:()=>Object.values(state.perm).every(v=>v) },
+  { id:'snowman', bp:2, icon:'\u{26C4}',  name:"Frosty's Bane",      desc:'Demolish the Giant Snowman',        chk:()=>state.lmHP.snowman<=0 },
+  { id:'iceberg', bp:3, icon:'\u{1F9CA}', name:'Cold Revenge',       desc:'Shatter the Iceberg',               chk:()=>state.lmHP.iceberg<=0 },
+  { id:'wall',    bp:5, icon:'\u{1F9F1}', name:'Another Brick',      desc:'Bring down The Wall',               chk:()=>state.lmHP.wall<=0 },
+];
+const BONUS_SHOP = [
+  { id:'aero',  icon:'\u{1FAB6}', name:'Penguin Physique', max:3, cost:[2,4,6],
+    desc:'Molted down to racing feathers: −7% drag per level. Permanent — survives resets.' },
+  { id:'cash',  icon:'\u{1F3E6}', name:'Merch Empire',     max:3, cost:[2,4,6],
+    desc:'Plush penguins in every store: +12% earnings per level. Permanent.' },
+  { id:'skull', icon:'\u{1FA96}', name:'Hardened Skull',   max:3, cost:[2,4,6],
+    desc:'Pure bone. +40% smash damage per level. Permanent.' },
+];
 
 /* ════════════════ sound ════════════════ */
 const SFX = {
@@ -935,8 +1034,9 @@ function newRun(){
     trail:[], trailT:0,
     collected:new Set(), coinCash:0, coinCount:0, starCash:0, starCount:0,
     obGone:new Set(), gunCash:0, gunKills:0, gunCooldown:0,
-    ringCash:0, ringCount:0, combo:0, comboT:0,
+    ringCash:0, ringCount:0, combo:0, comboT:0, maxCombo:0,
     skimT:0, skimCash:0, skimSeg:0, skimQuiet:0, bounceCount:0,
+    obHits:0, smashCash:0, contractsMet:new Set(), contractT:0,
     contracts:contractsFor(state.day),   // locked in at launch
 
     msQueue: MILESTONES.map(m=>m[0]).filter(d=>!state.claimed.includes(d)),
@@ -1088,6 +1188,7 @@ function stepFlight(h){
     run.x += run.vx*h;
     run.head = lerp(run.head, 0, 1-Math.pow(0.001, h));
     if(Math.random() < h*45) burst(run.x, 0.3, 1, '#cfe8ff', 2);
+    checkLandmarks(Math.abs(run.vx));
     trackProgress();
     return;
   }
@@ -1214,6 +1315,20 @@ function stepFlight(h){
   checkCollectibles();
   checkObstacles();
   checkRings();
+  checkLandmarks(spNew);
+
+  // live contract completion — celebrate it the moment it happens
+  run.contractT -= h;
+  if(run.contractT <= 0){
+    run.contractT = 0.5;
+    run.contracts.forEach((c, idx) => {
+      if(!run.contractsMet.has(idx) && c.val(run) >= c.target){
+        run.contractsMet.add(idx);
+        popup(`\u{1F4CB} CONTRACT: ${c.text} ✓ +${fmtCash(c.reward)}`, 22);
+        SFX.ding();
+      }
+    });
+  }
 
   // flight trail
   run.trailT -= h;
@@ -1499,6 +1614,7 @@ function draw(dtReal){
     }
   }
 
+  drawLandmarks();
   drawRamp();
 
   // flight trail — width & tint track speed so dives/climbs actually read as motion
@@ -1702,6 +1818,94 @@ function drawObstacles(){
   }
 }
 
+function drawLandmarks(){
+  const gy = w2sY(0);
+  for(const lm of LANDMARKS){
+    const sx = w2sX(lm.x);
+    const wpx = Math.max(lm.w*cam.z, 8), hpx = lm.h*cam.z;
+    if(sx < -wpx*3-160 || sx > W+wpx*3+160) continue;
+    const dead = state.lmHP[lm.id] <= 0;
+    if(lm.id === 'snowman'){
+      ctx.fillStyle = '#f4f8ff';
+      if(dead){
+        ctx.beginPath(); ctx.ellipse(sx, gy, wpx*1.3, Math.max(3, hpx*0.10), 0, 0, 7); ctx.fill();
+        ctx.fillStyle = '#ff8c1a';
+        ctx.fillRect(sx - wpx*0.5, gy - Math.max(2, hpx*0.05), Math.max(3, wpx*0.3), Math.max(2, hpx*0.03));
+      } else {
+        ctx.beginPath(); ctx.arc(sx, gy - hpx*0.22, hpx*0.24, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx, gy - hpx*0.55, hpx*0.19, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx, gy - hpx*0.83, hpx*0.14, 0, 7); ctx.fill();
+        ctx.fillStyle = '#222';
+        ctx.fillRect(sx - hpx*0.10, gy - hpx*1.02, hpx*0.20, hpx*0.06);
+        ctx.fillRect(sx - hpx*0.06, gy - hpx*1.10, hpx*0.12, hpx*0.09);
+        ctx.beginPath(); ctx.arc(sx - hpx*0.045, gy - hpx*0.86, Math.max(1, hpx*0.016), 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx + hpx*0.045, gy - hpx*0.86, Math.max(1, hpx*0.016), 0, 7); ctx.fill();
+        ctx.fillStyle = '#ff8c1a';
+        ctx.beginPath();
+        ctx.moveTo(sx, gy - hpx*0.84); ctx.lineTo(sx + hpx*0.11, gy - hpx*0.82); ctx.lineTo(sx, gy - hpx*0.80);
+        ctx.closePath(); ctx.fill();
+      }
+    } else if(lm.id === 'iceberg'){
+      ctx.fillStyle = dead ? 'rgba(191,230,255,0.55)' : '#cfeaff';
+      ctx.strokeStyle = '#8fc4e8'; ctx.lineWidth = Math.max(1, cam.z*0.3);
+      ctx.beginPath();
+      if(dead){
+        ctx.moveTo(sx - wpx*1.6, gy);
+        ctx.lineTo(sx - wpx*0.9, gy - hpx*0.10);
+        ctx.lineTo(sx - wpx*0.2, gy);
+        ctx.lineTo(sx + wpx*0.4, gy - hpx*0.14);
+        ctx.lineTo(sx + wpx*1.1, gy);
+      } else {
+        ctx.moveTo(sx - wpx*0.9, gy);
+        ctx.lineTo(sx - wpx*0.6, gy - hpx*0.45);
+        ctx.lineTo(sx - wpx*0.2, gy - hpx*0.30);
+        ctx.lineTo(sx + wpx*0.05, gy - hpx);
+        ctx.lineTo(sx + wpx*0.35, gy - hpx*0.55);
+        ctx.lineTo(sx + wpx*0.7, gy - hpx*0.7);
+        ctx.lineTo(sx + wpx*0.95, gy);
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else {
+      // THE WALL — courses of grey brick to the stratosphere
+      if(dead){
+        ctx.fillStyle = '#9b9186';
+        ctx.beginPath(); ctx.ellipse(sx, gy, wpx*2.0, Math.max(4, hpx*0.02), 0, 0, 7); ctx.fill();
+        ctx.fillStyle = '#847a6f';
+        ctx.beginPath(); ctx.ellipse(sx - wpx*0.8, gy, wpx*0.9, Math.max(3, hpx*0.014), 0, 0, 7); ctx.fill();
+      } else {
+        const top = gy - hpx;
+        ctx.fillStyle = '#a89c8e';
+        ctx.fillRect(sx - wpx*0.5, top, wpx, hpx);
+        ctx.strokeStyle = 'rgba(60,50,40,0.5)';
+        ctx.lineWidth = Math.max(1, cam.z*0.2);
+        const rows = Math.min(40, Math.max(6, Math.floor(hpx/26)));
+        for(let rIdx=1; rIdx<rows; rIdx++){
+          const y = top + hpx*rIdx/rows;
+          ctx.beginPath(); ctx.moveTo(sx - wpx*0.5, y); ctx.lineTo(sx + wpx*0.5, y); ctx.stroke();
+          const off = (rIdx%2) ? 0 : wpx*0.25;
+          ctx.beginPath(); ctx.moveTo(sx - wpx*0.25 + off, y); ctx.lineTo(sx - wpx*0.25 + off, y - hpx/rows); ctx.stroke();
+        }
+        ctx.fillStyle = '#c2b6a6';
+        ctx.fillRect(sx - wpx*0.58, top - Math.max(3, hpx*0.008), wpx*1.16, Math.max(3, hpx*0.008));
+      }
+    }
+    // name + health bar when the penguin is anywhere near
+    if(!dead && run && Math.abs(run.x - lm.x) < 1500){
+      const frac = state.lmHP[lm.id]/lm.hp;
+      const bw = Math.max(70, wpx*1.4);
+      const by = Math.max(30, w2sY(lm.h) - 26);
+      ctx.fillStyle = 'rgba(5,8,30,0.7)';
+      ctx.fillRect(sx - bw/2 - 2, by - 2, bw + 4, 10);
+      ctx.fillStyle = '#FF0000';
+      ctx.fillRect(sx - bw/2, by, bw*frac, 6);
+      ctx.fillStyle = '#eef1ff';
+      ctx.font = '11px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${lm.name} ${Math.ceil(frac*100)}%`, sx, by - 7);
+    }
+  }
+}
+
 function drawRamp(){
   if(!ramp) return;
   const pts = ramp.pts;
@@ -1836,16 +2040,37 @@ function drawPenguin(px, py, ang, s){
   ctx.translate(px, py);
   ctx.rotate(-ang);
   drawGlider(s, state.lvl.wings);
-  // rocket pack
+  // rocket pack — three visible models as the upgrade climbs
   if(st.thrust > 0){
-    ctx.fillStyle = '#b8bec9';
-    ctx.fillRect(-s*0.75, -s*0.85, s*0.9, s*0.42);
-    ctx.fillStyle = '#FF0000';
-    ctx.beginPath(); ctx.moveTo(s*0.15, -s*0.85); ctx.lineTo(s*0.45, -s*0.64); ctx.lineTo(s*0.15, -s*0.43); ctx.fill();
+    const rl = state.lvl.rocket;
+    if(rl <= 3){
+      // strapped-on soda-can booster
+      ctx.fillStyle = '#b8bec9';
+      ctx.fillRect(-s*0.75, -s*0.85, s*0.9, s*0.42);
+      ctx.fillStyle = '#FF0000';
+      ctx.beginPath(); ctx.moveTo(s*0.15, -s*0.85); ctx.lineTo(s*0.45, -s*0.64); ctx.lineTo(s*0.15, -s*0.43); ctx.fill();
+    } else if(rl <= 6){
+      // twin chrome boosters
+      ctx.fillStyle = '#c8cfda';
+      ctx.fillRect(-s*0.85, -s*1.0,  s*1.1, s*0.3);
+      ctx.fillRect(-s*0.85, -s*0.62, s*1.1, s*0.3);
+      ctx.fillStyle = '#FF0000';
+      ctx.beginPath(); ctx.moveTo(s*0.25, -s*1.0);  ctx.lineTo(s*0.55, -s*0.85); ctx.lineTo(s*0.25, -s*0.7);  ctx.fill();
+      ctx.beginPath(); ctx.moveTo(s*0.25, -s*0.62); ctx.lineTo(s*0.55, -s*0.47); ctx.lineTo(s*0.25, -s*0.32); ctx.fill();
+    } else {
+      // the big one: finned red rocket with a porthole
+      ctx.fillStyle = '#e63946';
+      ctx.beginPath(); ctx.ellipse(-s*0.15, -s*0.85, s*0.85, s*0.3, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#f4f6f8';
+      ctx.beginPath(); ctx.moveTo(s*0.55, -s*0.85); ctx.lineTo(s*0.95, -s*0.85); ctx.lineTo(s*0.62, -s*0.7); ctx.fill();
+      ctx.beginPath(); ctx.arc(-s*0.1, -s*0.85, s*0.12, 0, 7); ctx.fill();
+      ctx.fillStyle = '#a52833';
+      ctx.beginPath(); ctx.moveTo(-s*0.85, -s*1.05); ctx.lineTo(-s*1.2, -s*1.25); ctx.lineTo(-s*0.95, -s*0.9); ctx.fill();
+    }
     if(run && run.thrusting){
       ctx.fillStyle = '#ffb020';
       ctx.beginPath();
-      ctx.moveTo(-s*0.75, -s*0.82); ctx.lineTo(-s*(1.3+Math.random()*0.5), -s*0.64); ctx.lineTo(-s*0.75, -s*0.46);
+      ctx.moveTo(-s*0.85, -s*0.85); ctx.lineTo(-s*(1.45+Math.random()*0.5), -s*0.68); ctx.lineTo(-s*0.85, -s*0.5);
       ctx.fill();
     }
   }
@@ -2066,6 +2291,7 @@ function renderShop(){
   document.getElementById('shop-money').textContent = fmtCash(state.money);
   document.getElementById('shop-day').textContent = state.day;
   document.getElementById('shop-best').textContent = fmtDist(state.best.dist);
+  document.getElementById('shop-bp').textContent = state.bp + ' BP';
 
   // goals
   const gl = document.getElementById('goal-list');
@@ -2084,6 +2310,18 @@ function renderShop(){
     const li = document.createElement('li');
     li.textContent = `\u{1F4CB} ${c.text} (+${fmtCash(c.reward)})`;
     li.style.color = 'var(--text)';
+    gl.appendChild(li);
+  }
+  // landmark status
+  for(const lm of LANDMARKS){
+    const hp = state.lmHP[lm.id];
+    const li = document.createElement('li');
+    if(hp <= 0){
+      li.textContent = `\u{1F4A5} ${lm.name} destroyed`;
+      li.className = 'done';
+    } else {
+      li.textContent = `\u{1F3AF} ${lm.name} @ ${fmtDist(lm.x)} — ${Math.ceil(hp/lm.hp*100)}%`;
+    }
     gl.appendChild(li);
   }
 
@@ -2122,6 +2360,45 @@ function renderShop(){
       st = derive(); ramp = buildRamp(st.rampLen);   // live-preview taller ramp behind the shop
     });
     shopGrid.appendChild(card);
+  }
+
+  // medal wall — earned bright, unearned greyed with the hint in the tooltip
+  const medalRow = document.getElementById('medal-row');
+  medalRow.innerHTML = '';
+  for(const m of MEDALS){
+    const got = state.medals.includes(m.id);
+    const chip = document.createElement('div');
+    chip.className = 'medal ' + (got ? 'on' : 'off');
+    chip.textContent = m.icon;
+    chip.title = `${m.name} (+${m.bp} BP) — ${m.desc}`;
+    medalRow.appendChild(chip);
+  }
+
+  // bonus shop — permanent levels bought with BP
+  const bonusGrid = document.getElementById('bonus-grid');
+  bonusGrid.innerHTML = '';
+  for(const b of BONUS_SHOP){
+    const lvl = state.bonus[b.id];
+    const maxed = lvl >= b.max;
+    const cost = maxed ? 0 : b.cost[lvl];
+    const card = document.createElement('div');
+    card.className = 'upg gear';
+    const pips = Array.from({length:b.max}, (_,i)=>`<div class="pip${i<lvl?' on':''}"></div>`).join('');
+    card.innerHTML = `
+      <div class="upg-head"><span class="upg-icon">${b.icon}</span><span class="upg-name">${b.name}</span></div>
+      <div class="upg-desc">${b.desc}</div>
+      <div class="pips">${pips}</div>
+      <button ${(maxed || state.bp < cost)?'disabled':''}>${maxed ? 'MAX' : `Buy — ${cost} BP`}</button>`;
+    card.querySelector('button').addEventListener('click', () => {
+      if(maxed || state.bp < cost) return;
+      state.bp -= cost;
+      state.bonus[b.id]++;
+      SFX.buy();
+      save();
+      renderShop();
+      st = derive(); ramp = buildRamp(st.rampLen);
+    });
+    bonusGrid.appendChild(card);
   }
 
   // gear cards (one-time permanent buys) — same unlock/hide rules as upgrades
@@ -2177,7 +2454,10 @@ function finishRun(){
   const cashDist = 6 + 2.0*Math.pow(dist, 0.9);
   const cashAlt = state.perm.alti ? run.maxAlt*0.3 : 0;
   const cashSpd = state.perm.speedo ? run.maxSpd*1.6 : 0;
-  const subtotal = (cashDist+cashAlt+cashSpd) * st.mult;
+  // airtime multiplier, the LtF classic: staying up pays, up to ×2 at 2 min
+  const airMult = 1 + Math.min(run.t, 120)/120;
+  const payMult = st.mult * airMult;
+  const subtotal = (cashDist+cashAlt+cashSpd) * payMult;
 
   // milestones
   let bonusTotal = 0;
@@ -2188,10 +2468,11 @@ function finishRun(){
     }
   }
   // contracts — judged against the targets locked in at launch
-  const contractResults = run.contracts.map(c => ({ ...c, got:c.val(run), met:c.val(run) >= c.target }));
+  const contractResults = run.contracts.map((c, i) =>
+    ({ ...c, got:c.val(run), met:run.contractsMet.has(i) || c.val(run) >= c.target }));
   const contractTotal = contractResults.reduce((sum,c) => sum + (c.met ? c.reward : 0), 0);
   const skimCash = Math.round(run.skimCash);
-  const total = Math.round(subtotal + bonusTotal + contractTotal
+  const total = Math.round(subtotal + bonusTotal + contractTotal + run.smashCash
     + run.coinCash + run.starCash + run.gunCash + run.ringCash + skimCash);
   state.money += total;
 
@@ -2199,6 +2480,13 @@ function finishRun(){
   state.best.dist = Math.max(state.best.dist, dist);
   state.best.alt = Math.max(state.best.alt, run.maxAlt);
   state.best.spd = Math.max(state.best.spd, run.maxSpd);
+
+  // medals — permanent, and they pay Bonus Points
+  const newMedals = [];
+  for(const m of MEDALS){
+    if(state.medals.includes(m.id)) continue;
+    if(m.chk(run)){ state.medals.push(m.id); state.bp += m.bp; newMedals.push(m); }
+  }
 
   document.getElementById('res-day').textContent = state.day;
   const headline = dist < 30 ? 'THAT WAS… A START' :
@@ -2213,6 +2501,8 @@ function finishRun(){
   document.getElementById('rec-alt').textContent = recA ? '★' : '';
   document.getElementById('rec-spd').textContent = recS ? '★' : '';
 
+  document.getElementById('res-air').textContent = Math.round(run.t);
+  document.getElementById('cash-air').textContent = '×'+airMult.toFixed(2);
   const multRow = document.getElementById('res-mult-row');
   if(st.mult > 1){
     multRow.style.display = 'flex';
@@ -2234,6 +2524,20 @@ function finishRun(){
     animateCash(row.querySelector('.cash'), cash, 1300+i*250, 500);
   });
   if(newBonuses.length) setTimeout(()=>SFX.ding(), 1300);
+  if(run.smashCash > 0){
+    const row = document.createElement('div');
+    row.className = 'res-row bonus';
+    row.innerHTML = `<span class="val">\u{1F4A5} DEMOLITION!</span><span class="cash"></span>`;
+    bonusBox.appendChild(row);
+    animateCash(row.querySelector('.cash'), run.smashCash, 1350, 600);
+  }
+  newMedals.forEach((m, i) => {
+    const row = document.createElement('div');
+    row.className = 'res-row bonus';
+    row.innerHTML = `<span class="val">\u{1F3C5} MEDAL: ${m.name}</span><span class="cash">+${m.bp} BP</span>`;
+    bonusBox.appendChild(row);
+  });
+  if(newMedals.length) setTimeout(()=>SFX.ding(), 1500);
   contractResults.forEach((c, i) => {
     const row = document.createElement('div');
     row.className = 'res-row' + (c.met ? ' bonus' : '');
@@ -2247,16 +2551,16 @@ function finishRun(){
     }
   });
 
-  animateCash(document.getElementById('cash-dist'), Math.round(cashDist*st.mult), 200, 700);
+  animateCash(document.getElementById('cash-dist'), Math.round(cashDist*payMult), 200, 700);
   const altCashEl = document.getElementById('cash-alt');
   const spdCashEl = document.getElementById('cash-spd');
   if(state.perm.alti){
     altCashEl.className = 'cash';
-    animateCash(altCashEl, Math.round(cashAlt*st.mult), 550, 500);
+    animateCash(altCashEl, Math.round(cashAlt*payMult), 550, 500);
   } else { altCashEl.className = 'cash locked'; altCashEl.textContent = 'needs Altimeter'; }
   if(state.perm.speedo){
     spdCashEl.className = 'cash';
-    animateCash(spdCashEl, Math.round(cashSpd*st.mult), 850, 500);
+    animateCash(spdCashEl, Math.round(cashSpd*payMult), 850, 500);
   } else { spdCashEl.className = 'cash locked'; spdCashEl.textContent = 'needs Speedometer'; }
 
   const coinsRow = document.getElementById('res-coins-row');
@@ -2307,7 +2611,7 @@ function closeResults(){
   resultsEl.classList.remove('show');
   countUpTimers.forEach(cancelAnimationFrame);
   countUpTimers = [];
-  if(!state.won && state.best.dist >= WIN_DIST){
+  if(!state.won && state.lmHP.wall <= 0){
     state.won = true; save();
     victoryEl.classList.add('show');
     SFX.ding();
@@ -2354,10 +2658,10 @@ document.getElementById('victory-btn').addEventListener('click', () => {
   openShop();
 });
 document.getElementById('reset-btn').addEventListener('click', () => {
-  if(!confirm('Wipe all progress and start over from Day 1?')) return;
-  const muted = state.muted;
+  if(!confirm('Start over from Day 1? Medals, Bonus Points and Bonus Shop levels are permanent and carry over.')) return;
+  const keep = { muted:state.muted, medals:state.medals, bp:state.bp, bonus:state.bonus };
   state = defaultState();
-  state.muted = muted;
+  Object.assign(state, keep);
   state.started = true;   // they know the drill
   save();
   openShop();
