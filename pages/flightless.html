@@ -440,9 +440,9 @@ const UPGRADES = [
     val:l=>{ const d=derive({ramp:l}); const r=buildRamp(d.rampLen);
              return `${Math.round(d.rampLen)} m · ${Math.round(r.H)} m tall · ~${Math.round(rampExitEst(d, r))} m/s exit`; } },
   { id:'wings',   icon:'\u{1FABD}', name:'Glider Wings', base:25,  mul:1.55, max:10, unlock:0,
-    desc:'More lift, flatter glide. Ease off "up" to cruise.',
+    desc:'More lift, flatter glide. Ease off "up" to cruise. New rig every couple of levels.',
     val:l=>{ if(l===0) return 'no wings'; const d=derive({wings:l});
-             return `${d.wingS.toFixed(2)} m² · ~${Math.max(1,Math.round(d.bestLD))}:1 glide`; } },
+             return `${gliderName(l)} · ~${Math.max(1,Math.round(d.bestLD))}:1 glide`; } },
   { id:'aero',    icon:'\u{1F9CA}', name:'Slick Suit',   base:20,  mul:1.55, max:10, unlock:0,
     desc:'Waxed feathers cut drag on the ramp, in the air, and on the ice.',
     val:l=>`dives to ~${Math.round(derive({aero:l}).vDive)} m/s` },
@@ -495,7 +495,7 @@ function derive(over){
   const cd0eff = cdA/wingS + cd0w;
   // upgrades buy ramp track length; the player-drawn spline (state.rampShape)
   // decides what that length is spent on — see buildRamp
-  const rampLen = 16 + 11*L.ramp + 1.2*L.ramp*L.ramp;
+  const rampLen = 32 + 12*L.ramp + 1.2*L.ramp*L.ramp;
   const mu = Math.max(0.008, 0.02 - 0.0012*L.aero);
   const sling = L.sling * 20;
   const rampV0 = 2 + sling;
@@ -1173,14 +1173,16 @@ function stepFlight(h){
       run.tankUsed = true;
       if(run.fuel < st.fuelMax*0.5){ run.fuel = st.fuelMax*0.5; popup('\u{1F6E2} RESERVE TANK!', 22); }
     }
-    if(st.rest>0 && impact>4){
-      run.vy = impact*st.rest;
-      run.vx *= 0.92;
+    if(st.rest>0 && impact>2){
+      // even lazy landings get a real hop: floor the rebound so the belly
+      // works at low speed instead of silently splatting
+      run.vy = Math.max(impact*st.rest, Math.min(impact*0.45, 2.0));
+      run.vx *= 0.94;
       run.bounceCount++;
       cam.shake = Math.min(10, impact*0.12);
       SFX.thump();
       burst(run.x, 0.5, 10, '#cfe8ff', 5);
-      if(run.vy < 2.5){ run.vy=0; run.sliding=true; }
+      if(run.vy < 1.1){ run.vy=0; run.sliding=true; }
     } else {
       run.vy=0; run.vx*=0.75; run.sliding=true;
       cam.shake = Math.min(10, impact*0.15);
@@ -1739,10 +1741,101 @@ function drawRamp(){
   ctx.beginPath(); ctx.moveTo(fx, fy-26); ctx.lineTo(fx+20, fy-20); ctx.lineTo(fx, fy-14); ctx.fill();
 }
 
+const gliderTier = l => l>=9?5 : l>=7?4 : l>=5?3 : l>=3?2 : l>=1?1 : 0;
+function gliderName(l){
+  return ['no wings','Cardboard Planks','Bamboo Kite','Delta Wing','Carbon Swept','Golden Albatross'][gliderTier(l)];
+}
+// the rig strapped to the penguin's back — a visibly cooler glider for each
+// wing tier, drawn behind the body in the penguin's rotated frame
+function drawGlider(s, lvl){
+  const tier = gliderTier(lvl);
+  if(!tier) return;
+  ctx.save();
+  if(tier===1){
+    // cardboard planks and packing tape
+    ctx.rotate(0.12);
+    ctx.fillStyle = '#cdb58c';
+    ctx.fillRect(-s*1.25, -s*0.62, s*2.2, s*0.2);
+    ctx.fillStyle = '#b09668';
+    ctx.fillRect(-s*0.9, -s*0.62, s*0.22, s*0.2);
+    ctx.fillRect(s*0.45, -s*0.62, s*0.22, s*0.2);
+  } else if(tier===2){
+    // bamboo kite: taut paper triangle on an A-frame
+    ctx.strokeStyle = '#8a6d3f'; ctx.lineWidth = Math.max(1.5, s*0.09);
+    ctx.beginPath(); ctx.moveTo(-s*0.1, -s*0.2); ctx.lineTo(s*0.05, -s*1.05); ctx.stroke();
+    ctx.fillStyle = 'rgba(240,230,200,0.92)';
+    ctx.beginPath();
+    ctx.moveTo(-s*1.45, -s*0.85);
+    ctx.lineTo(s*1.6, -s*1.1);
+    ctx.lineTo(s*0.1, -s*0.5);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#8a6d3f'; ctx.lineWidth = Math.max(1, s*0.06);
+    ctx.stroke();
+  } else if(tier===3){
+    // red delta wing with a white flash
+    ctx.fillStyle = '#d1332e';
+    ctx.beginPath();
+    ctx.moveTo(-s*1.7, -s*0.75);
+    ctx.quadraticCurveTo(-s*0.2, -s*1.5, s*1.9, -s*1.05);
+    ctx.quadraticCurveTo(s*0.4, -s*0.85, -s*0.1, -s*0.35);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#f4f6f8';
+    ctx.beginPath();
+    ctx.moveTo(-s*1.2, -s*0.78);
+    ctx.quadraticCurveTo(0, -s*1.25, s*1.4, -s*1.0);
+    ctx.quadraticCurveTo(s*0.3, -s*1.05, -s*0.75, -s*0.68);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#7a1d1a'; ctx.lineWidth = Math.max(1, s*0.06);
+    ctx.beginPath(); ctx.moveTo(-s*0.1, -s*0.35); ctx.lineTo(0, -s*0.1); ctx.stroke();
+  } else if(tier===4){
+    // carbon swept wing, thin and glossy, upturned winglet
+    ctx.fillStyle = '#2c3542';
+    ctx.beginPath();
+    ctx.moveTo(-s*1.9, -s*0.55);
+    ctx.quadraticCurveTo(-s*0.3, -s*1.05, s*2.1, -s*1.25);
+    ctx.lineTo(s*2.3, -s*1.7);
+    ctx.lineTo(s*2.35, -s*1.2);
+    ctx.quadraticCurveTo(s*0.4, -s*0.75, -s*1.9, -s*0.32);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(140,190,255,0.75)'; ctx.lineWidth = Math.max(1, s*0.05);
+    ctx.beginPath();
+    ctx.moveTo(-s*1.75, -s*0.5);
+    ctx.quadraticCurveTo(-s*0.3, -s*0.98, s*2.05, -s*1.2);
+    ctx.stroke();
+  } else {
+    // golden albatross: broad feathered wings with a soft glow
+    const beat = Math.sin(timeSim*3)*0.06;
+    ctx.rotate(beat);
+    ctx.fillStyle = 'rgba(255,225,120,0.25)';
+    ctx.beginPath(); ctx.ellipse(0, -s*0.9, s*2.4, s*0.9, -0.1, 0, 7); ctx.fill();
+    ctx.fillStyle = '#f6d76a';
+    ctx.beginPath();
+    ctx.moveTo(-s*0.2, -s*0.3);
+    ctx.quadraticCurveTo(-s*1.4, -s*1.35, -s*2.5, -s*1.1);
+    ctx.lineTo(-s*1.9, -s*0.75); ctx.lineTo(-s*2.2, -s*0.65); ctx.lineTo(-s*1.6, -s*0.45);
+    ctx.quadraticCurveTo(-s*0.8, -s*0.25, -s*0.2, -s*0.3);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffe89a';
+    ctx.beginPath();
+    ctx.moveTo(-s*0.1, -s*0.35);
+    ctx.quadraticCurveTo(s*1.2, -s*1.5, s*2.6, -s*1.25);
+    ctx.lineTo(s*2.0, -s*0.85); ctx.lineTo(s*2.3, -s*0.75); ctx.lineTo(s*1.7, -s*0.5);
+    ctx.quadraticCurveTo(s*0.7, -s*0.2, -s*0.1, -s*0.35);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#c9a53a'; ctx.lineWidth = Math.max(1, s*0.05);
+    ctx.beginPath();
+    ctx.moveTo(-s*0.1, -s*0.35);
+    ctx.quadraticCurveTo(s*1.2, -s*1.5, s*2.6, -s*1.25);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawPenguin(px, py, ang, s){
   ctx.save();
   ctx.translate(px, py);
   ctx.rotate(-ang);
+  drawGlider(s, state.lvl.wings);
   // rocket pack
   if(st.thrust > 0){
     ctx.fillStyle = '#b8bec9';
