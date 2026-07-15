@@ -775,15 +775,21 @@ function sampleShape(ctrl){
 }
 
 // The track is the player's spline scaled so its arc length is exactly `len`
-// (the material bought with upgrades), anchored at the exit lip (x=0, y=2.5)
-// and clamped so no part of it ever dips below the ice.
+// (the material bought with upgrades). Shape-space y spans SHAPE_ASPECT of a
+// unit so its proportions match the editor canvas — the ramp you draw is the
+// ramp you get — and the whole curve is dropped so its LOWEST point rests
+// just above the ice (anchoring the lip instead would flatten any curve that
+// dips below it into the ground).
+const SHAPE_ASPECT = 0.4;
 function buildRamp(len){
-  const raw = sampleShape(state.rampShape);
+  const raw = sampleShape(state.rampShape).map(p => ({ x:p.x, y:p.y*SHAPE_ASPECT }));
   let L = 0;
   for(let i=1;i<raw.length;i++) L += Math.hypot(raw[i].x-raw[i-1].x, raw[i].y-raw[i-1].y);
   const s = len/Math.max(L, 0.01);
   const lip = raw[raw.length-1];
-  const pts = raw.map(p => ({ x:(p.x-lip.x)*s, y:Math.max(2.5+(p.y-lip.y)*s, 0.4), th:0 }));
+  let minY = Infinity;
+  for(const p of raw) minY = Math.min(minY, p.y);
+  const pts = raw.map(p => ({ x:(p.x-lip.x)*s, y:(p.y-minY)*s + 0.5, th:0 }));
   for(let i=0;i<pts.length-1;i++)
     pts[i].th = Math.atan2(pts[i+1].y-pts[i].y, pts[i+1].x-pts[i].x);
   pts[pts.length-1].th = pts[pts.length-2].th;
@@ -1408,13 +1414,34 @@ function draw(dtReal){
 
 function drawFishIcon(x, y, s){
   ctx.save();
-  ctx.translate(x, y + Math.sin(timeSim*3 + x*0.05)*s*0.15);
-  ctx.strokeStyle = 'rgba(90,50,0,0.8)'; ctx.lineWidth = Math.max(1, s*0.12);
-  ctx.fillStyle = '#ffcf4a';
-  ctx.beginPath(); ctx.ellipse(0, 0, s, s*0.55, 0, 0, 7); ctx.fill(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-s*0.9,0); ctx.lineTo(-s*1.4,-s*0.5); ctx.lineTo(-s*1.4,s*0.5); ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#7a4a00';
-  ctx.beginPath(); ctx.arc(s*0.55, -s*0.12, s*0.12, 0, 7); ctx.fill();
+  ctx.translate(x, y + Math.sin(timeSim*3 + x*0.05)*s*0.2);
+  // soft glow so it reads as a pickup against any sky
+  ctx.fillStyle = 'rgba(255,214,90,0.22)';
+  ctx.beginPath(); ctx.arc(0, 0, s*1.9, 0, 7); ctx.fill();
+  // forked tail
+  ctx.fillStyle = '#f09b1f';
+  ctx.beginPath();
+  ctx.moveTo(-s*0.65, 0);
+  ctx.lineTo(-s*1.25, -s*0.5);
+  ctx.lineTo(-s*1.0, 0);
+  ctx.lineTo(-s*1.25, s*0.5);
+  ctx.closePath(); ctx.fill();
+  // dorsal fin
+  ctx.beginPath();
+  ctx.moveTo(-s*0.3, -s*0.35);
+  ctx.quadraticCurveTo(s*0.05, -s*0.95, s*0.35, -s*0.4);
+  ctx.closePath(); ctx.fill();
+  // body
+  ctx.fillStyle = '#ffb63b';
+  ctx.beginPath(); ctx.ellipse(0, 0, s, s*0.55, 0, 0, 7); ctx.fill();
+  // belly
+  ctx.fillStyle = '#ffe08f';
+  ctx.beginPath(); ctx.ellipse(s*0.08, s*0.18, s*0.7, s*0.28, 0, 0, 7); ctx.fill();
+  // eye
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(s*0.55, -s*0.12, s*0.16, 0, 7); ctx.fill();
+  ctx.fillStyle = '#26160a';
+  ctx.beginPath(); ctx.arc(s*0.6, -s*0.12, s*0.08, 0, 7); ctx.fill();
   ctx.restore();
 }
 function drawStarIcon(x, y, s){
@@ -1444,7 +1471,7 @@ function drawCollectibles(){
       const c = cl[k];
       const sx=w2sX(c.x), sy=w2sY(c.y);
       if(sx<-60||sx>W+60||sy<-60||sy>Hpx+60) continue;
-      drawFishIcon(sx, sy, clamp(COIN_R*cam.z*0.8, 10, 22));
+      drawFishIcon(sx, sy, clamp(COIN_R*cam.z*0.6, 7, 14));
     }
   }
   const si0 = Math.floor((cam.x - W/cam.z)/STAR_CELL)-1, si1 = Math.ceil((cam.x + W/cam.z)/STAR_CELL)+1;
