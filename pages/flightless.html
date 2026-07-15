@@ -363,6 +363,8 @@
       <div class="res-row"><span class="val">Top speed: <span id="res-spd">0</span><span class="rec" id="rec-spd"></span></span><span class="cash" id="cash-spd">$0</span></div>
       <div class="res-row" id="res-coins-row" style="display:none;"><span class="val">&#128031; Fish collected: <span id="res-coins-count">0</span></span><span class="cash" id="cash-coins">$0</span></div>
       <div class="res-row" id="res-stars-row" style="display:none;"><span class="val">&starf; Stars passed: <span id="res-stars-count">0</span></span><span class="cash" id="cash-stars">$0</span></div>
+      <div class="res-row" id="res-rings-row" style="display:none;"><span class="val">&#11093; Rings: <span id="res-rings-count">0</span></span><span class="cash" id="cash-rings">$0</span></div>
+      <div class="res-row" id="res-skim-row" style="display:none;"><span class="val">&#10052; Ice skimming: <span id="res-skim-count">0</span>s</span><span class="cash" id="cash-skim">$0</span></div>
       <div class="res-row" id="res-gun-row" style="display:none;"><span class="val">&#128165; Targets destroyed: <span id="res-gun-count">0</span></span><span class="cash" id="cash-gun">$0</span></div>
       <div class="res-row" id="res-mult-row" style="display:none;"><span class="val">Sponsor deal</span><span class="cash" id="cash-mult">&times;1.0</span></div>
       <div id="res-bonuses"></div>
@@ -542,15 +544,25 @@ function coinCluster(i){
   const n = 3 + (hash01(i*43+5) < 0.4 ? 2 : 0);
   const slope = (hash01(i*31+8)-0.5)*1.1;     // arc leans up or down
   const bow = 8 + hash01(i*37+2)*12;          // gentle upward bow
+  const goldK = hash01(i*97+13) < 0.14 ? (n>>1) : -1;   // rare golden fish, mid-arc
   const out = [];
   for(let k=0;k<n;k++){
     const t = k/(n-1) - 0.5;
     out.push({
       x: cx + t*44,
       y: Math.max(COIN_MIN_ALT, cy + t*44*slope + (1-4*t*t)*bow*0.4),
+      gold: k === goldK,
     });
   }
   return out;
+}
+
+// ── combo chain ── collecting anything within 3 s of the last pickup
+// multiplies its value; the chain resets when the clock runs out
+function comboMult(){
+  run.combo = run.comboT > 0 ? run.combo+1 : 1;
+  run.comboT = 3;
+  return Math.min(1 + 0.3*(run.combo-1), 3);
 }
 function starPos(i, j){
   if(hash01(i*53+j*97+7) < 0.45) return null;
@@ -570,11 +582,19 @@ function checkCollectibles(){
       const c = cl[k];
       if(Math.hypot(run.x-c.x, run.y-c.y) < COIN_R*2){
         run.collected.add(key);
-        const val = 10 + Math.round(hash01(i*3+k*7+1)*15);
+        const m = comboMult();
+        const val = Math.round((10 + Math.round(hash01(i*3+k*7+1)*15)) * (c.gold?6:1) * m);
         run.coinCash += val; run.coinCount++;
-        popup(`\u{1F41F} +${fmtCash(val)}`, 18);
-        SFX.tick();
-        burst(c.x, c.y, 10, '#ffd54a', 6);
+        const tag = run.combo > 1 ? ` ×${run.combo}` : '';
+        if(c.gold){
+          popup(`✨ GOLDEN FISH +${fmtCash(val)}${tag}`, 24);
+          SFX.ding();
+          burst(c.x, c.y, 18, '#fff3b0', 9);
+        } else {
+          popup(`\u{1F41F} +${fmtCash(val)}${tag}`, 18);
+          SFX.tick();
+          burst(c.x, c.y, 10, '#ffd54a', 6);
+        }
       }
     }
   }
@@ -587,9 +607,10 @@ function checkCollectibles(){
       if(!s){ run.collected.add(key); continue; }
       if(Math.hypot(run.x-s.x, run.y-s.y) < STAR_R*1.6){
         run.collected.add(key);
-        const val = 60 + Math.round(hash01(i*7+j*5)*60);
+        const m = comboMult();
+        const val = Math.round((60 + Math.round(hash01(i*7+j*5)*60)) * m);
         run.starCash += val; run.starCount++;
-        popup(`⭐ +${fmtCash(val)}`, 24);
+        popup(`⭐ +${fmtCash(val)}${run.combo>1?` ×${run.combo}`:''}`, 24);
         SFX.ding();
         cam.shake = Math.min(cam.shake+4, 14);
         burst(s.x, s.y, 16, '#fff6c0', 9);
@@ -669,6 +690,88 @@ function fireGun(){
     popup('TOO TOUGH', 16);
     SFX.blip(200, 0.1, 'square', 0.05);
   }
+}
+
+/* ════════════════ boost rings ════════════════ */
+// Golden rings hanging in the corridor: thread one for a speed kick, cash,
+// and a link in the combo chain. Same deterministic cell trick as the rest.
+const RING_CELL = 420, RING_R = 24;
+function ringPos(i){
+  if(i < 1 || hash01(i*71+29) < 0.45) return null;
+  const x = i*RING_CELL + 40 + hash01(i*11+17)*(RING_CELL-80);
+  const top = Math.max(corridorTop(x)*0.9, 55);
+  return { x, y: 28 + Math.pow(hash01(i*41+3), 1.3)*(top-28) };
+}
+function checkRings(){
+  const ri = Math.round(run.x/RING_CELL);
+  for(let di=-1; di<=1; di++){
+    const i = ri+di, key = 'r'+i;
+    if(run.collected.has(key)) continue;
+    const r = ringPos(i);
+    if(!r){ run.collected.add(key); continue; }
+    if(Math.hypot(run.x-r.x, run.y-r.y) < RING_R){
+      run.collected.add(key);
+      const m = comboMult();
+      const val = Math.round(25*m);
+      run.ringCash += val; run.ringCount++;
+      const sp = Math.hypot(run.vx, run.vy) || 1;
+      run.vx += run.vx/sp*16; run.vy += run.vy/sp*16;
+      popup(`\u{1F4AB} RING! +16 m/s${run.combo>1?` ×${run.combo}`:''}`, 24);
+      SFX.ding();
+      cam.shake = Math.min(cam.shake+4, 12);
+      burst(r.x, r.y, 18, '#ffe066', 10);
+    }
+  }
+}
+function drawRingIcon(x, y, s){
+  const pulse = 1 + 0.06*Math.sin(timeSim*5 + x*0.03);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.strokeStyle = 'rgba(255,214,90,0.25)';
+  ctx.lineWidth = s*0.5;
+  ctx.beginPath(); ctx.ellipse(0, 0, s*0.34*pulse, s*pulse, 0, 0, 7); ctx.stroke();
+  ctx.strokeStyle = '#ffd23f';
+  ctx.lineWidth = Math.max(2, s*0.16);
+  ctx.beginPath(); ctx.ellipse(0, 0, s*0.34*pulse, s*pulse, 0, 0, 7); ctx.stroke();
+  ctx.strokeStyle = '#fff6c0';
+  ctx.lineWidth = Math.max(1, s*0.06);
+  ctx.beginPath(); ctx.ellipse(-s*0.08, 0, s*0.30*pulse, s*0.92*pulse, 0, 0, 7); ctx.stroke();
+  ctx.restore();
+}
+function drawRings(){
+  if(!run) return;
+  const i0 = Math.floor((cam.x - W/cam.z)/RING_CELL)-1, i1 = Math.ceil((cam.x + W/cam.z)/RING_CELL)+1;
+  for(let i=i0;i<=i1;i++){
+    if(run.collected.has('r'+i)) continue;
+    const r = ringPos(i);
+    if(!r) continue;
+    const sx=w2sX(r.x), sy=w2sY(r.y);
+    if(sx<-80||sx>W+80||sy<-80||sy>Hpx+80) continue;
+    drawRingIcon(sx, sy, clamp(RING_R*cam.z*0.8, 16, 34));
+  }
+}
+
+/* ════════════════ daily contracts ════════════════ */
+// Two per-day side objectives, deterministic from the day number and scaled
+// to current progress. Checked at the end of the flight; paid in results.
+const CONTRACT_POOL = [
+  { id:'fish',  txt:n=>`Catch ${n} fish`,            tgt:b=>clamp(Math.round(3 + b.dist/400), 3, 20),  val:r=>r.coinCount },
+  { id:'rings', txt:n=>`Fly through ${n} ring${n>1?'s':''}`, tgt:b=>clamp(Math.round(1 + b.dist/1500), 1, 6), val:r=>r.ringCount },
+  { id:'skim',  txt:n=>`Skim the ice for ${n}s`,     tgt:b=>clamp(Math.round(2 + b.dist/2500), 2, 8),  val:r=>Math.floor(r.skimT) },
+  { id:'spd',   txt:n=>`Hit ${n} m/s`,               tgt:b=>Math.round(clamp(b.spd*1.1 + 5, 30, 400)), val:r=>Math.round(r.maxSpd) },
+  { id:'alt',   txt:n=>`Reach ${n} m altitude`,      tgt:b=>Math.round(clamp(b.alt*1.15 + 10, 30, 8000)), val:r=>Math.round(r.maxAlt) },
+  { id:'bounce',txt:n=>`Bounce ${n} times`,          tgt:b=>clamp(2 + Math.floor(b.dist/3000), 2, 6),  val:r=>r.bounceCount },
+];
+function contractsFor(day){
+  const b = state.best;
+  const a = Math.floor(hash01(day*13+3)*CONTRACT_POOL.length);
+  const c2 = (a + 1 + Math.floor(hash01(day*29+11)*(CONTRACT_POOL.length-1))) % CONTRACT_POOL.length;
+  const reward = Math.round(clamp(100 + b.dist*0.25, 100, 5000)/10)*10;
+  return [a, c2].map(idx => {
+    const c = CONTRACT_POOL[idx];
+    const target = c.tgt(b);
+    return { id:c.id, text:c.txt(target), target, val:c.val, reward };
+  });
 }
 
 /* ════════════════ sound ════════════════ */
@@ -832,6 +935,10 @@ function newRun(){
     trail:[], trailT:0,
     collected:new Set(), coinCash:0, coinCount:0, starCash:0, starCount:0,
     obGone:new Set(), gunCash:0, gunKills:0, gunCooldown:0,
+    ringCash:0, ringCount:0, combo:0, comboT:0,
+    skimT:0, skimCash:0, skimSeg:0, skimQuiet:0, bounceCount:0,
+    contracts:contractsFor(state.day),   // locked in at launch
+
     msQueue: MILESTONES.map(m=>m[0]).filter(d=>!state.claimed.includes(d)),
   };
 }
@@ -968,6 +1075,7 @@ function stepRamp(h){
 function stepFlight(h){
   run.t += h;
   run.gunCooldown = Math.max(0, run.gunCooldown - h);
+  run.comboT = Math.max(0, run.comboT - h);
   const rhoN = Math.exp(-run.y/SCALE_H);   // 1 at sea level
   const rho = RHO0*rhoN;
 
@@ -1068,6 +1176,7 @@ function stepFlight(h){
     if(st.rest>0 && impact>4){
       run.vy = impact*st.rest;
       run.vx *= 0.92;
+      run.bounceCount++;
       cam.shake = Math.min(10, impact*0.12);
       SFX.thump();
       burst(run.x, 0.5, 10, '#cfe8ff', 5);
@@ -1081,11 +1190,28 @@ function stepFlight(h){
     if(run.sliding){ run.thrusting=false; SFX.setThrust(false); }
   }
 
+  // ── ice skimming ── hugging the deck at speed pays out: ground effect
+  // gives a whisper of free lift, and the metre keeps running while you
+  // hold the line. Pull away for more than a second and the segment ends.
+  if(run.y > 0.1 && run.y < 6 && spNew > 28 && !run.sliding){
+    run.skimT += h; run.skimSeg += h; run.skimQuiet = 0;
+    run.skimCash += h*(6 + spNew*0.12);
+    run.vy += 1.2*h;   // ground-effect cushion
+    if(run.skimSeg > 0.8 && run.skimSeg - h <= 0.8){
+      popup('\u{2744} SKIMMING!', 20); SFX.tick();
+    }
+    if(Math.random() < h*30) burst(run.x, 0.4, 1, '#e6f6ff', 3);
+  } else if(run.skimSeg > 0){
+    run.skimQuiet += h;
+    if(run.skimQuiet > 1) run.skimSeg = 0;
+  }
+
   // records only count in the air, off the ramp
   run.maxAlt = Math.max(run.maxAlt, run.y);
   run.maxSpd = Math.max(run.maxSpd, spNew);
   checkCollectibles();
   checkObstacles();
+  checkRings();
 
   // flight trail
   run.trailT -= h;
@@ -1334,6 +1460,7 @@ function draw(dtReal){
   drawCloudLayer(sky.space, 0.85, 0.50, 520, 1.05, 3);
 
   drawCollectibles();
+  drawRings();
   drawObstacles();
 
   // ground
@@ -1440,14 +1567,20 @@ function draw(dtReal){
   ctx.restore();
 }
 
-function drawFishIcon(x, y, s){
+function drawFishIcon(x, y, s, gold){
   ctx.save();
   ctx.translate(x, y + Math.sin(timeSim*3 + x*0.05)*s*0.2);
   // soft glow so it reads as a pickup against any sky
+  if(gold){
+    s *= 1.25;
+    const tw = 0.75 + 0.25*Math.sin(timeSim*7 + x*0.1);
+    ctx.fillStyle = `rgba(255,246,190,${(0.4*tw).toFixed(3)})`;
+    ctx.beginPath(); ctx.arc(0, 0, s*2.3, 0, 7); ctx.fill();
+  }
   ctx.fillStyle = 'rgba(255,214,90,0.22)';
   ctx.beginPath(); ctx.arc(0, 0, s*1.9, 0, 7); ctx.fill();
   // forked tail
-  ctx.fillStyle = '#f09b1f';
+  ctx.fillStyle = gold ? '#ffce2e' : '#f09b1f';
   ctx.beginPath();
   ctx.moveTo(-s*0.65, 0);
   ctx.lineTo(-s*1.25, -s*0.5);
@@ -1460,10 +1593,10 @@ function drawFishIcon(x, y, s){
   ctx.quadraticCurveTo(s*0.05, -s*0.95, s*0.35, -s*0.4);
   ctx.closePath(); ctx.fill();
   // body
-  ctx.fillStyle = '#ffb63b';
+  ctx.fillStyle = gold ? '#ffe14d' : '#ffb63b';
   ctx.beginPath(); ctx.ellipse(0, 0, s, s*0.55, 0, 0, 7); ctx.fill();
   // belly
-  ctx.fillStyle = '#ffe08f';
+  ctx.fillStyle = gold ? '#fff6c0' : '#ffe08f';
   ctx.beginPath(); ctx.ellipse(s*0.08, s*0.18, s*0.7, s*0.28, 0, 0, 7); ctx.fill();
   // eye
   ctx.fillStyle = '#fff';
@@ -1499,7 +1632,7 @@ function drawCollectibles(){
       const c = cl[k];
       const sx=w2sX(c.x), sy=w2sY(c.y);
       if(sx<-60||sx>W+60||sy<-60||sy>Hpx+60) continue;
-      drawFishIcon(sx, sy, clamp(COIN_R*cam.z*0.6, 7, 14));
+      drawFishIcon(sx, sy, clamp(COIN_R*cam.z*0.6, 7, 14), c.gold);
     }
   }
   const si0 = Math.floor((cam.x - W/cam.z)/STAR_CELL)-1, si1 = Math.ceil((cam.x + W/cam.z)/STAR_CELL)+1;
@@ -1853,6 +1986,13 @@ function renderShop(){
     else if(!nextMarked){ li.className = 'next'; li.textContent = '▶ '+li.textContent; nextMarked = true; }
     gl.appendChild(li);
   }
+  // today's contracts
+  for(const c of contractsFor(state.day)){
+    const li = document.createElement('li');
+    li.textContent = `\u{1F4CB} ${c.text} (+${fmtCash(c.reward)})`;
+    li.style.color = 'var(--text)';
+    gl.appendChild(li);
+  }
 
   // upgrade cards — unlock at distance milestones; a maxed-out upgrade drops
   // off the list entirely (its slot is free for a later "tier 2" upgrade),
@@ -1954,7 +2094,12 @@ function finishRun(){
       state.claimed.push(d); bonusTotal += cash; newBonuses.push([d, cash]);
     }
   }
-  const total = Math.round(subtotal + bonusTotal + run.coinCash + run.starCash + run.gunCash);
+  // contracts — judged against the targets locked in at launch
+  const contractResults = run.contracts.map(c => ({ ...c, got:c.val(run), met:c.val(run) >= c.target }));
+  const contractTotal = contractResults.reduce((sum,c) => sum + (c.met ? c.reward : 0), 0);
+  const skimCash = Math.round(run.skimCash);
+  const total = Math.round(subtotal + bonusTotal + contractTotal
+    + run.coinCash + run.starCash + run.gunCash + run.ringCash + skimCash);
   state.money += total;
 
   const recD = dist > state.best.dist, recA = run.maxAlt > state.best.alt, recS = run.maxSpd > state.best.spd;
@@ -1981,6 +2126,11 @@ function finishRun(){
     document.getElementById('cash-mult').textContent = '×'+st.mult.toFixed(2);
   } else multRow.style.display = 'none';
 
+  // clear any stragglers from the previous results screen BEFORE scheduling
+  // this one's animations, or they'd be cancelled the moment they're queued
+  countUpTimers.forEach(cancelAnimationFrame);
+  countUpTimers = [];
+
   const bonusBox = document.getElementById('res-bonuses');
   bonusBox.innerHTML = '';
   newBonuses.forEach(([d, cash], i) => {
@@ -1991,9 +2141,19 @@ function finishRun(){
     animateCash(row.querySelector('.cash'), cash, 1300+i*250, 500);
   });
   if(newBonuses.length) setTimeout(()=>SFX.ding(), 1300);
+  contractResults.forEach((c, i) => {
+    const row = document.createElement('div');
+    row.className = 'res-row' + (c.met ? ' bonus' : '');
+    if(c.met){
+      row.innerHTML = `<span class="val">\u{1F4CB} Contract: ${c.text} ✓</span><span class="cash"></span>`;
+      bonusBox.appendChild(row);
+      animateCash(row.querySelector('.cash'), c.reward, 1400+i*250, 500);
+    } else {
+      row.innerHTML = `<span class="val" style="color:var(--muted)">\u{1F4CB} ${c.text} — ${c.got}/${c.target}</span><span class="cash" style="color:#555b9e">✗</span>`;
+      bonusBox.appendChild(row);
+    }
+  });
 
-  countUpTimers.forEach(cancelAnimationFrame);
-  countUpTimers = [];
   animateCash(document.getElementById('cash-dist'), Math.round(cashDist*st.mult), 200, 700);
   const altCashEl = document.getElementById('cash-alt');
   const spdCashEl = document.getElementById('cash-spd');
@@ -2018,6 +2178,18 @@ function finishRun(){
     document.getElementById('res-stars-count').textContent = run.starCount;
     animateCash(document.getElementById('cash-stars'), run.starCash, 1100, 500);
   } else starsRow.style.display = 'none';
+  const ringsRow = document.getElementById('res-rings-row');
+  if(run.ringCount > 0){
+    ringsRow.style.display = 'flex';
+    document.getElementById('res-rings-count').textContent = run.ringCount;
+    animateCash(document.getElementById('cash-rings'), run.ringCash, 1150, 500);
+  } else ringsRow.style.display = 'none';
+  const skimRow = document.getElementById('res-skim-row');
+  if(run.skimT > 1){
+    skimRow.style.display = 'flex';
+    document.getElementById('res-skim-count').textContent = run.skimT.toFixed(1);
+    animateCash(document.getElementById('cash-skim'), skimCash, 1200, 500);
+  } else skimRow.style.display = 'none';
   const gunRow = document.getElementById('res-gun-row');
   if(run.gunKills > 0){
     gunRow.style.display = 'flex';
@@ -2025,7 +2197,7 @@ function finishRun(){
     animateCash(document.getElementById('cash-gun'), run.gunCash, 1250, 500);
   } else gunRow.style.display = 'none';
 
-  animateCash(document.getElementById('cash-total'), total, 1300+newBonuses.length*250, 900);
+  animateCash(document.getElementById('cash-total'), total, 1300+(newBonuses.length+contractResults.length)*250, 900);
 
   state.day++;
   save();
