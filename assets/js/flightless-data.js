@@ -16,8 +16,10 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
   // ─── UPGRADES ────────────────────────────────────────────────────────────
   // Cost formula: Math.round(base * mul^level). Levels are 0-indexed, so
   // level 0 costs `base` and you buy your way up. Tuning goals:
-  //   • Early gear (ramp/wings/aero/bounce) should be affordable in 1-3 days.
-  //   • Mid-tier (struts/rocket/fuel/sling) takes a week of moderate flights.
+  //   • Opening loop is SPEED-FIRST: ramp/aero/sling(catapult) are cheap and
+  //     available day one; wings unlock at 120 m once the catapult has flung
+  //     you far enough that lift is worth buying.
+  //   • Mid-tier (wings/struts/rocket/fuel) takes a week of moderate flights.
   //   • Late-tier (sponsor/plating/gun) takes sustained good flights to max.
   // mul raised from 1.55 on rocket/gun to slow their late-level cost climb.
 
@@ -26,8 +28,8 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
       desc:'More track to build speed on. Reshape it in the designer below.',
       val:l=>{ const d=derive({ramp:l}); const r=buildRamp(d.rampLen);
                return `${Math.round(d.rampLen)} m · ${Math.round(r.H)} m tall · ~${Math.round(rampExitEst(d, r))} m/s exit`; } },
-    { id:'wings',   icon:'\u{1FABD}', name:'Glider Wings', base:25,  mul:1.55, max:10, unlock:0,
-      desc:'More lift, flatter glide. Ease off "up" to cruise. New rig every couple of levels.',
+    { id:'wings',   icon:'\u{1FABD}', name:'Glider Wings', base:25,  mul:1.55, max:10, unlock:120,
+      desc:'More lift, flatter glide. Ease off "up" to cruise. Unlocks once you can fling yourself far enough to make wings worth it.',
       val:l=>{ if(l===0) return 'no wings'; const d=derive({wings:l});
                return `${gliderName(l)} · ~${Math.max(1,Math.round(d.bestLD))}:1 glide`; } },
     { id:'aero',    icon:'\u{1F9CA}', name:'Slick Suit',   base:20,  mul:1.55, max:10, unlock:0,
@@ -53,8 +55,11 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
     { id:'sponsor', icon:'\u{1F4B0}', name:'Sponsor Deal', base:400, mul:1.60, max:6, unlock:250,
       desc:'Fish Co. multiplies your earnings on every flight.',
       val:l=>`×${(1+0.35*l).toFixed(2)} cash earned` },
-    { id:'sling',   icon:'\u{1F3AF}', name:'Catapult',     base:400, mul:1.55, max:8, unlock:500,
-      desc:'An elastic winch flings you from the gate at the top of the track.',
+    // Catapult: the early-game SPEED path. Available from day one and cheap to
+    // start (base 400→50) so the opening loop is "build speed, then earn wings"
+    // rather than buying wings before you have any speed to glide on.
+    { id:'sling',   icon:'\u{1F3AF}', name:'Catapult',     base:50,  mul:1.55, max:8, unlock:0,
+      desc:'An elastic winch flings you from the gate at the top of the track. The fastest way off the line.',
       val:l=> l===0 ? 'not installed' : `+${20*l} m/s at the gate` },
     { id:'plating', icon:'\u{1F6E1}', name:'Ram Plating',  base:600, mul:1.55, max:6, unlock:1500,
       desc:'An armored belly plate. Smash landmarks harder and keep more speed on impact.',

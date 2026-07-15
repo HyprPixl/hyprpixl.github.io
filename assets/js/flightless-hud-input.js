@@ -138,6 +138,7 @@ export function createHudInput(deps){
   /* ════════════════ HUD ════════════════ */
   const ffBtn     = document.getElementById('ff-btn');
   const hudDist   = document.getElementById('hud-dist');
+  const hudBest   = document.getElementById('hud-best');
   const hudAlt    = document.getElementById('hud-alt');
   const hudSpd    = document.getElementById('hud-spd');
   const altWrap   = document.getElementById('alt-wrap');
@@ -180,8 +181,10 @@ export function createHudInput(deps){
   function renderHUD(){
     const { run, st, phase } = sim;
 
-    // Standard stat readouts.
+    // Standard stat readouts. "best" always shows the furthest distance ever
+    // reached, tracking live if this flight beats it.
     hudDist.textContent = fmtDist(Math.max(0, run.dist));
+    if(hudBest) hudBest.textContent = fmtDist(Math.max(state.best?.dist ?? 0, run.dist));
     if(state.perm.alti){
       altWrap.style.display = 'block';
       hudAlt.textContent = fmtDist(Math.max(0, run.y));
