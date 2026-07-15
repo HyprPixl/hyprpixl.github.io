@@ -15,15 +15,31 @@
 export function createRenderer(deps){
   const {
     sim, cam, state, input, ctx, w2sX, w2sY,
-    coinCluster, starPos, obstaclePos, ringPos,
+    coinCluster, starPos, obstaclePos, ringPos, pickupPos,
     LANDMARKS, SCALE_H,
     COIN_CELL, COIN_R, STAR_CELL, STAR_R, OBST_CELL, RING_CELL, RING_R,
+    PICKUP_CELL, PICKUP_R,
     fmtCash, hash01, clamp, lerp, RAD,
   } = deps;
 
+  /* ════════════════ reduced-motion helper ════════════════ */
+  // Check both the OS-level prefers-reduced-motion media query and the
+  // in-game settings toggle (read defensively so old saves work).
+  const _mqReduceMotion = (typeof window !== 'undefined' && window.matchMedia)
+    ? window.matchMedia('(prefers-reduced-motion: reduce)')
+    : null;
+  function isReducedMotion(){
+    const mq = _mqReduceMotion ? _mqReduceMotion.matches : false;
+    const st = state.settings?.reduceMotion ?? false;
+    return mq || st;
+  }
+
   /* ════════════════ particles / popups ════════════════ */
   function burst(x, y, n, color, spread, dirBias){
-    for(let i=0;i<n;i++){
+    // halve particle count when reduced-motion is on
+    const rm = isReducedMotion();
+    const count = rm ? Math.max(1, Math.floor(n * 0.35)) : n;
+    for(let i=0;i<count;i++){
       const a = dirBias!==undefined ? dirBias + (Math.random()-0.5)*0.9 : Math.random()*Math.PI*2;
       const s = Math.random()*spread;
       sim.particles.push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:0.5+Math.random()*0.5, color, size:0.15+Math.random()*0.3 });
@@ -36,6 +52,8 @@ export function createRenderer(deps){
       p.life -= dt; p.x += p.vx*dt; p.y += p.vy*dt; p.vy -= 4*dt;
       if(p.life<=0 || p.y<0) sim.particles.splice(i,1);
     }
+    // step ambient weather particles
+    stepAmbientParticles(dt);
   }
   /* ── speed streaks ──
      Short dashes anchored in WORLD space, seeded in the airspace ahead of the
@@ -52,7 +70,10 @@ export function createRenderer(deps){
     const t = clamp((sp-55)/140, 0, 1);
     if(t <= 0) return;
     const dir = Math.atan2(sim.run.vy, sim.run.vx);
-    const n = dt*(8 + 34*t);
+    // reduce speed line density when reduced-motion is on
+    const rm = isReducedMotion();
+    const densityScale = rm ? 0.25 : 1;
+    const n = dt*(8 + 34*t)*densityScale;
     let count = Math.floor(n) + (Math.random() < n-Math.floor(n) ? 1 : 0);
     const spanX = sim.W/cam.z, spanY = sim.Hpx/cam.z;
     while(count-- > 0){
@@ -78,13 +99,220 @@ export function createRenderer(deps){
     setTimeout(()=>el.remove(), 1700);
   }
 
+  /* ════════════════ debris system (landmark destruction) ════════════════ */
+  // Each debris chunk has its own physics and tumbles until it hits y=0.
+  // They live in sim.debris (created lazily so old saves don't break).
+  function ensureDebris(){
+    if(!sim.debris) sim.debris = [];
+  }
+  function spawnLandmarkDebris(x, y, lmId){
+    ensureDebris();
+    if(isReducedMotion()) return;
+    // color and shape varies per landmark
+    const palettes = {
+      snowman: ['#f4f8ff','#e0e8f0','#d0dce8','#ff8c1a'],
+      iceberg: ['#cfeaff','#8fc4e8','#a8d4f4','#e0f4ff'],
+      wall:    ['#a89c8e','#c2b6a6','#847a6f','#7a6e63'],
+    };
+    const colors = palettes[lmId] || palettes.wall;
+    const count = 18 + Math.floor(Math.random()*14);
+    for(let i=0;i<count;i++){
+      const a = (Math.random()*2-1)*Math.PI;
+      const spd = 18 + Math.random()*55;
+      sim.debris.push({
+        x, y,
+        vx: Math.cos(a)*spd,
+        vy: Math.sin(a)*spd + 15,   // slight upward bias
+        rot: Math.random()*Math.PI*2,
+        rotV: (Math.random()-0.5)*8,
+        w: 6 + Math.random()*18,
+        h: 4 + Math.random()*12,
+        color: colors[Math.floor(Math.random()*colors.length)],
+        life: 1.0,
+      });
+    }
+    if(sim.debris.length > 160) sim.debris.splice(0, sim.debris.length-160);
+  }
+  function stepDebris(dt){
+    ensureDebris();
+    for(let i=sim.debris.length-1;i>=0;i--){
+      const d = sim.debris[i];
+      d.x  += d.vx*dt; d.y  += d.vy*dt;
+      d.vy -= 28*dt;             // gravity
+      d.rot += d.rotV*dt;
+      d.life -= dt*0.6;
+      if(d.life <= 0 || d.y < -20) sim.debris.splice(i,1);
+    }
+  }
+  function drawDebris(){
+    ensureDebris();
+    if(!sim.debris.length) return;
+    for(const d of sim.debris){
+      const sx = w2sX(d.x), sy = w2sY(d.y);
+      if(sx<-80||sx>sim.W+80||sy<-80||sy>sim.Hpx+80) continue;
+      ctx.save();
+      ctx.globalAlpha = clamp(d.life, 0, 1);
+      ctx.translate(sx, sy);
+      ctx.rotate(d.rot);
+      ctx.fillStyle = d.color;
+      const sw = Math.max(2, d.w*cam.z*0.08);
+      const sh = Math.max(2, d.h*cam.z*0.08);
+      ctx.fillRect(-sw/2, -sh/2, sw, sh);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* ════════════════ ambient weather particles ════════════════ */
+  // Driven by state.dailyMod (read defensively). Kept in sim.ambient (lazy).
+  function ensureAmbient(){
+    if(!sim.ambient) sim.ambient = [];
+  }
+  // Return the current ambient mode: 'snow', 'aurora', or null.
+  function ambientMode(){
+    const mod = state.dailyMod ?? null;
+    if(!mod) return null;
+    if(mod === 'snow' || mod === 'blizzard') return 'snow';
+    if(mod === 'aurora') return 'aurora';
+    return null;
+  }
+  function stepAmbientParticles(dt){
+    ensureAmbient();
+    const mode = ambientMode();
+    if(!mode || isReducedMotion()){
+      sim.ambient.length = 0;
+      return;
+    }
+    // age existing
+    for(let i=sim.ambient.length-1;i>=0;i--){
+      const a = sim.ambient[i];
+      if(mode === 'snow'){
+        a.x  += (a.vx + sim.W*0.00003)*dt*60;
+        a.y  += a.vy*dt*60;
+        a.life -= dt*0.12;
+        if(a.y > sim.Hpx || a.life <= 0) sim.ambient.splice(i,1);
+      } else { // aurora ribbon
+        a.phase += dt*0.8;
+        a.life  -= dt*0.05;
+        if(a.life <= 0) sim.ambient.splice(i,1);
+      }
+    }
+    // spawn new
+    const maxP = 80;
+    if(mode === 'snow' && sim.ambient.length < maxP){
+      const toSpawn = Math.min(3, maxP - sim.ambient.length);
+      for(let i=0;i<toSpawn;i++){
+        sim.ambient.push({
+          x: Math.random()*sim.W,
+          y: -8,
+          vx: (Math.random()-0.5)*0.5,
+          vy: 0.4 + Math.random()*0.9,
+          r:  1 + Math.random()*2.5,
+          life: 1.0,
+        });
+      }
+    } else if(mode === 'aurora' && sim.ambient.length < 6){
+      sim.ambient.push({
+        x: Math.random()*sim.W,
+        baseY: 60 + Math.random()*sim.Hpx*0.25,
+        w: sim.W*(0.25 + Math.random()*0.4),
+        hue: 140 + Math.floor(Math.random()*80),
+        phase: Math.random()*Math.PI*2,
+        life: 1.0,
+      });
+    }
+  }
+  function drawAmbientParticles(){
+    ensureAmbient();
+    if(!sim.ambient.length) return;
+    const mode = ambientMode();
+    if(mode === 'snow'){
+      ctx.fillStyle = 'rgba(230,245,255,0.85)';
+      for(const a of sim.ambient){
+        ctx.globalAlpha = clamp(a.life*1.5, 0, 0.8);
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, a.r, 0, 7);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    } else if(mode === 'aurora'){
+      for(const a of sim.ambient){
+        const amp = sim.Hpx*0.055;
+        const cy = a.baseY + Math.sin(a.phase + sim.timeSim*0.4)*amp;
+        const g = ctx.createLinearGradient(a.x - a.w/2, cy, a.x + a.w/2, cy);
+        const al = (clamp(a.life, 0, 1)*0.18).toFixed(3);
+        g.addColorStop(0,   `hsla(${a.hue},80%,60%,0)`);
+        g.addColorStop(0.3, `hsla(${a.hue},80%,65%,${al})`);
+        g.addColorStop(0.7, `hsla(${(a.hue+35)%360},85%,70%,${al})`);
+        g.addColorStop(1,   `hsla(${(a.hue+35)%360},80%,60%,0)`);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.ellipse(a.x, cy, a.w/2, sim.Hpx*0.07, 0, 0, 7);
+        ctx.fill();
+      }
+    }
+  }
+
   /* ════════════════ rendering ════════════════ */
+
+  // ── day/night sky palette ──
+  // The sky hue cycles over state.day: a dawn/day/dusk/night pattern that
+  // repeats with a 4-day period. All arithmetic is deterministic from state.day.
+  function dayPhase(){
+    // returns a float 0-1 representing position in a soft 4-day cycle
+    const day = (state.day ?? 0);
+    // 0 = cool dawn, 0.25 = bright noon, 0.5 = warm dusk, 0.75 = deep night
+    return (day % 4) / 4;
+  }
   function skyColor(alt){
-    const t = clamp(alt/8000, 0, 1);
-    const top =    [lerp(0x6d,0x02,t), lerp(0xb3,0x02,t), lerp(0xf2,0x10,t)];
-    const bottom = [lerp(0xae,0x0b,t), lerp(0xe4,0x10,t), lerp(0xff,0x30,t)];
+    const t = clamp(alt/8000, 0, 1);  // altitude factor (0=ground, 1=space)
+    const ph = dayPhase();
+
+    // Interpolate between four palette anchors (dawn/noon/dusk/night) in a
+    // smooth cycle. We store [topR,topG,topB, botR,botG,botB].
+    const palettes = [
+      // dawn  — warm pink/orange horizon, soft indigo top
+      [0x4a,0x5c,0xb8,  0xff,0xb0,0x60],
+      // noon  — classic sky blue
+      [0x6d,0xb3,0xf2,  0xae,0xe4,0xff],
+      // dusk  — deep violet top, amber horizon
+      [0x3a,0x28,0x7a,  0xff,0x7a,0x28],
+      // night — near-black top, deep blue horizon
+      [0x08,0x0a,0x28,  0x18,0x28,0x60],
+    ];
+    // smooth step through the 4 anchors
+    const seg = ph * 4;
+    const idx = Math.floor(seg) % 4;
+    const nxt = (idx + 1) % 4;
+    const frac = seg - Math.floor(seg);
+    const sm   = frac*frac*(3-2*frac);  // smoothstep
+
+    const pa = palettes[idx], pb = palettes[nxt];
+    const topR = lerp(pa[0], pb[0], sm);
+    const topG = lerp(pa[1], pb[1], sm);
+    const topB = lerp(pa[2], pb[2], sm);
+    const botR = lerp(pa[3], pb[3], sm);
+    const botG = lerp(pa[4], pb[4], sm);
+    const botB = lerp(pa[5], pb[5], sm);
+
+    // blend toward deep-space blue as altitude rises
+    const top = [lerp(topR,0x02,t), lerp(topG,0x02,t), lerp(topB,0x10,t)];
+    const bot = [lerp(botR,0x0b,t), lerp(botG,0x10,t), lerp(botB,0x30,t)];
     const rgb = c => `rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
-    return { top:rgb(top), bottom:rgb(bottom), space:t };
+    return { top:rgb(top), bottom:rgb(bot), space:t };
+  }
+
+  // ── ramp palette driven by day ──
+  function rampPalette(){
+    const day = state.day ?? 0;
+    const v = (day % 7);     // 7-day visual cycle
+    if(v < 1)      return { strut:'#7a4a21', track:'#a0622d', brace:'rgba(122,74,33,0.65)', snowCap:'#e8f4ff' };
+    else if(v < 2) return { strut:'#5a6a30', track:'#7a9040', brace:'rgba(90,106,48,0.65)', snowCap:'#d8f4c0' };
+    else if(v < 3) return { strut:'#5a3a7a', track:'#7a50a8', brace:'rgba(90,58,122,0.65)', snowCap:'#ecdcff' };
+    else if(v < 4) return { strut:'#2a5a6a', track:'#3a7a8a', brace:'rgba(42,90,106,0.65)', snowCap:'#c0ecf4' };
+    else if(v < 5) return { strut:'#8a4a2a', track:'#b85c30', brace:'rgba(138,74,42,0.65)', snowCap:'#f4d8c0' };
+    else if(v < 6) return { strut:'#1a4a5a', track:'#2a6a7a', brace:'rgba(26,74,90,0.65)',  snowCap:'#b0d8ec' };
+    else           return { strut:'#7a4a21', track:'#c07830', brace:'rgba(122,74,33,0.65)', snowCap:'#fff0c0' };
   }
 
   const stars = Array.from({length:130}, (_,i)=>({ x:hash01(i), y:hash01(i+500), r:0.5+hash01(i+900)*1.3 }));
@@ -151,6 +379,11 @@ export function createRenderer(deps){
     }
   }
 
+  // ── tracked landmark HP for detecting the kill transition ──
+  // We remember the previous HP value for each landmark so we can detect
+  // the exact frame it reaches 0 and spawn debris exactly once.
+  const _prevLmHP = {};
+
   function draw(dtReal){
     const p = sim.run || { x:0, y:0, vx:0, vy:0 };
     const sp = Math.hypot(p.vx, p.vy);
@@ -177,9 +410,13 @@ export function createRenderer(deps){
     cam.z = lerp(cam.z, tz, 1-Math.pow(0.02, dtReal));
     cam.x = lerp(cam.x, tx, 1-Math.pow(0.001, dtReal));
     cam.y = lerp(cam.y, ty, 1-Math.pow(0.001, dtReal));
+    const rm = isReducedMotion();
     let shx=0, shy=0;
-    if(cam.shake>0.2){
+    if(!rm && cam.shake>0.2){
       shx=(Math.random()-0.5)*cam.shake; shy=(Math.random()-0.5)*cam.shake;
+      cam.shake *= Math.pow(0.001, dtReal);
+    } else if(rm && cam.shake>0){
+      // still decay shake even if we're not applying it
       cam.shake *= Math.pow(0.001, dtReal);
     }
     ctx.save();
@@ -241,8 +478,12 @@ export function createRenderer(deps){
     // near clouds float in front of the ridges
     drawCloudLayer(sky.space, 0.85, 0.50, 520, 1.05, 3);
 
+    // ambient weather layer (snow / aurora)
+    drawAmbientParticles();
+
     drawCollectibles();
     drawRings();
+    drawPickups();
     drawObstacles();
 
     // ground
@@ -281,6 +522,7 @@ export function createRenderer(deps){
 
     drawLandmarks();
     drawRamp();
+    drawDebris();
 
     // flight trail — width & tint track speed so dives/climbs actually read as motion
     if(sim.run && sim.run.trail.length > 1){
@@ -345,9 +587,67 @@ export function createRenderer(deps){
         const rs = Math.max(cam.z*1.3, 13)*(1.35 - sim.run.y/110);
         ctx.beginPath(); ctx.ellipse(px, gy0+3, rs, rs*0.25, 0, 0, 7); ctx.fill();
       }
+
+      // ── speed/afterburner screen effect ──
+      // A full-screen vignette + optional chromatic aberration at high velocity
+      // or while thrusting. Implemented as cheap canvas post-effect:
+      //   1. Dark edge vignette that ramps with speed.
+      //   2. At very high speed: slight red/blue split drawn as two translucent
+      //      copies of the penguin's silhouette offset horizontally.
+      //   3. Translucent previous-frame smear when afterburner is active.
+      if(!rm){
+        const thrustOn = sim.run.thrusting ?? false;
+        const speedT   = clamp((sp - 120) / 280, 0, 1);
+        const effectT  = thrustOn ? clamp(speedT + 0.25, 0, 1) : speedT;
+
+        if(effectT > 0.01){
+          // vignette: radial gradient from transparent center to dark edge
+          const vg = ctx.createRadialGradient(
+            sim.W*0.5, sim.Hpx*0.5, sim.Hpx*0.1,
+            sim.W*0.5, sim.Hpx*0.5, Math.hypot(sim.W, sim.Hpx)*0.65
+          );
+          vg.addColorStop(0, 'rgba(0,0,0,0)');
+          vg.addColorStop(0.7, `rgba(0,0,10,${(effectT*0.18).toFixed(3)})`);
+          vg.addColorStop(1,   `rgba(0,0,20,${(effectT*0.45).toFixed(3)})`);
+          ctx.fillStyle = vg;
+          ctx.fillRect(0, 0, sim.W, sim.Hpx);
+
+          // lateral chromatic aberration: two faint colored bars near the
+          // center of the screen, simulating lens separation at high speed
+          if(speedT > 0.35){
+            const ca = clamp((speedT-0.35)/0.65, 0, 1);
+            const shift = ca * 6;
+            // red fringe left
+            ctx.fillStyle = `rgba(255,20,20,${(ca*0.07).toFixed(3)})`;
+            ctx.fillRect(-shift, 0, sim.W, sim.Hpx);
+            // blue fringe right
+            ctx.fillStyle = `rgba(20,60,255,${(ca*0.07).toFixed(3)})`;
+            ctx.fillRect(shift, 0, sim.W, sim.Hpx);
+          }
+
+          // horizontal motion lines across the screen at extreme speed
+          if(speedT > 0.6){
+            const mt = clamp((speedT-0.6)/0.4, 0, 1);
+            ctx.strokeStyle = `rgba(255,255,255,${(mt*0.06).toFixed(3)})`;
+            ctx.lineWidth = 1;
+            const lineCount = Math.floor(mt * 12);
+            for(let li=0; li<lineCount; li++){
+              const ly2 = (li/(lineCount-1||1)) * sim.Hpx;
+              ctx.beginPath();
+              ctx.moveTo(0, ly2);
+              ctx.lineTo(sim.W, ly2 + (Math.random()-0.5)*3);
+              ctx.stroke();
+            }
+          }
+        }
+      }
+
       drawPenguin(px, py, sim.run.head + sim.run.tumble, Math.max(cam.z*1.3, 13));
     }
     ctx.restore();
+
+    // step debris physics after restoring ctx so translations don't carry over
+    stepDebris(dtReal);
   }
 
   function drawFishIcon(x, y, s, gold){
@@ -489,7 +789,20 @@ export function createRenderer(deps){
       const sx = w2sX(lm.x);
       const wpx = Math.max(lm.w*cam.z, 8), hpx = lm.h*cam.z;
       if(sx < -wpx*3-160 || sx > sim.W+wpx*3+160) continue;
-      const dead = state.lmHP[lm.id] <= 0;
+
+      // detect fresh kill → spawn debris
+      const curHP  = state.lmHP[lm.id] ?? lm.hp;
+      const prevHP = _prevLmHP[lm.id] ?? lm.hp;
+      if(prevHP > 0 && curHP <= 0){
+        // landmark just died this frame — big debris burst
+        const worldY = lm.h * 0.3;   // mid-height of the structure
+        spawnLandmarkDebris(lm.x, worldY, lm.id);
+        // second burst at base
+        spawnLandmarkDebris(lm.x, 0, lm.id);
+      }
+      _prevLmHP[lm.id] = curHP;
+
+      const dead = curHP <= 0;
       if(lm.id === 'snowman'){
         ctx.fillStyle = '#f4f8ff';
         if(dead){
@@ -574,13 +887,14 @@ export function createRenderer(deps){
   function drawRamp(){
     if(!sim.ramp) return;
     const pts = sim.ramp.pts;
+    const pal = rampPalette();
     // support struts with diagonal cross-bracing
-    ctx.strokeStyle = '#7a4a21'; ctx.lineWidth = Math.max(1.5, cam.z*0.35);
+    ctx.strokeStyle = pal.strut; ctx.lineWidth = Math.max(1.5, cam.z*0.35);
     for(let i=0;i<pts.length;i+=6){
       const sx = w2sX(pts[i].x);
       ctx.beginPath(); ctx.moveTo(sx, w2sY(pts[i].y)); ctx.lineTo(sx, w2sY(0)); ctx.stroke();
     }
-    ctx.strokeStyle = 'rgba(122,74,33,0.65)'; ctx.lineWidth = Math.max(1, cam.z*0.2);
+    ctx.strokeStyle = pal.brace; ctx.lineWidth = Math.max(1, cam.z*0.2);
     for(let i=0;i+6<pts.length;i+=6){
       const a = pts[i], b = pts[i+6];
       ctx.beginPath();
@@ -591,12 +905,12 @@ export function createRenderer(deps){
       ctx.stroke();
     }
     // track
-    ctx.strokeStyle = '#a0622d'; ctx.lineWidth = Math.max(3, cam.z*0.7);
+    ctx.strokeStyle = pal.track; ctx.lineWidth = Math.max(3, cam.z*0.7);
     ctx.beginPath();
     ctx.moveTo(w2sX(pts[0].x), w2sY(pts[0].y));
     for(const p of pts) ctx.lineTo(w2sX(p.x), w2sY(p.y));
     ctx.stroke();
-    ctx.strokeStyle = '#e8f4ff'; ctx.lineWidth = Math.max(1.2, cam.z*0.25);
+    ctx.strokeStyle = pal.snowCap; ctx.lineWidth = Math.max(1.2, cam.z*0.25);
     ctx.beginPath();
     ctx.moveTo(w2sX(pts[0].x), w2sY(pts[0].y));
     for(const p of pts) ctx.lineTo(w2sX(p.x), w2sY(p.y));
@@ -606,6 +920,7 @@ export function createRenderer(deps){
     const fx = w2sX(top.x), fy = w2sY(top.y);
     ctx.strokeStyle = '#ddd'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx, fy-26); ctx.stroke();
+    // flag color cycles with day using the same palette key
     ctx.fillStyle = '#FF0000';
     ctx.beginPath(); ctx.moveTo(fx, fy-26); ctx.lineTo(fx+20, fy-20); ctx.lineTo(fx, fy-14); ctx.fill();
   }
@@ -806,11 +1121,58 @@ export function createRenderer(deps){
     }
   }
 
+  // fuel/boost canisters (world.js places them; keys are 'pk'+cellIndex)
+  function drawPickupIcon(x, y, s, type){
+    const bob = Math.sin(sim.timeSim*3 + x*0.04)*s*0.18;
+    ctx.save();
+    ctx.translate(x, y + bob);
+    const glow = type===0 ? 'rgba(79,195,247,0.28)' : 'rgba(255,152,0,0.30)';
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(0, 0, s*1.8, 0, 7); ctx.fill();
+    if(type===0){
+      // fuel canister — rounded blue can with a cap and a droplet mark
+      ctx.fillStyle = '#2f9fd0';
+      ctx.fillRect(-s*0.6, -s*0.8, s*1.2, s*1.6);
+      ctx.fillStyle = '#4fc3f7';
+      ctx.fillRect(-s*0.6, -s*0.8, s*1.2, s*0.5);
+      ctx.fillStyle = '#e8f6ff';
+      ctx.beginPath(); ctx.arc(0, s*0.15, s*0.32, 0, 7); ctx.fill();
+      ctx.fillStyle = '#1c6f96';
+      ctx.fillRect(-s*0.28, -s*1.02, s*0.56, s*0.24);
+    } else {
+      // speed boost — orange lightning chevrons
+      ctx.fillStyle = '#ff9800';
+      ctx.beginPath(); ctx.arc(0, 0, s*0.9, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#fff3d0'; ctx.lineWidth = Math.max(1.5, s*0.16); ctx.lineJoin='round';
+      ctx.beginPath();
+      ctx.moveTo(s*0.28, -s*0.7); ctx.lineTo(-s*0.28, s*0.05);
+      ctx.lineTo(s*0.08, s*0.05); ctx.lineTo(-s*0.28, s*0.72);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function drawPickups(){
+    if(!sim.run || typeof pickupPos !== 'function' || !PICKUP_CELL) return;
+    const i0 = Math.floor((cam.x - sim.W/cam.z)/PICKUP_CELL)-1, i1 = Math.ceil((cam.x + sim.W/cam.z)/PICKUP_CELL)+1;
+    for(let i=i0;i<=i1;i++){
+      if(sim.run.collected.has('pk'+i)) continue;
+      const p = pickupPos(i);
+      if(!p) continue;
+      const sx=w2sX(p.x), sy=w2sY(p.y);
+      if(sx<-80||sx>sim.W+80||sy<-80||sy>sim.Hpx+80) continue;
+      drawPickupIcon(sx, sy, clamp((PICKUP_R||18)*cam.z*0.7, 12, 26), p.type);
+    }
+  }
+
   return {
     burst, stepParticles, stepSpeedLines, popup,
     draw, drawRamp, gliderName, drawGlider, drawPenguin,
     drawFishIcon, drawStarIcon, drawCollectibles,
     drawBird, drawBalloon, drawPlane, drawObstacles,
     drawLandmarks, drawRingIcon, drawRings, skyColor,
+    // new helpers added by this revision:
+    spawnLandmarkDebris,   // call from world.js or host for a boss-kill burst
+    isReducedMotion,       // expose so other modules can query it
+    rampPalette,           // expose for potential shop background use
   };
 }
