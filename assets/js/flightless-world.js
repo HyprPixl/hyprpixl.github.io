@@ -1,12 +1,13 @@
 // Flightless — world objects module.
 //
 // Everything the penguin can fly into that isn't the ice itself: fish/star
-// collectibles, bird/balloon/plane obstacles, boost rings, and the landmark
-// bosses. All of it uses the same deterministic-cell-grid trick (hash01 of
-// the cell index decides existence/type/position), so only the on-screen
-// cells ever need to be considered instead of storing every object placed
-// along a 35 km flight. Reads and mutates sim.run/sim.st/sim.phase — the
-// shared flight state that's reassigned each flight by the physics module.
+// collectibles, bird/balloon/plane obstacles, boost rings, landmark bosses,
+// and fuel/boost pickups. All of it uses the same deterministic-cell-grid
+// trick (hash01 of the cell index decides existence/type/position), so only
+// the on-screen cells ever need to be considered instead of storing every
+// object placed along a 35 km flight. Reads and mutates sim.run/sim.st/
+// sim.phase — the shared flight state that's reassigned each flight by the
+// physics module.
 export function createWorld(deps){
   const { sim, cam, state, SFX, save, popup, burst, fmtCash,
           hash01, clamp, LANDMARKS, OBSTACLE_TYPES } = deps;
@@ -44,7 +45,9 @@ export function createWorld(deps){
   }
 
   // ── combo chain ── collecting anything within 3 s of the last pickup
-  // multiplies its value; the chain resets when the clock runs out
+  // multiplies its value; the chain resets when the clock runs out.
+  // Gun-kills and landmark hits also feed this chain so a hot streak
+  // (gun blasts + smashing a landmark face) feels connected.
   function comboMult(){
     sim.run.combo = sim.run.comboT > 0 ? sim.run.combo+1 : 1;
     sim.run.comboT = 3;
@@ -164,8 +167,12 @@ export function createWorld(deps){
     const {i, o} = best;
     if(o.type.tough <= sim.st.gunLevel){
       sim.run.obGone.add('o'+i);
-      sim.run.gunCash += o.type.cash; sim.run.gunKills++;
-      popup(`\u{1F4A5} ${o.type.id} down! +${fmtCash(o.type.cash)}`, 20);
+      sim.run.gunKills++;
+      // gun kills feed the combo chain
+      const m = comboMult();
+      const val = Math.round(o.type.cash * m);
+      sim.run.gunCash += val;
+      popup(`\u{1F4A5} ${o.type.id} down! +${fmtCash(val)}${sim.run.combo>1?` ×${sim.run.combo}`:''}`, 20);
       SFX.boom();
       cam.shake = Math.min(cam.shake+6, 16);
       burst(o.x, o.y, 22, '#ffae42', 12);
@@ -207,46 +214,264 @@ export function createWorld(deps){
     }
   }
 
-  /* ════════════════ landmarks ════════════════ */
-  // Physical bosses standing on the ice. Fly into one to damage it — the hurt
-  // persists between days — and bring it down for a payout. The Wall is the
-  // real victory condition. You CAN fly over them, but they won't forget you.
-  function checkLandmarks(spNew){
-    for(const lm of LANDMARKS){
-      if(state.lmHP[lm.id] <= 0) continue;
-      const face = lm.x - lm.w*0.5;
-      if(sim.run.vx > 0 && sim.run.y < lm.h && sim.run.x >= face && sim.run.x <= lm.x + lm.w){
-        const dmg = Math.max(1, Math.round(spNew * sim.st.smash));
-        state.lmHP[lm.id] = Math.max(0, state.lmHP[lm.id] - dmg);
-        if(state.lmHP[lm.id] <= 0){
-          sim.run.smashCash += lm.reward;
-          popup(`\u{1F4A5} ${lm.name} DESTROYED! +${fmtCash(lm.reward)}`, 30);
-          SFX.boom();
-          cam.shake = 16;
-          burst(lm.x, Math.min(sim.run.y+10, lm.h*0.6), 40, lm.color, 18);
-          sim.run.vx *= 0.7;               // smash straight through the wreckage
+  /* ════════════════ fuel / boost pickups ════════════════ */
+  // Canisters on the deterministic cell grid: blue = fuel refill, orange =
+  // short speed boost. Rendered by the render module via the exported *Pos()
+  // helpers and cell constants below.
+  const PICKUP_CELL = 550;
+  // type 0 = fuel canister (blue), type 1 = speed boost (orange)
+  function pickupPos(i){
+    if(i < 1) return null;
+    // ~35 % of cells have a pickup; split ~60/40 fuel/boost
+    if(hash01(i*83+19) < 0.65) return null;
+    const x = i*PICKUP_CELL + 50 + hash01(i*13+7)*(PICKUP_CELL-100);
+    const top = Math.max(corridorTop(x)*0.85, 30);
+    const y = 20 + Math.pow(hash01(i*37+53), 1.5)*(top-20);
+    const type = hash01(i*61+29) < 0.6 ? 0 : 1;  // 0=fuel, 1=boost
+    return { x, y, type };
+  }
+  const PICKUP_R = 18;
+  function checkPickups(){
+    // no pickups if rocket not installed (fuel would be wasted)
+    const pi = Math.round(sim.run.x/PICKUP_CELL);
+    for(let di=-1; di<=1; di++){
+      const i = pi+di, key = 'pk'+i;
+      if(sim.run.collected.has(key)) continue;
+      const p = pickupPos(i);
+      if(!p){ sim.run.collected.add(key); continue; }
+      if(Math.hypot(sim.run.x-p.x, sim.run.y-p.y) < PICKUP_R*1.5){
+        sim.run.collected.add(key);
+        if(p.type === 0){
+          // fuel canister: refill up to max
+          const before = sim.run.fuel ?? 0;
+          const maxFuel = sim.st.fuelMax ?? 0;
+          if(maxFuel > 0){
+            const gained = Math.min(maxFuel * 0.5, maxFuel - before);
+            sim.run.fuel = Math.min(maxFuel, before + maxFuel * 0.5);
+            popup(`⛽ FUEL +${gained.toFixed(1)}s`, 20);
+            SFX.ding();
+            burst(p.x, p.y, 14, '#4fc3f7', 7);
+          } else {
+            popup(`⛽ fuel canister (no rocket)`, 16);
+            SFX.tick();
+          }
         } else {
-          popup(`\u{1F4A5} -${dmg} · ${lm.name} ${Math.ceil(state.lmHP[lm.id]/lm.hp*100)}%`, 22);
-          SFX.thump();
-          cam.shake = Math.min(16, 8 + spNew*0.02);
-          burst(face, sim.run.y, 20, lm.color, 10);
-          sim.run.x = face - 1;
-          sim.run.vx = -Math.abs(sim.run.vx)*(0.25 + 0.05*Math.min(state.lvl.plating,4));
-          sim.run.tumble = Math.min(sim.run.tumble + 5, 8);
+          // speed boost: brief velocity kick in current direction
+          const sp = Math.hypot(sim.run.vx, sim.run.vy) || 1;
+          const kick = 22;
+          sim.run.vx += sim.run.vx/sp * kick;
+          sim.run.vy += sim.run.vy/sp * kick;
+          sim.run.boostT = (sim.run.boostT ?? 0) + 1.5; // signal to physics (read defensively)
+          popup(`\u{1F7E0} BOOST +${kick} m/s!`, 22);
+          SFX.ding();
+          cam.shake = Math.min(cam.shake+5, 14);
+          burst(p.x, p.y, 16, '#ff9800', 9);
         }
-        save();
-        break;
       }
     }
   }
+
+  /* ════════════════ landmarks ════════════════ */
+  // Physical bosses standing on the ice. Fly into one to damage it — the hurt
+  // persists between days — and bring it down for a payout. The Wall is the
+  // real victory condition.
+  //
+  // REWORK (P0): the old code reversed vx on every hit, so only one hit landed
+  // per flight even against a 12 000 HP wall. The new resolution:
+  //
+  //   • CONTINUOUS RAM: while the player is inside the landmark's x-band and
+  //     below its height, damage accumulates every physics step proportionally
+  //     to speed × smash × SMASH_DPS × dt. This way a fast, well-built pass
+  //     deals sustained damage through the entire width of the landmark. At
+  //     maxed rocket + plating (~120 m/s at Wall), a single 0.38 s traverse
+  //     deals ~6 600 dmg → the Wall falls in 2 passes, i.e. 1–2 skilled flights.
+  //
+  //   • PIERCE vs BOUNCE: if entry speed >= PIERCE_SPD the player punches
+  //     through (vx slows but stays positive). Below that the player bounces
+  //     back (gentler than the old hard reversal). The bounce still deals one
+  //     hit's worth of damage, just no sustained pass.
+  //
+  //   • POPUP THROTTLE: damage accrues silently every step, but a HP-percent
+  //     update popup fires once per 10 % HP lost so the screen stays readable.
+  //
+  //   • COMBO: entry into a living landmark feeds comboMult() once per pass,
+  //     applying to the final payout (not per-step — that would be exploitable).
+  //
+  //   • FEEDBACK: if the player is in the x-band but too high to hit, a
+  //     one-per-pass "too high, dive lower" popup fires. If the landmark is
+  //     already destroyed a "already rubble" cue fires once.
+  //
+  // SMASH_DPS: damage per second per (m/s of speed × smash stat).
+  // calibrated so: 120 m/s × 4.34 smash × SMASH_DPS × 0.38 s ≈ 6000 dmg
+  //   → SMASH_DPS = 6000 / (120 × 4.34 × 0.38) ≈ 30.3  → use 30.
+  const SMASH_DPS = 30;
+  // Speed threshold for pierce (forward ram) vs bounce.
+  const PIERCE_SPD = 50;
+  // Physics step size used for cooldown ticking (matches the fixed sim timestep).
+  const SIM_DT = 1/60;
+
+  function checkLandmarks(spNew){
+    // lmPassFired: transient set of string keys for once-per-pass popup guards
+    if(!sim.run.lmPassFired) sim.run.lmPassFired = new Set();
+    // lmInBandLast: which landmarks the player was inside on the previous step
+    if(!sim.run.lmInBand) sim.run.lmInBand = new Set();
+    // lmDmgAccum: fractional damage accumulator (float remainder before rounding)
+    if(!sim.run.lmDmgAccum) sim.run.lmDmgAccum = {};
+    // lmLastPct: last HP-percent at which we showed a damage popup (per landmark)
+    if(!sim.run.lmLastPct) sim.run.lmLastPct = {};
+    // lmEntryCombo: whether we've already fired comboMult() for this pass
+    if(!sim.run.lmEntryCombo) sim.run.lmEntryCombo = {};
+
+    let anyBandContact = false;
+
+    for(const lm of LANDMARKS){
+      const face = lm.x - lm.w*0.5;
+      const inBand = sim.run.vx > 0
+                  && sim.run.y < lm.h
+                  && sim.run.x >= face
+                  && sim.run.x <= lm.x + lm.w;
+
+      // ── exited band cleanup ──
+      if(!inBand){
+        if(sim.run.lmInBand.has(lm.id)){
+          sim.run.lmInBand.delete(lm.id);
+          // allow re-entry to retrigger popup guards (only clear rubble/over keys)
+          sim.run.lmPassFired.delete(lm.id + '_rubble');
+          sim.run.lmPassFired.delete(lm.id + '_over');
+          sim.run.lmEntryCombo[lm.id] = false;
+        }
+        // "flew over" check: in x-band but above the height cutoff
+        if(sim.run.vx > 0 && sim.run.x >= face && sim.run.x <= lm.x + lm.w
+           && sim.run.y >= lm.h && state.lmHP[lm.id] > 0){
+          const overKey = lm.id + '_over';
+          if(!sim.run.lmPassFired.has(overKey)){
+            sim.run.lmPassFired.add(overKey);
+            popup(`\u{2B06} Too high — dive below ${Math.round(lm.h)} m to hit ${lm.name}!`, 20);
+            SFX.blip(180, 0.08, 'sawtooth', 0.06);
+          }
+        } else if(sim.run.x > lm.x + lm.w){
+          sim.run.lmPassFired.delete(lm.id + '_over');
+        }
+        continue;
+      }
+
+      anyBandContact = true;
+      sim.run.lmInBand.add(lm.id);
+
+      // ── already destroyed ──
+      if(state.lmHP[lm.id] <= 0){
+        const rubbleKey = lm.id + '_rubble';
+        if(!sim.run.lmPassFired.has(rubbleKey)){
+          sim.run.lmPassFired.add(rubbleKey);
+          popup(`\u{1F4A8} ${lm.name} is already rubble!`, 18);
+          SFX.blip(300, 0.08, 'square', 0.05);
+        }
+        continue;
+      }
+
+      // ── entry vs sustain ──
+      const justEntered = !sim.run.lmEntryCombo[lm.id];
+      if(justEntered){
+        sim.run.lmEntryCombo[lm.id] = true;
+        if(spNew < PIERCE_SPD){
+          // BOUNCE: one sharp hit, reverse out
+          const dmg = Math.max(1, Math.round(spNew * sim.st.smash));
+          const prevHP = state.lmHP[lm.id];
+          state.lmHP[lm.id] = Math.max(0, prevHP - dmg);
+          comboMult(); // feeds combo but we don't use the multiplier on bounce cash
+          if(state.lmHP[lm.id] <= 0){
+            _landmarkDestroyed(lm, spNew);
+          } else {
+            const pct = Math.ceil(state.lmHP[lm.id]/lm.hp*100);
+            popup(`\u{1F4A5} -${dmg} · ${lm.name} ${pct}%`, 22);
+            SFX.thump();
+            cam.shake = Math.min(16, 8 + spNew*0.02);
+            burst(face + lm.w*0.5, sim.run.y, 16, lm.color, 8);
+            // bounce back (gentler than the old reversal)
+            sim.run.x = face - 1;
+            sim.run.vx = -Math.abs(sim.run.vx) * (0.18 + 0.04*Math.min(state.lvl.plating ?? 0, 4));
+            sim.run.tumble = Math.min(sim.run.tumble + 4, 8);
+            sim.run.lmLastPct[lm.id] = pct;
+            save();
+          }
+          break; // only one landmark per step
+        } else {
+          // PIERCE entry: shake + sound burst, damage will accumulate below
+          cam.shake = Math.min(16, 8 + spNew*0.03);
+          SFX.thump();
+          burst(face + lm.w*0.5, sim.run.y, 14, lm.color, 7);
+          sim.run.lmLastPct[lm.id] = sim.run.lmLastPct[lm.id]
+            ?? Math.ceil(state.lmHP[lm.id]/lm.hp*100);
+        }
+      }
+
+      if(spNew < PIERCE_SPD) break; // already handled in bounce branch above
+
+      // ── continuous pierce damage ──
+      // damage = spNew * smash * SMASH_DPS * dt, accumulated as float
+      const rawDmg = spNew * sim.st.smash * SMASH_DPS * SIM_DT;
+      sim.run.lmDmgAccum[lm.id] = (sim.run.lmDmgAccum[lm.id] ?? 0) + rawDmg;
+      const dmg = Math.floor(sim.run.lmDmgAccum[lm.id]);
+      if(dmg < 1){ break; } // accumulate until we have at least 1 HP to remove
+      sim.run.lmDmgAccum[lm.id] -= dmg;
+
+      const prevHP = state.lmHP[lm.id];
+      state.lmHP[lm.id] = Math.max(0, prevHP - dmg);
+
+      // ── speed bleed: fast pass costs some speed, slow pass costs more ──
+      // factor approaches 0 at very high speeds (light graze) → full bleed
+      // at barely-pierce speeds.
+      const bleedFactor = clamp(PIERCE_SPD / spNew, 0.1, 0.9);
+      sim.run.vx *= (1 - bleedFactor * 0.018);  // gentle per-step bleed
+      sim.run.tumble = Math.min(sim.run.tumble + 0.04, 6);
+
+      if(state.lmHP[lm.id] <= 0){
+        _landmarkDestroyed(lm, spNew);
+        break;
+      }
+
+      // throttle damage popups: show once per 10 % HP bracket crossed
+      const pct = Math.ceil(state.lmHP[lm.id]/lm.hp*100);
+      const lastPct = sim.run.lmLastPct[lm.id] ?? 100;
+      if(Math.floor(lastPct/10) > Math.floor(pct/10)){
+        const comboTag = sim.run.combo > 1 ? ` ×${sim.run.combo}` : '';
+        popup(`\u{1F4A5} ${lm.name} ${pct}%${comboTag}`, 20);
+        cam.shake = Math.min(cam.shake+3, 14);
+        sim.run.lmLastPct[lm.id] = pct;
+      }
+
+      save();
+      break; // one landmark per step
+    }
+  }
+
+  // Helper — fires the DESTROYED sequence (shared between bounce-kill and pierce-kill).
+  function _landmarkDestroyed(lm, spNew){
+    const m = comboMult();
+    const val = Math.round(lm.reward * m);
+    sim.run.smashCash += val;
+    popup(`\u{1F4A5} ${lm.name} DESTROYED! +${fmtCash(val)}${sim.run.combo>1?` ×${sim.run.combo}`:''}`, 30);
+    SFX.boom();
+    cam.shake = 16;
+    burst(lm.x, Math.min(sim.run.y+10, lm.h*0.6), 40, lm.color, 18);
+    // punch clean through — big speed loss but vx stays positive
+    sim.run.vx *= 0.5;
+    sim.run.vy *= 0.65;
+    save();
+  }
+
+  // No-op stub kept for forward compatibility if an orchestrator wires it.
+  function tickCooldowns(_dt){ /* cooldowns now handled inside checkLandmarks */ }
 
   return {
     coinCluster, comboMult, starPos, checkCollectibles,
     obstaclePos, checkObstacles, fireGun,
     ringPos, checkRings,
     checkLandmarks,
+    pickupPos, checkPickups, tickCooldowns,
     COIN_CELL, COIN_MIN_ALT, COIN_MAX_ALT, COIN_R,
     STAR_CELL, STAR_MIN_ALT, STAR_R,
     OBST_CELL, RING_CELL, RING_R,
+    PICKUP_CELL, PICKUP_R,
   };
 }

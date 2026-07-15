@@ -14,7 +14,7 @@ export function createPhysics(deps){
   const {
     sim, cam, state, input, SFX, save, popup, burst, fmtDist, fmtCash,
     clamp, lerp, angDiff, hash01, RAD, onFinishRun,
-    checkCollectibles, checkObstacles, checkRings, checkLandmarks,
+    checkCollectibles, checkObstacles, checkRings, checkLandmarks, checkPickups,
     MILESTONES, contractsFor,
   } = deps;
 
@@ -43,7 +43,10 @@ export function createPhysics(deps){
       mu,
       wingAuth: wings===0 ? 1.5 : 2.4 + 0.35*wings,         // pitch authority rad/s
       gMax:   4 + 0.9*L.struts,                             // structural load limit, g
-      thrust: L.rocket ? 10 + 8*L.rocket : 0,
+      // Diminishing returns: hyperbolic cap so high rocket levels still feel
+      // powerful but don't grow linearly forever.  Level 1→~17.6 m/s²;
+      // level 5→~47 m/s²; level 10→~61 m/s² (vs 90 with old linear formula).
+      thrust: L.rocket ? 10 + 8*L.rocket / (1 + 0.055*L.rocket) : 0,
       fuelMax:L.rocket ? 2 + 1.3*L.fuel : 0,
       sling,
       rest:   L.bounce ? 0.12 + 0.09*L.bounce : 0,
@@ -137,6 +140,17 @@ export function createPhysics(deps){
       obHits:0, smashCash:0, contractsMet:new Set(), contractT:0,
       contracts:contractsFor(state.day),   // locked in at launch
 
+      // overheat: accumulates while thrusting, dissipates at rest; triggers
+      // penalty above HEAT_MAX, auto-resets once cooled
+      heat:0, overheated:false,
+
+      // style/contract tracking
+      slideless:true,       // true until the first slide or bounce
+      lowAltTime:0,         // seconds spent airborne below LOW_ALT_M metres
+
+      // coast-on-fumes: set true at landing when fuel is nearly empty
+      coastOnFumes:false,
+
       msQueue: MILESTONES.map(m=>m[0]).filter(d=>!state.claimed.includes(d)),
     };
   }
@@ -150,6 +164,19 @@ export function createPhysics(deps){
   const SCALE_H = 8500;         // atmospheric scale height, m
   const A_STALL = 15*RAD;       // stall angle of attack
   const GLIDE_ANG = -7*RAD;     // hands-off trim seeks this shallow glide slope
+
+  // overheat: sustained rocket use risks a melt-down.
+  // heat climbs at 1/s while thrusting, cools at HEAT_COOL/s otherwise.
+  // Above HEAT_MAX the thrust is cut to HEAT_PENALTY fraction; a popup fires
+  // once. Once heat falls below HEAT_RESUME the penalty lifts.
+  const HEAT_RISE   = 1.0;      // heat units / s while thrusting
+  const HEAT_COOL   = 0.4;      // heat units / s while not thrusting
+  const HEAT_MAX    = 3.0;      // total seconds of sustained burn before penalty
+  const HEAT_RESUME = 1.5;      // hysteresis: penalty clears only once heat < this
+  const HEAT_PENALTY = 0.3;     // thrust fraction when overheated
+
+  // low-altitude tracking: time spent airborne below this height (metres)
+  const LOW_ALT_M = 50;
 
   // 0 below stall, 1 fully separated, smooth in between
   function stallBlend(aoa){
@@ -266,14 +293,35 @@ export function createPhysics(deps){
     sim.run.head = velA + clamp(aoa1 + clamp(aoaTgt-aoa1, -slew, slew), -0.9, 0.9);
 
     // ── forces (accelerations, m/s²) ──
-    let ax = 0, ay = -G;
+    // Daily-modifier wind: state.dailyMod is an optional object set by the
+    // data/store agent (daily modifier table). Read defensively — completely
+    // absent dailyMod or a missing .wind field is a guaranteed no-op.
+    const wind = state.dailyMod?.wind ?? 0;     // m/s² horizontal acceleration
+    const windY = state.dailyMod?.windY ?? 0;   // m/s² vertical (optional, e.g. updraft)
+    let ax = wind, ay = -G + windY;
 
     sim.run.thrusting = input.boost && sim.st.thrust>0 && sim.run.fuel>0;
     if(sim.run.thrusting){
       sim.run.fuel = Math.max(0, sim.run.fuel - h);
-      ax += Math.cos(sim.run.head)*sim.st.thrust;
-      ay += Math.sin(sim.run.head)*sim.st.thrust;
+      // ── overheat ── heat climbs while thrusting; cools when not
+      sim.run.heat = Math.min(sim.run.heat + HEAT_RISE*h, HEAT_MAX*1.5);
+      if(!sim.run.overheated && sim.run.heat >= HEAT_MAX){
+        sim.run.overheated = true;
+        popup('\u{1F321} OVERHEAT — thrust reduced!', 20);
+        cam.shake = Math.min(cam.shake + 4, 6);
+      }
+      const thrustEff = sim.run.overheated ? HEAT_PENALTY : 1.0;
+      ax += Math.cos(sim.run.head)*sim.st.thrust*thrustEff;
+      ay += Math.sin(sim.run.head)*sim.st.thrust*thrustEff;
       if(Math.random() < h*120) burst(sim.run.x - Math.cos(sim.run.head)*1.5, sim.run.y - Math.sin(sim.run.head)*1.5, 2, '#ff8c1a', 3, sim.run.head+Math.PI);
+      // extra heat-glow VFX when running hot
+      if(sim.run.overheated && Math.random() < h*60) burst(sim.run.x, sim.run.y, 1, '#ff3300', 4, sim.run.head+Math.PI);
+    } else {
+      // cool down when not thrusting
+      sim.run.heat = Math.max(0, sim.run.heat - HEAT_COOL*h);
+      if(sim.run.overheated && sim.run.heat < HEAT_RESUME){
+        sim.run.overheated = false;
+      }
     }
     SFX.setThrust(sim.run.thrusting);
 
@@ -322,17 +370,25 @@ export function createPhysics(deps){
         sim.run.vy = Math.max(impact*sim.st.rest, Math.min(impact*0.45, 2.0));
         sim.run.vx *= 0.94;
         sim.run.bounceCount++;
+        sim.run.slideless = false;   // touched ground — no longer slideless
         cam.shake = Math.min(10, impact*0.12);
         SFX.thump();
         burst(sim.run.x, 0.5, 10, '#cfe8ff', 5);
         if(sim.run.vy < 1.1){ sim.run.vy=0; sim.run.sliding=true; }
       } else {
         sim.run.vy=0; sim.run.vx*=0.75; sim.run.sliding=true;
+        sim.run.slideless = false;   // touched ground — no longer slideless
         cam.shake = Math.min(10, impact*0.15);
         SFX.thump();
         burst(sim.run.x, 0.5, 12, '#cfe8ff', 5);
       }
-      if(sim.run.sliding){ sim.run.thrusting=false; SFX.setThrust(false); }
+      if(sim.run.sliding){
+        sim.run.thrusting=false; SFX.setThrust(false);
+        // coast-on-fumes: reward landing nearly empty
+        if(sim.st.fuelMax > 0 && sim.run.fuel <= sim.st.fuelMax * 0.08){
+          sim.run.coastOnFumes = true;
+        }
+      }
     }
 
     // ── ice skimming ── hugging the deck at speed pays out: ground effect
@@ -354,9 +410,12 @@ export function createPhysics(deps){
     // records only count in the air, off the ramp
     sim.run.maxAlt = Math.max(sim.run.maxAlt, sim.run.y);
     sim.run.maxSpd = Math.max(sim.run.maxSpd, spNew);
+    // style tracking: time spent airborne and low (ground-hugger playstyle)
+    if(sim.run.y > 0.5 && sim.run.y < LOW_ALT_M) sim.run.lowAltTime += h;
     checkCollectibles();
     checkObstacles();
     checkRings();
+    if(checkPickups) checkPickups();
     checkLandmarks(spNew);
 
     // live contract completion — celebrate it the moment it happens

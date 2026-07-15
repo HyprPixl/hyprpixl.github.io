@@ -17,6 +17,20 @@ export function createStore(deps){
     getSt, getRamp, recompute, sampleShape, clamp, RAD,
   } = deps;
 
+  // Defensive reads for optional deps that may arrive in a future save/data
+  // agent pass.  Never throw if absent — just no-op the feature.
+  const dailyDealFor = typeof deps.dailyDealFor === 'function' ? deps.dailyDealFor : null;
+  const exportSave   = typeof deps.save?.exportSave === 'function'
+    ? () => deps.save.exportSave()
+    : typeof deps.exportSave === 'function'
+      ? deps.exportSave
+      : null;
+  const importSave   = typeof deps.save?.importSave === 'function'
+    ? s => deps.save.importSave(s)
+    : typeof deps.importSave === 'function'
+      ? deps.importSave
+      : null;
+
   const shopGrid = document.getElementById('shop-grid');
   const gearGrid = document.getElementById('gear-grid');
   const bonusGrid = document.getElementById('bonus-grid');
@@ -66,6 +80,75 @@ export function createStore(deps){
   const edX = p => ED_PAD + p.x*(ED_W-2*ED_PAD);
   const edY = p => ED_GROUND - p.y*(ED_GROUND-ED_TOP);
   let edDrag = -1;
+
+  // ── ramp designer presets ──
+  // Preset control-point arrays: each entry is a full rampShape replacement.
+  // Points are in normalised [0,1]×[0,1] coordinates matching the editor's
+  // convention: x increases left→right along the ramp base, y=0 is ground
+  // level and y=1 is the top of the editor canvas.
+  const RAMP_PRESETS = [
+    {
+      label: '🚀 Steep Launch',
+      // Gate high, kicker near the end, lip shoots near-vertical.
+      shape: [
+        { x: 0.08, y: 0.82 },
+        { x: 0.38, y: 0.65 },
+        { x: 0.68, y: 0.38 },
+        { x: 0.92, y: 0.14 },
+      ],
+    },
+    {
+      label: '🪂 Long Glide',
+      // Gentle ramp for maximum horizontal carry rather than altitude.
+      shape: [
+        { x: 0.06, y: 0.55 },
+        { x: 0.32, y: 0.42 },
+        { x: 0.62, y: 0.28 },
+        { x: 0.94, y: 0.18 },
+      ],
+    },
+    {
+      label: '🛹 Trick Ramp',
+      // Mid-height kicker with a sharp upswing at the lip for combos/style.
+      shape: [
+        { x: 0.07, y: 0.45 },
+        { x: 0.28, y: 0.35 },
+        { x: 0.60, y: 0.50 },
+        { x: 0.90, y: 0.22 },
+      ],
+    },
+  ];
+
+  // Build the preset button row and append it into #ramp-pop (above the
+  // canvas) so the DOM order is: presets → canvas → footer.
+  const presetRow = document.createElement('div');
+  presetRow.style.cssText = 'display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-bottom:2px;';
+  for(const preset of RAMP_PRESETS){
+    const btn = document.createElement('button');
+    btn.textContent = preset.label;
+    btn.style.cssText = [
+      'font-family:inherit',
+      'font-size:10px',
+      'cursor:pointer',
+      'background:var(--panel)',
+      'color:var(--text)',
+      'border:1px solid var(--border)',
+      'padding:3px 7px',
+      'border-radius:3px',
+    ].join(';');
+    btn.addEventListener('mouseenter', () => { btn.style.borderColor = 'var(--yellow)'; });
+    btn.addEventListener('mouseleave', () => { btn.style.borderColor = 'var(--border)'; });
+    btn.addEventListener('click', () => {
+      // Deep-copy the preset so later drags don't mutate our constant.
+      state.rampShape = preset.shape.map(p => ({ ...p }));
+      recompute();
+      save();
+      drawEditor();
+    });
+    presetRow.appendChild(btn);
+  }
+  // Insert before the canvas (first child of ramp-pop).
+  rampPop.insertBefore(presetRow, rampPop.firstChild);
 
   function drawEditor(){
     const ramp = getRamp();
@@ -172,6 +255,68 @@ export function createStore(deps){
     drawEditor();
   });
 
+  // ── save export / import UI ──
+  // Wire export/import buttons into the shop footer's notes area (next to the
+  // reset link).  The buttons are no-ops if save.exportSave/importSave are not
+  // provided — guarded above at module top.
+  (function buildSaveButtons(){
+    const notesEl = document.querySelector('#shop .notes');
+    if(!notesEl) return;   // DOM not yet ready somehow; skip gracefully
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:10px;margin-top:2px;';
+
+    if(exportSave){
+      const exportBtn = document.createElement('button');
+      exportBtn.className = 'reset-link';
+      exportBtn.textContent = '📋 export save';
+      exportBtn.title = 'Copy save data to clipboard';
+      exportBtn.addEventListener('click', async () => {
+        try {
+          const str = exportSave();
+          if(typeof str !== 'string' || !str) return;
+          await navigator.clipboard.writeText(str);
+          exportBtn.textContent = '✅ copied!';
+          setTimeout(() => { exportBtn.textContent = '📋 export save'; }, 2000);
+        } catch(err) {
+          // Clipboard can be blocked; fall back to a prompt the user can copy from.
+          const str = exportSave();
+          if(str) prompt('Copy this save string:', str);
+        }
+      });
+      row.appendChild(exportBtn);
+    }
+
+    if(importSave){
+      const importBtn = document.createElement('button');
+      importBtn.className = 'reset-link';
+      importBtn.textContent = '📥 import save';
+      importBtn.title = 'Paste a save string to restore progress';
+      importBtn.addEventListener('click', () => {
+        const str = prompt('Paste your save string:');
+        if(!str) return;
+        try {
+          const imported = importSave(str.trim());
+          if(!imported || typeof imported !== 'object') throw new Error('empty save');
+          // Apply IN PLACE — every module holds a reference to this same
+          // `state` object, so reassigning it would leave them reading a stale
+          // copy. Mirror the reset-progress flow in the host page.
+          for(const k of Object.keys(state)) delete state[k];
+          Object.assign(state, imported);
+          save();
+          // Reload the shop to reflect the new state.
+          recompute();
+          renderShop();
+        } catch(err) {
+          alert('Import failed — save string may be invalid.\n' + (err?.message ?? err));
+        }
+      });
+      row.appendChild(importBtn);
+    }
+
+    if(row.childElementCount > 0) notesEl.appendChild(row);
+  })();
+
   function renderShop(){
     drawEditor();
     document.getElementById('shop-money').textContent = fmtCash(state.money);
@@ -210,6 +355,12 @@ export function createStore(deps){
       goalList.appendChild(li);
     }
 
+    // ── daily deal resolution (defensive: dailyDealFor may be absent) ──
+    const todaysDeal = dailyDealFor ? (function(){
+      try { return dailyDealFor(state.day); } catch(_){ return null; }
+    })() : null;
+    // todaysDeal is expected to be { id, discount } — e.g. { id: 'engine', discount: 0.25 }
+
     // upgrade cards — unlock at distance milestones; a maxed-out upgrade drops
     // off the list entirely (its slot is free for a later "tier 2" upgrade),
     // and a fresh one you can't afford yet stays hidden too, except the single
@@ -222,22 +373,57 @@ export function createStore(deps){
     let upgAffordable = 0;
     for(const u of upgAvail){
       const lvl = state.lvl[u.id];
-      const cost = upgCost(u);
+      const baseCost = upgCost(u);
+
+      // Apply daily deal discount if this upgrade matches today's deal.
+      const isDailyDeal = todaysDeal && todaysDeal.id === u.id;
+      const dealDiscount = isDailyDeal && typeof todaysDeal.discount === 'number'
+        ? clamp(todaysDeal.discount, 0, 0.9)
+        : 0;
+      const cost = isDailyDeal ? Math.max(1, Math.round(baseCost * (1 - dealDiscount))) : baseCost;
+
       const locked = u.requires && state.lvl[u.requires] === 0;
       if(!locked && lvl===0 && state.money < cost && u !== cheapestNewUpg) continue;
       const affordable = !locked && state.money >= cost;
       if(affordable) upgAffordable++;
       const card = document.createElement('div');
-      card.className = 'upg' + (affordable ? ' affordable' : '');
+      card.className = 'upg' + (affordable ? ' affordable' : '') + (isDailyDeal ? ' daily-deal' : '');
+
+      // ── stat projection ladder ──
+      // Show current value plus up to 3 preview levels so the player can see
+      // the full trajectory, not just the immediate next step.
+      const projSteps = [];
+      for(let step = 1; step <= 3; step++){
+        const previewLvl = lvl + step;
+        if(previewLvl > u.max) break;
+        projSteps.push({ lvl: previewLvl, val: u.val(previewLvl) });
+      }
+      // Build a small "ladder" string: "→ v1 → v2 → v3"
+      const ladderHTML = projSteps
+        .map((s, i) => {
+          const isNext = i === 0;
+          const color  = isNext ? 'var(--yellow)' : '#8891d8';
+          return `<span style="color:${color};font-weight:${isNext?'bold':'normal'}">${s.val}</span>`;
+        })
+        .join('<span style="color:var(--muted)"> → </span>');
+
       const pips = Array.from({length:u.max}, (_,i)=>`<div class="pip${i<lvl?' on':''}"></div>`).join('');
-      const nextVal = ` → <b style="color:var(--yellow)">${u.val(lvl+1)}</b>`;
+
+      // Daily deal badge styling injected inline so it works without a CSS edit.
+      const dealBadgeHTML = isDailyDeal
+        ? `<div style="font-size:9px;font-weight:bold;color:#ff0;background:#500;padding:1px 5px;border-radius:2px;margin-bottom:3px;display:inline-block;">
+             ⚡ DAILY DEAL −${Math.round(dealDiscount*100)}%
+           </div><br>`
+        : '';
+
       card.innerHTML = `
         <div class="upg-head"><span class="upg-icon">${u.icon}</span><span class="upg-name">${u.name}</span></div>
+        ${dealBadgeHTML}
         <div class="upg-desc">${u.desc}</div>
-        <div class="upg-stat">${u.val(lvl)}${nextVal}</div>
+        <div class="upg-stat">${u.val(lvl)}${ladderHTML ? `<span style="color:var(--muted)"> → </span>${ladderHTML}` : ''}</div>
         <div class="pips">${pips}</div>
         ${locked ? `<div class="locked-note">requires ${UPGRADES.find(x=>x.id===u.requires).name}</div>` : ''}
-        <button ${(locked || state.money<cost)?'disabled':''}>Buy — ${fmtCash(cost)}</button>`;
+        <button ${(locked || state.money<cost)?'disabled':''}>${isDailyDeal ? `Deal — ${fmtCash(cost)}` : `Buy — ${fmtCash(cost)}`}${isDailyDeal && baseCost !== cost ? ` <s style="color:var(--muted);font-size:9px">${fmtCash(baseCost)}</s>` : ''}</button>`;
       card.querySelector('button').addEventListener('click', () => {
         if(state.money < cost || locked) return;
         state.money -= cost;
@@ -267,7 +453,7 @@ export function createStore(deps){
     bonusGrid.innerHTML = '';
     let bonusAffordable = 0;
     for(const b of BONUS_SHOP){
-      const lvl = state.bonus[b.id];
+      const lvl = state.bonus[b.id] ?? 0;
       const maxed = lvl >= b.max;
       const cost = maxed ? 0 : b.cost[lvl];
       const affordable = !maxed && state.bp >= cost;
@@ -275,20 +461,48 @@ export function createStore(deps){
       const card = document.createElement('div');
       card.className = 'upg gear' + (affordable ? ' affordable' : '');
       const pips = Array.from({length:b.max}, (_,i)=>`<div class="pip${i<lvl?' on':''}"></div>`).join('');
+
+      // ── bonus respec: refund button (50% BP back per level) ──
+      // Only show refund when at least one level has been bought.
+      const refundPerLevel = Math.floor((b.cost[0] ?? 1) * 0.5);
+      const totalRefund    = lvl > 0 ? lvl * refundPerLevel : 0;
+      const refundHTML = lvl > 0
+        ? `<button class="bonus-refund" style="font-family:inherit;font-size:9.5px;cursor:pointer;background:none;border:none;color:#e87;text-decoration:underline;padding:0;margin-top:2px;" title="Refund all levels for ${totalRefund} BP (50% per level)">↩ refund (${totalRefund} BP)</button>`
+        : '';
+
       card.innerHTML = `
         <div class="upg-head"><span class="upg-icon">${b.icon}</span><span class="upg-name">${b.name}</span></div>
         <div class="upg-desc">${b.desc}</div>
         <div class="pips">${pips}</div>
+        ${refundHTML}
         <button ${(maxed || state.bp < cost)?'disabled':''}>${maxed ? 'MAX' : `Buy — ${cost} BP`}</button>`;
-      card.querySelector('button').addEventListener('click', () => {
+
+      card.querySelector('button:last-of-type').addEventListener('click', () => {
         if(maxed || state.bp < cost) return;
         state.bp -= cost;
-        state.bonus[b.id]++;
+        state.bonus[b.id] = (state.bonus[b.id] ?? 0) + 1;
         SFX.buy();
         save();
         renderShop();
         recompute();
       });
+
+      // Wire refund button if it exists.
+      const refundBtn = card.querySelector('.bonus-refund');
+      if(refundBtn){
+        refundBtn.addEventListener('click', () => {
+          const curLvl = state.bonus[b.id] ?? 0;
+          if(curLvl <= 0) return;
+          const refund = curLvl * refundPerLevel;
+          state.bp += refund;
+          state.bonus[b.id] = 0;
+          SFX.buy();
+          save();
+          renderShop();
+          recompute();
+        });
+      }
+
       bonusGrid.appendChild(card);
     }
     setTabCount('bonus', bonusAffordable);

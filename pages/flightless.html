@@ -40,6 +40,13 @@
     border:2px solid var(--yellow); padding:4px 10px;
     font-family:inherit; font-weight:bold; font-size:13px; cursor:pointer;
   }
+  #settings-btn{
+    position:absolute; top:10px; right:72px; z-index:30;
+    background:rgba(0,0,128,0.85); color:var(--yellow);
+    border:2px solid var(--yellow); padding:4px 10px;
+    font-family:inherit; font-weight:bold; font-size:13px; cursor:pointer;
+  }
+  #settings-btn:hover{ background:var(--yellow); color:var(--navy); }
 
   /* ── Flight HUD ── */
   #hud{
@@ -274,6 +281,28 @@
   #victory h1{ color:var(--yellow); text-shadow:3px 3px 0 var(--red); font-size:40px; letter-spacing:4px; }
   #victory p{ color:var(--text); font-size:15px; line-height:1.6; }
 
+  /* ── Settings panel ── */
+  #settings{ text-align:left; }
+  #settings .panel-inner{ max-width:460px; }
+  #settings h2{ color:var(--yellow); text-transform:uppercase; letter-spacing:3px; margin:0 0 18px; text-shadow:2px 2px 0 var(--red); }
+  .set-section{ background:var(--panel); border:2px solid var(--border); padding:14px 18px; margin-bottom:12px; }
+  .set-section h3{ margin:0 0 10px; color:var(--yellow); font-size:12px; text-transform:uppercase; letter-spacing:2px; }
+  .set-row{ display:flex; align-items:center; justify-content:space-between; padding:7px 0; border-bottom:1px dashed #2a2f70; gap:12px; }
+  .set-row:last-child{ border-bottom:none; }
+  .set-label{ font-size:13px; color:var(--text); }
+  .set-label small{ display:block; color:var(--muted); font-size:10.5px; margin-top:2px; }
+  .set-toggle{
+    font-family:inherit; font-size:12px; font-weight:bold; cursor:pointer;
+    background:var(--navy); color:var(--yellow);
+    border:2px solid var(--yellow); padding:4px 12px; min-width:64px; text-align:center;
+  }
+  .set-toggle:hover{ background:var(--yellow); color:var(--navy); }
+  .set-toggle.on{ background:var(--yellow); color:var(--navy); }
+  .set-slider{ -webkit-appearance:none; appearance:none; width:130px; height:8px; background:#20255e; border:1px solid var(--border); outline:none; cursor:pointer; }
+  .set-slider::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:16px; height:16px; background:var(--yellow); border:2px solid var(--navy); cursor:pointer; }
+  .set-slider::-moz-range-thumb{ width:14px; height:14px; background:var(--yellow); border:2px solid var(--navy); cursor:pointer; border-radius:0; }
+  #settings .big-btn{ margin:8px auto 0; padding:10px 40px; font-size:16px; }
+
   /* ── Touch controls ── */
   #touch{ position:absolute; bottom:0; left:0; right:0; z-index:15; display:none; justify-content:space-between; padding:0 14px 18px; pointer-events:none; }
   #touch .tbtn{
@@ -293,6 +322,7 @@
 <body>
 <canvas id="game"></canvas>
 <a class="overlay-link" href="/index.html">&larr; caleb's site</a>
+<button id="settings-btn" title="settings">&#9881;</button>
 <button id="mute-btn" title="toggle sound">&#128266;</button>
 
 <div id="hud">
@@ -418,17 +448,64 @@
 <!-- ── VICTORY ── -->
 <div class="panel" id="victory">
   <div class="panel-inner">
-    <h1>&#128039;&#128640; YOU LEARNED TO FLY</h1>
-    <p>35 kilometres out, there was a wall. There isn't any more.<br>
+    <h1 id="victory-title">&#128039;&#128640; YOU LEARNED TO FLY</h1>
+    <p id="victory-body">35 kilometres out, there was a wall. There isn't any more.<br>
     They said you were <i>flightless</i>. They can come look at the rubble.</p>
-    <p style="color:var(--muted);font-size:13px;">You can keep flying for fun &mdash; the sky was never the limit.</p>
-    <button class="big-btn" id="victory-btn">Keep Flying</button>
+    <p id="victory-sub" style="color:var(--muted);font-size:13px;">You can keep flying for fun &mdash; the sky was never the limit.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:18px;">
+      <button class="big-btn" id="victory-btn" style="margin:0;padding:10px 30px;font-size:17px;">Keep Flying</button>
+      <button class="big-btn" id="ng-plus-btn" style="margin:0;padding:10px 30px;font-size:17px;background:#000080;">&#128640; New Game+</button>
+    </div>
+    <p id="ng-hint" style="color:var(--muted);font-size:12px;margin-top:10px;text-align:center;"></p>
+  </div>
+</div>
+
+<!-- ── SETTINGS ── -->
+<div class="panel" id="settings">
+  <div class="panel-inner">
+    <h2>&#9881; Settings</h2>
+    <div class="set-section">
+      <h3>&#127925; Music</h3>
+      <div class="set-row">
+        <span class="set-label">Music
+          <small>background synth bed</small>
+        </span>
+        <button class="set-toggle" id="set-music-toggle">ON</button>
+      </div>
+      <div class="set-row">
+        <span class="set-label">Music volume</span>
+        <input type="range" class="set-slider" id="set-music-vol" min="0" max="1" step="0.05" value="1">
+      </div>
+    </div>
+    <div class="set-section">
+      <h3>&#128266; Sound FX</h3>
+      <div class="set-row">
+        <span class="set-label">SFX
+          <small>launch, collect, crash sounds</small>
+        </span>
+        <button class="set-toggle" id="set-sfx-toggle">ON</button>
+      </div>
+      <div class="set-row">
+        <span class="set-label">SFX volume</span>
+        <input type="range" class="set-slider" id="set-sfx-vol" min="0" max="1" step="0.05" value="1">
+      </div>
+    </div>
+    <div class="set-section">
+      <h3>&#9855; Accessibility</h3>
+      <div class="set-row">
+        <span class="set-label">Reduce motion
+          <small>damps camera shake &amp; particles</small>
+        </span>
+        <button class="set-toggle" id="set-reduce-motion">OFF</button>
+      </div>
+    </div>
+    <button class="big-btn" id="settings-close-btn">Done</button>
   </div>
 </div>
 
 <script type="module">
 import { createStore } from '../assets/js/flightless-store.js';
-import { defaultState, loadState, saveState } from '../assets/js/flightless-save.js';
+import { defaultState, loadState, saveState, exportSave, importSave } from '../assets/js/flightless-save.js';
 import { createSound } from '../assets/js/flightless-sound.js';
 import { createData } from '../assets/js/flightless-data.js';
 import { createPhysics } from '../assets/js/flightless-physics.js';
@@ -464,6 +541,7 @@ const sim = {
   phase: 'shop', run: null, ramp: null, st: null,
   particles: [], speedLines: [], timeSim: 0,
   W: 0, Hpx: 0, DPR: 1,
+  paused: false,  // reserved: set by hud-input; honored by the main loop
 };
 const cam = { x:0, y:0, z:6, shake:0 };
 const input = { up:false, down:false, boost:false, ff:false };
@@ -532,6 +610,7 @@ const physics = createPhysics({
   checkObstacles: world.checkObstacles,
   checkRings: world.checkRings,
   checkLandmarks: world.checkLandmarks,
+  checkPickups: world.checkPickups,
   popup: call('popup'), burst: call('burst'), onFinishRun: call('finishRun'),
 });
 bridge.derive = physics.derive;
@@ -549,6 +628,7 @@ const renderer = createRenderer({
   OBST_CELL: world.OBST_CELL, RING_CELL: world.RING_CELL, RING_R: world.RING_R,
   coinCluster: world.coinCluster, starPos: world.starPos,
   obstaclePos: world.obstaclePos, ringPos: world.ringPos,
+  pickupPos: world.pickupPos, PICKUP_CELL: world.PICKUP_CELL, PICKUP_R: world.PICKUP_R,
 });
 bridge.popup = renderer.popup;
 bridge.burst = renderer.burst;
@@ -571,6 +651,12 @@ const hudInput = createHudInput({
   fireGun: world.fireGun,
 });
 
+// Wire startMusic through bridge so it can be called after first user gesture.
+// Defensive: sound module may not expose startMusic yet.
+bridge.startMusic = typeof SFX.startMusic === 'function'
+  ? () => SFX.startMusic()
+  : () => {};
+
 /* ════════════════ shop UI ════════════════ */
 // The shop screen itself (tabs, upgrade/gear/bonus/medal shelves, ramp
 // designer) lives in its own module — see assets/js/flightless-store.js —
@@ -579,24 +665,70 @@ const introEl = document.getElementById('intro');
 const shopEl = document.getElementById('shop');
 const resultsEl = document.getElementById('results');
 const victoryEl = document.getElementById('victory');
+const settingsEl = document.getElementById('settings');
 
 function recompute(){ sim.st = physics.derive(); sim.ramp = physics.buildRamp(sim.st.rampLen); }
 
 const store = createStore({
   state, UPGRADES, GEAR, BONUS_SHOP, MEDALS, LANDMARKS, MILESTONES,
   contractsFor, upgCost, fmtCash, fmtDist, save, SFX, defaultState,
+  exportSave, importSave,
   getSt: () => sim.st, getRamp: () => sim.ramp, recompute,
   sampleShape: physics.sampleShape, clamp, RAD,
 });
 const renderShop = store.renderShop;
 
+/* ════════════════ NG+ — post-Wall endgame ════════════════ */
+// WIN_DIST is the base wall distance (35 000 m). Each NG+ cycle adds a
+// second, harder wall at 2× the original distance and scales enemy density.
+// state.ngPlus is seeded as 0 by save.js and read defensively throughout.
+
+function ngPlusWallDist(){
+  // NG+1 wall at 70 km, NG+2 at 105 km, etc.
+  const ng = state.ngPlus ?? 0;
+  return WIN_DIST * 2 * (ng + 1);
+}
+
+function openVictoryPanel(){
+  const ng = state.ngPlus ?? 0;
+  const nextWallKm = Math.round(ngPlusWallDist() / 1000);
+  const titleEl  = document.getElementById('victory-title');
+  const bodyEl   = document.getElementById('victory-body');
+  const subEl    = document.getElementById('victory-sub');
+  const hintEl   = document.getElementById('ng-hint');
+  const ngBtn    = document.getElementById('ng-plus-btn');
+
+  if(ng === 0){
+    // First win
+    titleEl.innerHTML  = '&#128039;&#128640; YOU LEARNED TO FLY';
+    bodyEl.innerHTML   = '35 kilometres out, there was a wall. There isn\'t any more.<br>They said you were <i>flightless</i>. They can come look at the rubble.';
+    subEl.textContent  = 'You can keep flying for fun — the sky was never the limit.';
+    hintEl.textContent = '★ New Game+ resets upgrades but keeps medals & bonus points — a harder wall awaits at '+nextWallKm+' km.';
+    ngBtn.textContent  = '\u{1F680} New Game+';
+  } else {
+    // Repeated NG+ wins
+    const nextKm = Math.round(ngPlusWallDist() / 1000);
+    titleEl.innerHTML  = '&#128039;&#128640; NG+'+ng+' COMPLETE';
+    bodyEl.innerHTML   = 'Another wall, another pile of rubble. The ice keeps going.<br>You\'re starting to think the sky has always been there for you.';
+    subEl.textContent  = 'Keep the streak alive — NG+'+(ng+1)+' awaits.';
+    hintEl.textContent = 'Next wall: '+nextKm+' km — upgrades reset, medals & BP carry on.';
+    ngBtn.textContent  = '\u{1F680} NG+'+(ng+1);
+  }
+
+  victoryEl.classList.add('show');
+  SFX.ding();
+}
+
 /* ════════════════ launch / shop / results flow ════════════════ */
 function closeResults(){
   resultsEl.classList.remove('show');
-  if(!state.won && state.lmHP.wall <= 0){
-    state.won = true; save();
-    victoryEl.classList.add('show');
-    SFX.ding();
+  if(state.lmHP.wall <= 0){
+    // Wall just fell (or was already down from a previous run landing here).
+    if(!state.won){
+      state.won = true;
+      save();
+    }
+    openVictoryPanel();
     return;
   }
   openShop();
@@ -612,11 +744,14 @@ function openShop(){
 
 function startLaunch(){
   SFX.ensure();
+  // Kick off background music on first user gesture (defensive: may not exist)
+  if(typeof SFX.startMusic === 'function') SFX.startMusic();
   if(!state.started){ state.started = true; save(); }
   introEl.classList.remove('show');
   shopEl.classList.remove('show');
   physics.newRun();
   sim.phase = 'ramp';
+  sim.paused = false;
   if(sim.st.sling > 0){
     renderer.popup(`\u{1F3AF} CATAPULT +${sim.st.sling} m/s!`, 24);
     SFX.boom();
@@ -634,13 +769,42 @@ function startLaunch(){
 document.getElementById('intro-launch-btn').addEventListener('click', startLaunch);
 document.getElementById('launch-btn').addEventListener('click', startLaunch);
 document.getElementById('continue-btn').addEventListener('click', closeResults);
+
+// Victory panel buttons
 document.getElementById('victory-btn').addEventListener('click', () => {
   victoryEl.classList.remove('show');
   openShop();
 });
+document.getElementById('ng-plus-btn').addEventListener('click', () => {
+  victoryEl.classList.remove('show');
+  // Increment NG+, reset upgrades/gear/progress, keep medals/BP/bonus/settings.
+  const ng = (state.ngPlus ?? 0) + 1;
+  const keep = {
+    muted: state.muted, musicMuted: state.musicMuted ?? false,
+    settings: state.settings ?? { reduceMotion:false, sfxVol:1, musicVol:1 },
+    medals: state.medals, bp: state.bp, bonus: state.bonus,
+    ngPlus: ng,
+  };
+  const fresh = defaultState();
+  for(const k of Object.keys(state)) delete state[k];
+  Object.assign(state, fresh, keep);
+  state.started = true;
+  state.won = false;
+  // Restore landmark HP to full for the new cycle (wall is already reset by defaultState)
+  // but scale enemy wall HP up per NG+ so the player faces a harder challenge.
+  const wallScale = 1 + ng * 0.5;   // NG+1 = 1.5×, NG+2 = 2×, etc.
+  state.lmHP.wall = Math.round(fresh.lmHP.wall * wallScale);
+  save();
+  openShop();
+});
+
 document.getElementById('reset-btn').addEventListener('click', () => {
   if(!confirm('Start over from Day 1? Medals, Bonus Points and Bonus Shop levels are permanent and carry over.')) return;
-  const keep = { muted:state.muted, medals:state.medals, bp:state.bp, bonus:state.bonus };
+  const keep = {
+    muted: state.muted, musicMuted: state.musicMuted ?? false,
+    settings: state.settings ?? { reduceMotion:false, sfxVol:1, musicVol:1 },
+    medals: state.medals, bp: state.bp, bonus: state.bonus,
+  };
   const fresh = defaultState();
   // mutate the existing object in place — every module holds a reference
   // to this same `state`, so reassigning the variable would leave them
@@ -652,10 +816,102 @@ document.getElementById('reset-btn').addEventListener('click', () => {
   openShop();
 });
 
+/* ════════════════ settings panel ════════════════ */
+function openSettings(){
+  // Sync controls to current state before showing.
+  const musicMuted = state.musicMuted ?? false;
+  const settings   = state.settings   ?? { reduceMotion:false, sfxVol:1, musicVol:1 };
+  const sfxMuted   = state.muted;
+
+  const musicToggle  = document.getElementById('set-music-toggle');
+  const musicVol     = document.getElementById('set-music-vol');
+  const sfxToggle    = document.getElementById('set-sfx-toggle');
+  const sfxVol       = document.getElementById('set-sfx-vol');
+  const reduceMotion = document.getElementById('set-reduce-motion');
+
+  musicToggle.textContent  = musicMuted ? 'OFF' : 'ON';
+  musicToggle.classList.toggle('on', !musicMuted);
+  musicVol.value           = settings.musicVol ?? 1;
+  sfxToggle.textContent    = sfxMuted ? 'OFF' : 'ON';
+  sfxToggle.classList.toggle('on', !sfxMuted);
+  sfxVol.value             = settings.sfxVol ?? 1;
+  reduceMotion.textContent = (settings.reduceMotion ?? false) ? 'ON' : 'OFF';
+  reduceMotion.classList.toggle('on', settings.reduceMotion ?? false);
+
+  settingsEl.classList.add('show');
+}
+
+function closeSettings(){
+  settingsEl.classList.remove('show');
+}
+
+document.getElementById('settings-btn').addEventListener('click', openSettings);
+document.getElementById('settings-close-btn').addEventListener('click', closeSettings);
+
+// Music mute toggle
+document.getElementById('set-music-toggle').addEventListener('click', () => {
+  state.musicMuted = !(state.musicMuted ?? false);
+  save();
+  const el = document.getElementById('set-music-toggle');
+  el.textContent = state.musicMuted ? 'OFF' : 'ON';
+  el.classList.toggle('on', !state.musicMuted);
+  // Inform the sound module if it supports music (defensive)
+  if(typeof SFX.setMusicVolume === 'function'){
+    SFX.setMusicVolume(state.musicMuted ? 0 : (state.settings?.musicVol ?? 1));
+  }
+  if(!state.musicMuted && typeof SFX.startMusic === 'function') SFX.startMusic();
+});
+
+// Music volume slider
+document.getElementById('set-music-vol').addEventListener('input', e => {
+  if(!state.settings) state.settings = { reduceMotion:false, sfxVol:1, musicVol:1 };
+  state.settings.musicVol = parseFloat(e.target.value);
+  save();
+  if(typeof SFX.setMusicVolume === 'function' && !(state.musicMuted ?? false)){
+    SFX.setMusicVolume(state.settings.musicVol);
+  }
+});
+
+// SFX mute toggle
+document.getElementById('set-sfx-toggle').addEventListener('click', () => {
+  state.muted = !state.muted;
+  save();
+  renderMute();   // keep the corner mute button in sync
+  const el = document.getElementById('set-sfx-toggle');
+  el.textContent = state.muted ? 'OFF' : 'ON';
+  el.classList.toggle('on', !state.muted);
+  if(state.muted) SFX.setThrust(false);
+});
+
+// SFX volume slider
+document.getElementById('set-sfx-vol').addEventListener('input', e => {
+  if(!state.settings) state.settings = { reduceMotion:false, sfxVol:1, musicVol:1 };
+  state.settings.sfxVol = parseFloat(e.target.value);
+  save();
+  // Defensive: sound module may expose setSfxVolume in a future revision
+  if(typeof SFX.setSfxVolume === 'function') SFX.setSfxVolume(state.settings.sfxVol);
+});
+
+// Reduce-motion toggle
+document.getElementById('set-reduce-motion').addEventListener('click', () => {
+  if(!state.settings) state.settings = { reduceMotion:false, sfxVol:1, musicVol:1 };
+  state.settings.reduceMotion = !(state.settings.reduceMotion ?? false);
+  save();
+  const el = document.getElementById('set-reduce-motion');
+  el.textContent = state.settings.reduceMotion ? 'ON' : 'OFF';
+  el.classList.toggle('on', state.settings.reduceMotion);
+});
+
 /* ════════════════ main loop ════════════════ */
 // Fixed 240 Hz timestep with an accumulator: every physics step is the same
 // size no matter the frame rate or phase, so the ramp→flight transition costs
 // exactly the same as any other step and the integration is deterministic.
+//
+// Pause behavior (sim.paused — set by hud-input):
+//   When paused during 'ramp' or 'flight', the accumulator is NOT advanced and
+//   physics steps are skipped entirely, so no sim state is mutated. The
+//   renderer still fires every rAF so the player sees the frozen frame.
+//   lastT is kept current so no banked time sneaks in on resume.
 const FIXED_DT = 1/240;
 let lastT = performance.now(), simAcc = 0, hudT = 0;
 function loop(now){
@@ -664,33 +920,43 @@ function loop(now){
   lastT = now;
   sim.timeSim += dtReal;
 
-  // time scale: player fast-forward, plus auto-FF for slide-outs and long ramp rides
-  let scale = 1;
-  if(sim.phase==='flight' && sim.run){
-    scale = input.ff ? 3 : (sim.run.sliding ? 2.5 : 2.4);
-  } else if(sim.phase==='ramp' && sim.ramp){
-    scale = clamp(1.8 + sim.ramp.len/150, 1.8, 3.2);
-  }
-  const dt = dtReal*scale;
+  // Honor pause: skip physics + accumulator when paused mid-flight/ramp.
+  // Still render so the frozen frame stays on screen.
+  const isActive = sim.phase==='ramp' || sim.phase==='flight';
+  const frozen   = isActive && (sim.paused ?? false);
 
-  if(sim.phase==='ramp' || sim.phase==='flight'){
-    simAcc = Math.min(simAcc + dt, 0.15);
-    while(simAcc >= FIXED_DT){
-      if(sim.phase==='ramp') physics.stepRamp(FIXED_DT);
-      else if(sim.run && !sim.run.done) physics.stepFlight(FIXED_DT);
-      else break;
-      simAcc -= FIXED_DT;
-      if(sim.phase==='results'){ simAcc = 0; break; }
+  if(!frozen){
+    // time scale: player fast-forward, plus auto-FF for slide-outs and long ramp rides
+    let scale = 1;
+    if(sim.phase==='flight' && sim.run){
+      scale = input.ff ? 3 : (sim.run.sliding ? 2.5 : 2.4);
+    } else if(sim.phase==='ramp' && sim.ramp){
+      scale = clamp(1.8 + sim.ramp.len/150, 1.8, 3.2);
     }
-  } else simAcc = 0;
+    const dt = dtReal*scale;
 
-  renderer.stepParticles(dt);
-  renderer.stepSpeedLines(dt);
+    if(isActive){
+      simAcc = Math.min(simAcc + dt, 0.15);
+      while(simAcc >= FIXED_DT){
+        if(sim.phase==='ramp') physics.stepRamp(FIXED_DT);
+        else if(sim.run && !sim.run.done) physics.stepFlight(FIXED_DT);
+        else break;
+        simAcc -= FIXED_DT;
+        if(sim.phase==='results'){ simAcc = 0; break; }
+      }
+    } else simAcc = 0;
+
+    renderer.stepParticles(dt);
+    renderer.stepSpeedLines(dt);
+  }
+  // Always draw — paused state shows a frozen frame; renderer reads sim.paused
+  // to optionally overlay a "PAUSED" indicator if it chooses.
   renderer.draw(dtReal);
-  if((sim.phase==='ramp'||sim.phase==='flight') && sim.run){
+
+  if(isActive && sim.run && !frozen){
     hudT -= dtReal;
     if(hudT <= 0){ hudInput.renderHUD(); hudT = 0.08; }   // ~12 Hz is plenty for text
-  } else hudT = 0;
+  } else if(!isActive) hudT = 0;
 }
 
 // boot: first-ever visit goes straight to the ramp, no shop
