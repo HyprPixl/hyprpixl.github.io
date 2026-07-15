@@ -115,16 +115,33 @@
   .shop-foot{ display:flex; align-items:center; justify-content:center; gap:4px 22px; flex-wrap:wrap; }
   .shop-foot .big-btn{ margin:0; padding:10px 44px; font-size:18px; }
   .shop-foot .notes{ display:flex; flex-direction:column; gap:2px; align-items:flex-start; }
-  .ramp-shape{
-    display:flex; flex-direction:column; gap:3px;
-    font-size:11px; color:var(--muted);
-    background:var(--panel); border:2px solid var(--border); padding:6px 10px;
+  .ramp-designer{ position:relative; }
+  .ramp-toggle{
+    font-family:inherit; font-size:12px; cursor:pointer;
+    background:var(--panel); color:var(--text);
+    border:2px solid var(--border); padding:6px 12px;
   }
-  .ramp-shape label{ color:var(--text); font-size:12px; }
-  .ramp-shape b{ color:var(--yellow); }
-  .ramp-shape canvas{
-    width:280px; height:130px; touch-action:none; cursor:grab;
+  .ramp-toggle:hover{ border-color:var(--yellow); }
+  .ramp-toggle b{ color:var(--yellow); }
+  .ramp-pop{
+    display:none; position:absolute; bottom:calc(100% + 10px); left:50%;
+    transform:translateX(-50%); z-index:25;
+    background:var(--panel); border:2px solid var(--border);
+    padding:8px 10px; box-shadow:0 10px 34px rgba(0,0,0,0.6);
+    flex-direction:column; gap:5px;
+  }
+  .ramp-pop.open{ display:flex; }
+  .ramp-pop canvas{
+    width:260px; height:120px; touch-action:none; cursor:grab;
     background:#060818; border:1px solid var(--border);
+  }
+  .ramp-pop-foot{
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    font-size:10.5px; color:var(--muted); max-width:260px;
+  }
+  .ramp-pop-foot button{
+    font-family:inherit; font-size:10.5px; cursor:pointer;
+    background:none; border:none; color:#8891d8; text-decoration:underline;
   }
   .shop-foot .small-note{ margin:0; text-align:left; }
   .shop-foot .reset-link{ margin:0; width:auto; text-align:left; }
@@ -316,10 +333,15 @@
       <div class="shop-grid" id="gear-grid"></div>
     </div>
     <div class="shop-foot">
-      <div class="ramp-shape">
-        <label>&#128736; Ramp designer &middot; <b id="shape-info"></b></label>
-        <canvas id="ramp-editor"></canvas>
-        <span>drag the handles to reshape &middot; track length is fixed &mdash; buy more track</span>
+      <div class="ramp-designer">
+        <button class="ramp-toggle" id="ramp-toggle">&#128736; Ramp &middot; <b id="shape-info"></b> &#9652;</button>
+        <div class="ramp-pop" id="ramp-pop">
+          <canvas id="ramp-editor"></canvas>
+          <div class="ramp-pop-foot">
+            <span>drag any handle &mdash; the red one is the lip &middot; buy Ramp Track for length</span>
+            <button id="shape-reset">reset</button>
+          </div>
+        </div>
       </div>
       <button class="big-btn" id="launch-btn">&#128640; Launch</button>
       <div class="notes">
@@ -382,9 +404,9 @@ const defaultState = () => ({
   money:0, day:1, lvl:{ramp:0,aero:0,wings:0,rocket:0,fuel:0,sling:0,bounce:0,sponsor:0,gun:0,struts:0},
   perm:{speedo:false,alti:false,burner:false,tank:false},
   best:{dist:0,alt:0,spd:0}, claimed:[], won:false, muted:false, started:false,
-  // ramp spline control points in unit shape space (gate → lip); the lip
-  // itself is fixed. Upgrades buy track length; this is the shape of it.
-  rampShape:[{x:0.03,y:0.95},{x:0.16,y:0.32},{x:0.72,y:0.02}],
+  // ramp spline control points in unit shape space (gate → lip); the last
+  // point IS the lip. Upgrades buy track length; this is the shape of it.
+  rampShape:[{x:0.03,y:0.95},{x:0.16,y:0.32},{x:0.72,y:0.02},{x:1,y:0.10}],
 });
 let state = defaultState();
 try{
@@ -395,8 +417,11 @@ try{
     state.lvl = Object.assign(defaultState().lvl, s.lvl||{});
     state.perm = Object.assign(defaultState().perm, s.perm||{});
     state.best = Object.assign(defaultState().best, s.best||{});
-    // sanitize the ramp spline (older saves stored a nose angle instead)
-    if(!Array.isArray(state.rampShape) || state.rampShape.length!==3 ||
+    // sanitize the ramp spline (older saves stored a nose angle, or a
+    // 3-point shape with an implicit fixed lip — append the old lip)
+    if(Array.isArray(state.rampShape) && state.rampShape.length===3)
+      state.rampShape = [...state.rampShape, {x:1, y:0.10}];
+    if(!Array.isArray(state.rampShape) || state.rampShape.length!==4 ||
        state.rampShape.some(p=>!p || typeof p.x!=='number' || typeof p.y!=='number' || !isFinite(p.x) || !isFinite(p.y)))
       state.rampShape = defaultState().rampShape;
     else state.rampShape = state.rampShape.map(p=>({ x:Math.min(Math.max(p.x,0),1), y:Math.min(Math.max(p.y,0.02),1) }));
@@ -499,20 +524,36 @@ const MILESTONES = [
 const WIN_DIST = 35000;
 
 /* ════════════════ collectibles ════════════════ */
-// Fish are scattered through the low/mid sky on a 1-D cell grid along the
-// flight path; stars only exist once you're genuinely high up, on a 2-D
-// grid so they can be found at any altitude above the threshold.
-const COIN_CELL = 140, COIN_MIN_ALT = 15, COIN_MAX_ALT = 3200, COIN_R = 12;
+// Fish come in little arcs of 3–5 on a 1-D cell grid, banded inside the
+// altitude corridor a flight at that distance can plausibly reach — so
+// they're actually on your path instead of scattered through empty sky.
+// Stars only exist once you're genuinely high up, on a 2-D grid.
+const COIN_CELL = 140, COIN_MIN_ALT = 12, COIN_MAX_ALT = 3200, COIN_R = 12;
 const STAR_CELL = 260, STAR_MIN_ALT = 3200, STAR_R = 20;
-function coinPos(i){
-  if(hash01(i*17+3) < 0.55) return null;
-  return {
-    x: i*COIN_CELL + 20 + hash01(i*5+11)*(COIN_CELL-40),
-    y: COIN_MIN_ALT + hash01(i*29+41)*(COIN_MAX_ALT-COIN_MIN_ALT),
-  };
+// how high anything worth placing can sit at distance x: hugging the ice off
+// the ramp, opening up as flights get longer
+const corridorTop = x => clamp(25 + x*0.55, 60, COIN_MAX_ALT);
+function coinCluster(i){
+  if(i < 0 || hash01(i*17+3) < 0.35) return null;
+  const cx = i*COIN_CELL + 20 + hash01(i*5+11)*(COIN_CELL-40);
+  const top = corridorTop(cx);
+  // skew toward the low corridor — that's where flights actually happen
+  const cy = COIN_MIN_ALT + Math.pow(hash01(i*29+41), 1.8)*(top-COIN_MIN_ALT);
+  const n = 3 + (hash01(i*43+5) < 0.4 ? 2 : 0);
+  const slope = (hash01(i*31+8)-0.5)*1.1;     // arc leans up or down
+  const bow = 8 + hash01(i*37+2)*12;          // gentle upward bow
+  const out = [];
+  for(let k=0;k<n;k++){
+    const t = k/(n-1) - 0.5;
+    out.push({
+      x: cx + t*44,
+      y: Math.max(COIN_MIN_ALT, cy + t*44*slope + (1-4*t*t)*bow*0.4),
+    });
+  }
+  return out;
 }
 function starPos(i, j){
-  if(hash01(i*53+j*97+7) < 0.6) return null;
+  if(hash01(i*53+j*97+7) < 0.45) return null;
   const y = j*STAR_CELL + hash01(i*11+j*13+9)*STAR_CELL;
   if(y < STAR_MIN_ALT) return null;
   return { x: i*STAR_CELL + hash01(i*7+j*3+2)*STAR_CELL, y };
@@ -520,17 +561,21 @@ function starPos(i, j){
 function checkCollectibles(){
   const ci = Math.round(run.x/COIN_CELL);
   for(let di=-1; di<=1; di++){
-    const i = ci+di, key = 'c'+i;
-    if(run.collected.has(key)) continue;
-    const c = coinPos(i);
-    if(!c){ run.collected.add(key); continue; }
-    if(Math.hypot(run.x-c.x, run.y-c.y) < COIN_R){
-      run.collected.add(key);
-      const val = 10 + Math.round(hash01(i*3+1)*15);
-      run.coinCash += val; run.coinCount++;
-      popup(`\u{1F41F} +${fmtCash(val)}`, 18);
-      SFX.tick();
-      burst(c.x, c.y, 10, '#ffd54a', 6);
+    const i = ci+di;
+    const cl = coinCluster(i);
+    if(!cl) continue;
+    for(let k=0;k<cl.length;k++){
+      const key = 'c'+i+'_'+k;
+      if(run.collected.has(key)) continue;
+      const c = cl[k];
+      if(Math.hypot(run.x-c.x, run.y-c.y) < COIN_R*2){
+        run.collected.add(key);
+        const val = 10 + Math.round(hash01(i*3+k*7+1)*15);
+        run.coinCash += val; run.coinCount++;
+        popup(`\u{1F41F} +${fmtCash(val)}`, 18);
+        SFX.tick();
+        burst(c.x, c.y, 10, '#ffd54a', 6);
+      }
     }
   }
   if(run.y > STAR_MIN_ALT-50){
@@ -540,7 +585,7 @@ function checkCollectibles(){
       if(run.collected.has(key)) continue;
       const s = starPos(i,j);
       if(!s){ run.collected.add(key); continue; }
-      if(Math.hypot(run.x-s.x, run.y-s.y) < STAR_R){
+      if(Math.hypot(run.x-s.x, run.y-s.y) < STAR_R*1.6){
         run.collected.add(key);
         const val = 60 + Math.round(hash01(i*7+j*5)*60);
         run.starCash += val; run.starCount++;
@@ -556,21 +601,27 @@ function checkCollectibles(){
 /* ════════════════ obstacles ════════════════ */
 // Birds, balloons and planes share one x-cell grid; each cell deterministically
 // rolls a type then an existence chance, same trick as the coin/star fields.
-const OBST_CELL = 320;
+const OBST_CELL = 260;
 const OBSTACLE_TYPES = [
-  { id:'bird',    tough:1, cash:40,  minAlt:40,   maxAlt:1400, r:16, skip:0.45 },
-  { id:'balloon', tough:3, cash:150, minAlt:600,  maxAlt:3200, r:28, skip:0.55 },
-  { id:'plane',   tough:5, cash:500, minAlt:1800, maxAlt:6000, r:36, skip:0.65 },
+  { id:'bird',    tough:1, cash:40,  minAlt:25,   maxAlt:1400, r:16, skip:0.3 },
+  { id:'balloon', tough:3, cash:150, minAlt:600,  maxAlt:3200, r:28, skip:0.45 },
+  { id:'plane',   tough:5, cash:500, minAlt:1800, maxAlt:6000, r:36, skip:0.55 },
 ];
 function obstaclePos(i){
+  if(i < 0) return null;
+  const x = i*OBST_CELL + 30 + hash01(i*7+5)*(OBST_CELL-60);
+  // keep obstacles inside the reachable corridor at this distance — a plane
+  // at 5 km altitude 200 m from the ramp is scenery, not gameplay. Only types
+  // whose band fits the corridor here are even considered, so the early game
+  // rolls birds instead of culled balloons.
+  const corr = Math.max(corridorTop(x), 60);
+  const fits = OBSTACLE_TYPES.filter(t => Math.min(t.maxAlt, corr*(t.id==='plane'?2:1)) > t.minAlt);
+  if(!fits.length) return null;
   const roll = hash01(i*61+13);
-  const type = roll < 0.5 ? OBSTACLE_TYPES[0] : roll < 0.82 ? OBSTACLE_TYPES[1] : OBSTACLE_TYPES[2];
+  const type = fits[Math.min(fits.length-1, Math.floor(roll*roll*fits.length))];
   if(hash01(i*19+37) < type.skip) return null;
-  return {
-    type,
-    x: i*OBST_CELL + 30 + hash01(i*7+5)*(OBST_CELL-60),
-    y: type.minAlt + hash01(i*23+41)*(type.maxAlt-type.minAlt),
-  };
+  const top = Math.min(type.maxAlt, corr*(type.id==='plane'?2:1));
+  return { type, x, y: type.minAlt + Math.pow(hash01(i*23+41), 1.4)*(top-type.minAlt) };
 }
 function checkObstacles(){
   const oi = Math.round(run.x/OBST_CELL);
@@ -581,9 +632,10 @@ function checkObstacles(){
     if(!o){ run.obGone.add(key); continue; }
     if(Math.hypot(run.x-o.x, run.y-o.y) < o.type.r){
       run.obGone.add(key);
-      run.vx *= 0.55; run.vy *= 0.55;
-      run.tumble += 6;
-      cam.shake = Math.min(cam.shake+10, 16);
+      // a glancing thud, not a brick wall — keep the run alive
+      run.vx *= 0.72; run.vy *= 0.72;
+      run.tumble = Math.min(run.tumble + 3.5, 7);
+      cam.shake = Math.min(cam.shake+8, 14);
       SFX.thump();
       popup(`\u{1F4A5} hit a ${o.type.id}!`, 20);
       burst(o.x, o.y, 16, '#555b6e', 8);
@@ -705,8 +757,6 @@ let run = null;               // per-run mutable state
 let particles = [];
 let timeSim = 0;
 
-const RAMP_LIP = { x:1, y:0.10 };   // fixed exit point of the spline, shape space
-
 // Catmull-Rom through the control points (endpoints doubled for tangents)
 function sampleShape(ctrl){
   const P = [ctrl[0], ...ctrl, ctrl[ctrl.length-1]];
@@ -728,7 +778,7 @@ function sampleShape(ctrl){
 // (the material bought with upgrades), anchored at the exit lip (x=0, y=2.5)
 // and clamped so no part of it ever dips below the ice.
 function buildRamp(len){
-  const raw = sampleShape([...state.rampShape, RAMP_LIP]);
+  const raw = sampleShape(state.rampShape);
   let L = 0;
   for(let i=1;i<raw.length;i++) L += Math.hypot(raw[i].x-raw[i-1].x, raw[i].y-raw[i-1].y);
   const s = len/Math.max(L, 0.01);
@@ -764,6 +814,7 @@ function rampPoint(s){
 function newRun(){
   st = derive();
   ramp = buildRamp(st.rampLen);
+  speedLines = [];
   const start = rampPoint(0);
   run = {
     x:start.x, y:start.y, vx:0, vy:0,
@@ -1071,6 +1122,37 @@ function stepParticles(dt){
     if(p.life<=0 || p.y<0) particles.splice(i,1);
   }
 }
+/* ── speed streaks ──
+   Short dashes anchored in WORLD space, seeded in the airspace ahead of the
+   penguin, that fade in and out over ~half a second. Because they hold still
+   while the penguin tears past, they read as real motion parallax instead of
+   the old per-frame random flicker. */
+let speedLines = [];
+function stepSpeedLines(dt){
+  for(let i=speedLines.length-1;i>=0;i--){
+    speedLines[i].life += dt;
+    if(speedLines[i].life >= speedLines[i].max) speedLines.splice(i,1);
+  }
+  if(!run || run.sliding || run.done || phase!=='flight') return;
+  const sp = Math.hypot(run.vx, run.vy);
+  const t = clamp((sp-55)/140, 0, 1);
+  if(t <= 0) return;
+  const dir = Math.atan2(run.vy, run.vx);
+  const n = dt*(8 + 34*t);
+  let count = Math.floor(n) + (Math.random() < n-Math.floor(n) ? 1 : 0);
+  const spanX = W/cam.z, spanY = Hpx/cam.z;
+  while(count-- > 0){
+    const ahead = (0.1 + Math.random()*0.6)*spanX;
+    const side  = (Math.random()-0.5)*0.9*spanY;
+    speedLines.push({
+      x: run.x + Math.cos(dir)*ahead - Math.sin(dir)*side,
+      y: Math.max(1, run.y + Math.sin(dir)*ahead + Math.cos(dir)*side),
+      life: 0, max: 0.4 + Math.random()*0.45,
+    });
+  }
+  if(speedLines.length > 110) speedLines.splice(0, speedLines.length-110);
+}
+
 const popupLayer = document.getElementById('popup-layer');
 function popup(text, size){
   const el = document.createElement('div');
@@ -1283,18 +1365,23 @@ function draw(dtReal){
 
   if(run){
     const px = w2sX(run.x), py = w2sY(run.y);
-    const dir = Math.atan2(run.vy, run.vx);
     const rhoN = Math.exp(-run.y/SCALE_H);
-    // speed lines
-    if(sp > 70 && !run.sliding){
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.5;
-      for(let i=0;i<6;i++){
-        const off = (hash01(i*31+Math.floor(timeSim*10))-0.5)*160;
-        const lx = px - Math.cos(dir)*40 + Math.cos(dir+Math.PI/2)*off;
-        const ly = py + Math.sin(dir)*40 + -Math.sin(dir+Math.PI/2)*off;
-        const l = 20 + sp*0.15;
-        ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(lx-Math.cos(dir)*l, ly+Math.sin(dir)*l); ctx.stroke();
+    // speed streaks — world-anchored, oriented along the (smoothed) velocity
+    if(speedLines.length){
+      const sdir = Math.atan2(cam.vyS, cam.vxS);
+      const lenW = clamp(sp*0.16, 3, 55);
+      const ldx = Math.cos(sdir)*lenW, ldy = Math.sin(sdir)*lenW;
+      const inten = clamp((sp-55)/140, 0.25, 1);
+      ctx.lineWidth = Math.max(1, cam.z*0.18);
+      ctx.lineCap = 'round';
+      for(const sl of speedLines){
+        const lx = w2sX(sl.x), ly = w2sY(sl.y);
+        if(lx<-90||lx>W+90||ly<-90||ly>Hpx+90) continue;
+        const a = Math.sin(Math.PI*sl.life/sl.max)*0.38*inten;
+        ctx.strokeStyle = `rgba(255,255,255,${a.toFixed(3)})`;
+        ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(w2sX(sl.x-ldx), w2sY(sl.y-ldy)); ctx.stroke();
       }
+      ctx.lineCap = 'butt';
     }
     // reentry glow
     if(sp > 200 && rhoN > 0.35 && !run.sliding){
@@ -1322,9 +1409,10 @@ function draw(dtReal){
 function drawFishIcon(x, y, s){
   ctx.save();
   ctx.translate(x, y + Math.sin(timeSim*3 + x*0.05)*s*0.15);
+  ctx.strokeStyle = 'rgba(90,50,0,0.8)'; ctx.lineWidth = Math.max(1, s*0.12);
   ctx.fillStyle = '#ffcf4a';
-  ctx.beginPath(); ctx.ellipse(0, 0, s, s*0.55, 0, 0, 7); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(-s*0.9,0); ctx.lineTo(-s*1.4,-s*0.5); ctx.lineTo(-s*1.4,s*0.5); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, 0, s, s*0.55, 0, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-s*0.9,0); ctx.lineTo(-s*1.4,-s*0.5); ctx.lineTo(-s*1.4,s*0.5); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#7a4a00';
   ctx.beginPath(); ctx.arc(s*0.55, -s*0.12, s*0.12, 0, 7); ctx.fill();
   ctx.restore();
@@ -1349,12 +1437,15 @@ function drawCollectibles(){
   if(!run) return;
   const ci0 = Math.floor((cam.x - W/cam.z)/COIN_CELL)-1, ci1 = Math.ceil((cam.x + W/cam.z)/COIN_CELL)+1;
   for(let i=ci0;i<=ci1;i++){
-    if(run.collected.has('c'+i)) continue;
-    const c = coinPos(i);
-    if(!c) continue;
-    const sx=w2sX(c.x), sy=w2sY(c.y);
-    if(sx<-40||sx>W+40||sy<-40||sy>Hpx+40) continue;
-    drawFishIcon(sx, sy, Math.max(8, COIN_R*cam.z*0.7));
+    const cl = coinCluster(i);
+    if(!cl) continue;
+    for(let k=0;k<cl.length;k++){
+      if(run.collected.has('c'+i+'_'+k)) continue;
+      const c = cl[k];
+      const sx=w2sX(c.x), sy=w2sY(c.y);
+      if(sx<-60||sx>W+60||sy<-60||sy>Hpx+60) continue;
+      drawFishIcon(sx, sy, clamp(COIN_R*cam.z*0.8, 10, 22));
+    }
   }
   const si0 = Math.floor((cam.x - W/cam.z)/STAR_CELL)-1, si1 = Math.ceil((cam.x + W/cam.z)/STAR_CELL)+1;
   const sj0 = Math.max(0, Math.floor((cam.y - Hpx/(2*cam.z))/STAR_CELL)-1), sj1 = Math.ceil((cam.y + Hpx/(2*cam.z))/STAR_CELL)+1;
@@ -1364,7 +1455,7 @@ function drawCollectibles(){
     if(!s) continue;
     const sx=w2sX(s.x), sy=w2sY(s.y);
     if(sx<-40||sx>W+40||sy<-40||sy>Hpx+40) continue;
-    drawStarIcon(sx, sy, Math.max(10, STAR_R*cam.z*0.7));
+    drawStarIcon(sx, sy, clamp(STAR_R*cam.z*0.8, 13, 28));
   }
 }
 
@@ -1414,7 +1505,7 @@ function drawObstacles(){
     if(!o) continue;
     const sx=w2sX(o.x), sy=w2sY(o.y);
     if(sx<-80||sx>W+80||sy<-80||sy>Hpx+80) continue;
-    const s = Math.max(o.type.r*0.5, o.type.r*cam.z*0.55);
+    const s = clamp(o.type.r*cam.z*0.55, o.type.r*0.8, o.type.r*1.5);
     if(o.type.id==='bird') drawBird(sx, sy, s, i);
     else if(o.type.id==='balloon') drawBalloon(sx, sy, s, i);
     else drawPlane(sx, sy, s, i);
@@ -1571,40 +1662,72 @@ const shopGrid = document.getElementById('shop-grid');
 const gearGrid = document.getElementById('gear-grid');
 
 // ── ramp designer ──
-// A mini canvas showing the track spline with three draggable handles; the
-// world ramp rebuilds live behind the shop while dragging, and the card
-// numbers refresh when the drag settles.
+// A collapsible pop-over: the footer only carries a one-line summary button,
+// and the canvas appears above it on demand. All four control points drag —
+// including the lip, so the exit angle and kicker are fully yours. The world
+// ramp rebuilds live behind the shop while dragging.
 const edCv = document.getElementById('ramp-editor');
 const edCtx = edCv.getContext('2d');
 const shapeInfo = document.getElementById('shape-info');
-const ED_W=280, ED_H=130, ED_PAD=14, ED_TOP=12, ED_GROUND=ED_H-16;
+const rampPop = document.getElementById('ramp-pop');
+const ED_W=260, ED_H=120, ED_PAD=14, ED_TOP=12, ED_GROUND=ED_H-16;
 edCv.width = ED_W*2; edCv.height = ED_H*2; edCtx.setTransform(2,0,0,2,0,0);
 const edX = p => ED_PAD + p.x*(ED_W-2*ED_PAD);
 const edY = p => ED_GROUND - p.y*(ED_GROUND-ED_TOP);
 let edDrag = -1;
 function drawEditor(){
+  shapeInfo.textContent = `${Math.round(ramp.exitTh/RAD)}° nose · ${Math.round(ramp.H)} m tall`;
+  if(!rampPop.classList.contains('open')) return;
   edCtx.clearRect(0,0,ED_W,ED_H);
+  // faint height grid
+  edCtx.strokeStyle = 'rgba(58,65,168,0.35)'; edCtx.lineWidth = 1;
+  for(let g=1; g<=3; g++){
+    const y = Math.round(ED_GROUND - (ED_GROUND-ED_TOP)*g/4) + 0.5;
+    edCtx.beginPath(); edCtx.moveTo(0, y); edCtx.lineTo(ED_W, y); edCtx.stroke();
+  }
   // the ice
   edCtx.fillStyle = 'rgba(180,220,255,0.13)';
   edCtx.fillRect(0, ED_GROUND, ED_W, ED_H-ED_GROUND);
   edCtx.strokeStyle = '#9fc6e8'; edCtx.lineWidth = 1;
   edCtx.beginPath(); edCtx.moveTo(0, ED_GROUND+0.5); edCtx.lineTo(ED_W, ED_GROUND+0.5); edCtx.stroke();
-  // the track
-  const raw = sampleShape([...state.rampShape, RAMP_LIP]);
+  // ramp silhouette + track
+  const raw = sampleShape(state.rampShape);
+  edCtx.fillStyle = 'rgba(160,98,45,0.28)';
+  edCtx.beginPath();
+  edCtx.moveTo(edX(raw[0]), ED_GROUND);
+  raw.forEach(p => edCtx.lineTo(edX(p), Math.min(edY(p), ED_GROUND)));
+  edCtx.lineTo(edX(raw[raw.length-1]), ED_GROUND);
+  edCtx.closePath(); edCtx.fill();
   edCtx.strokeStyle = '#FFFF00'; edCtx.lineWidth = 2;
   edCtx.beginPath();
   raw.forEach((p,i)=> i ? edCtx.lineTo(edX(p), Math.min(edY(p), ED_GROUND)) : edCtx.moveTo(edX(p), edY(p)));
   edCtx.stroke();
-  // exit lip
-  edCtx.fillStyle = '#FF0000';
-  edCtx.fillRect(edX(RAMP_LIP)-3, edY(RAMP_LIP)-3, 6, 6);
-  // handles
+  // launch direction off the lip
+  const lipP = state.rampShape[state.rampShape.length-1];
+  const ax = edX(lipP), ay = edY(lipP);
+  const dx = Math.cos(ramp.exitTh), dy = -Math.sin(ramp.exitTh);
+  edCtx.strokeStyle = 'rgba(255,80,80,0.9)'; edCtx.lineWidth = 1.5;
+  edCtx.setLineDash([4,3]);
+  edCtx.beginPath(); edCtx.moveTo(ax, ay); edCtx.lineTo(ax+dx*24, ay+dy*24); edCtx.stroke();
+  edCtx.setLineDash([]);
+  edCtx.beginPath();
+  edCtx.moveTo(ax+dx*30, ay+dy*30);
+  edCtx.lineTo(ax+dx*22-dy*4, ay+dy*22+dx*4);
+  edCtx.lineTo(ax+dx*22+dy*4, ay+dy*22-dx*4);
+  edCtx.closePath();
+  edCtx.fillStyle = 'rgba(255,80,80,0.9)'; edCtx.fill();
+  // handles — lip drawn as a red square so it reads as "the exit"
   state.rampShape.forEach((p,i)=>{
-    edCtx.fillStyle = i===edDrag ? '#ffffff' : '#ffd23f';
+    const isLip = i === state.rampShape.length-1;
+    edCtx.fillStyle = i===edDrag ? '#ffffff' : isLip ? '#ff5555' : '#ffd23f';
     edCtx.strokeStyle = '#000080'; edCtx.lineWidth = 1.5;
-    edCtx.beginPath(); edCtx.arc(edX(p), edY(p), 6, 0, 7); edCtx.fill(); edCtx.stroke();
+    if(isLip){
+      edCtx.fillRect(edX(p)-6, edY(p)-6, 12, 12);
+      edCtx.strokeRect(edX(p)-6, edY(p)-6, 12, 12);
+    } else {
+      edCtx.beginPath(); edCtx.arc(edX(p), edY(p), 7, 0, 7); edCtx.fill(); edCtx.stroke();
+    }
   });
-  shapeInfo.textContent = `${Math.round(ramp.exitTh/RAD)}° nose · ${Math.round(ramp.H)} m tall`;
 }
 function edPos(e){
   const r = edCv.getBoundingClientRect();
@@ -1613,7 +1736,7 @@ function edPos(e){
 edCv.addEventListener('pointerdown', e => {
   e.preventDefault();
   const m = edPos(e);
-  let best=-1, bd=20*20;
+  let best=-1, bd=24*24;
   state.rampShape.forEach((p,i)=>{
     const d = (edX(p)-m.x)**2 + (edY(p)-m.y)**2;
     if(d < bd){ bd = d; best = i; }
@@ -1625,12 +1748,13 @@ edCv.addEventListener('pointerdown', e => {
 edCv.addEventListener('pointermove', e => {
   if(edDrag < 0) return;
   const m = edPos(e);
-  const s = state.rampShape;
+  const s = state.rampShape, last = s.length-1;
   const nx = clamp((m.x-ED_PAD)/(ED_W-2*ED_PAD), 0, 1);
   let ny = clamp((ED_GROUND-m.y)/(ED_GROUND-ED_TOP), 0.02, 1);
-  if(edDrag === 0) ny = Math.max(ny, RAMP_LIP.y + 0.15);  // gate stays above the lip
+  if(edDrag === 0) ny = Math.max(ny, s[last].y + 0.12);   // gate stays above the lip
+  if(edDrag === last) ny = Math.min(ny, s[0].y - 0.12);   // lip stays below the gate
   const lo = edDrag===0 ? 0 : s[edDrag-1].x + 0.07;
-  const hi = edDrag===2 ? RAMP_LIP.x - 0.07 : s[edDrag+1].x - 0.07;
+  const hi = edDrag===last ? 1 : s[edDrag+1].x - 0.07;
   s[edDrag] = { x: clamp(nx, lo, hi), y: ny };
   st = derive();
   ramp = buildRamp(st.rampLen);
@@ -1644,6 +1768,17 @@ const edUp = () => {
 };
 edCv.addEventListener('pointerup', edUp);
 edCv.addEventListener('pointercancel', edUp);
+document.getElementById('ramp-toggle').addEventListener('click', () => {
+  rampPop.classList.toggle('open');
+  drawEditor();
+});
+document.getElementById('shape-reset').addEventListener('click', () => {
+  state.rampShape = defaultState().rampShape;
+  st = derive();
+  ramp = buildRamp(st.rampLen);
+  save();
+  drawEditor();
+});
 
 function renderShop(){
   drawEditor();
@@ -1941,6 +2076,7 @@ function loop(now){
   } else simAcc = 0;
 
   stepParticles(dt);
+  stepSpeedLines(dt);
   draw(dtReal);
   if((phase==='ramp'||phase==='flight') && run){
     hudT -= dtReal;
