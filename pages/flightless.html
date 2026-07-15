@@ -431,6 +431,11 @@ import { createStore } from '../assets/js/flightless-store.js';
 import { defaultState, loadState, saveState } from '../assets/js/flightless-save.js';
 import { createSound } from '../assets/js/flightless-sound.js';
 import { createData } from '../assets/js/flightless-data.js';
+import { createPhysics } from '../assets/js/flightless-physics.js';
+import { createWorld } from '../assets/js/flightless-world.js';
+import { createRenderer } from '../assets/js/flightless-render.js';
+import { createHudInput } from '../assets/js/flightless-hud-input.js';
+import { createResults } from '../assets/js/flightless-results.js';
 (() => {
 'use strict';
 
@@ -449,310 +454,29 @@ function hash01(n){ let x=Math.sin(n*127.1+311.7)*43758.5453; return x-Math.floo
 let state = loadState();
 function save(){ saveState(state); }
 
-// Upgrade/gear/medal/contract tables live in flightless-data.js. derive/
-// buildRamp/rampExitEst/gliderName are function declarations further down
-// this file — referencing them here is fine since they're hoisted and
-// won't actually be *called* until well after this point (when a shop
-// card's val() is evaluated).
-const {
-  UPGRADES, GEAR, upgCost, MILESTONES, WIN_DIST, OBSTACLE_TYPES,
-  CONTRACT_POOL, contractsFor, LANDMARKS, MEDALS, BONUS_SHOP,
-} = createData({ state, derive, buildRamp, rampExitEst, gliderName, clamp, hash01 });
+/* ════════════════ shared sim state ════════════════ */
+// `phase`/`run`/`ramp`/`st`/`particles`/`speedLines`/`timeSim`/`W`/`Hpx`/`DPR`
+// used to be top-level `let`s reassigned all over this one file. Now that
+// the flight sim, world objects, renderer, HUD/input and results screen
+// each live in their own module, they all read and write these through one
+// shared mutable object instead, so nobody holds a stale copy.
+const sim = {
+  phase: 'shop', run: null, ramp: null, st: null,
+  particles: [], speedLines: [], timeSim: 0,
+  W: 0, Hpx: 0, DPR: 1,
+};
+const cam = { x:0, y:0, z:6, shake:0 };
+const input = { up:false, down:false, boost:false, ff:false };
 
-// physical stats derived from upgrade levels (overrides let upgrade cards preview values)
-function derive(over){
-  const L = Object.assign({}, state.lvl, over||{});
-  const B = state.bonus;                                  // permanent bonus-shop levels
-  const wings = L.wings;
-  const mass  = 10;                                       // kg, penguin + kit
-  const wingS = wings===0 ? 0.02 : 0.10 + 0.09*wings;     // m² lifting area
-  const ar    = wings===0 ? 1.2  : 3 + 0.55*wings;        // wing aspect ratio
-  const cdA   = Math.max(0.006, 0.022 - 0.0016*L.aero) * (1 - 0.07*B.aero);  // m², body parasite drag area
-  const cd0w  = 0.008;                                    // clean-wing profile drag coeff
-  const k     = 1/(Math.PI*ar*0.85);                      // induced drag factor (e = 0.85)
-  const cd0eff = cdA/wingS + cd0w;
-  // upgrades buy ramp track length; the player-drawn spline (state.rampShape)
-  // decides what that length is spent on — see buildRamp
-  const rampLen = 32 + 12*L.ramp + 1.2*L.ramp*L.ramp;
-  const mu = Math.max(0.008, 0.02 - 0.0012*L.aero);
-  const sling = L.sling * 20;
-  const rampV0 = 2 + sling;
-  return {
-    mass, wingS, ar, cdA, cd0w, k,
-    clSlope: 2*Math.PI*ar/(ar+2),                         // finite-wing lift slope, /rad
-    rampLen, rampV0,
-    mu,
-    wingAuth: wings===0 ? 1.5 : 2.4 + 0.35*wings,         // pitch authority rad/s
-    gMax:   4 + 0.9*L.struts,                             // structural load limit, g
-    thrust: L.rocket ? 10 + 8*L.rocket : 0,
-    fuelMax:L.rocket ? 2 + 1.3*L.fuel : 0,
-    sling,
-    rest:   L.bounce ? 0.12 + 0.09*L.bounce : 0,
-    mult:   (1 + 0.35*L.sponsor) * (1 + 0.12*B.cash),
-    smash:  (1 + 0.35*L.plating) * (1 + 0.4*B.skull),
-    gunLevel: L.gun,
-    gunRange: L.gun ? 260 + 90*L.gun : 0,
-    slideDecel: Math.max(3, 6.5 - 0.35*L.aero),
-    bestLD: 1/(2*Math.sqrt(cd0eff*k)),                    // best glide ratio
-    vDive:  Math.sqrt(2*mass*9.81/(1.225*(cdA + wingS*cd0w))),
-  };
-}
-
-/* ════════════════ collectibles ════════════════ */
-// Fish come in little arcs of 3–5 on a 1-D cell grid, banded inside the
-// altitude corridor a flight at that distance can plausibly reach — so
-// they're actually on your path instead of scattered through empty sky.
-// Stars only exist once you're genuinely high up, on a 2-D grid.
-const COIN_CELL = 140, COIN_MIN_ALT = 12, COIN_MAX_ALT = 3200, COIN_R = 12;
-const STAR_CELL = 260, STAR_MIN_ALT = 3200, STAR_R = 20;
-// how high anything worth placing can sit at distance x: hugging the ice off
-// the ramp, opening up as flights get longer
-const corridorTop = x => clamp(25 + x*0.55, 60, COIN_MAX_ALT);
-function coinCluster(i){
-  if(i < 0 || hash01(i*17+3) < 0.35) return null;
-  const cx = i*COIN_CELL + 20 + hash01(i*5+11)*(COIN_CELL-40);
-  const top = corridorTop(cx);
-  // skew toward the low corridor — that's where flights actually happen
-  const cy = COIN_MIN_ALT + Math.pow(hash01(i*29+41), 1.8)*(top-COIN_MIN_ALT);
-  const n = 3 + (hash01(i*43+5) < 0.4 ? 2 : 0);
-  const slope = (hash01(i*31+8)-0.5)*1.1;     // arc leans up or down
-  const bow = 8 + hash01(i*37+2)*12;          // gentle upward bow
-  const goldK = hash01(i*97+13) < 0.14 ? (n>>1) : -1;   // rare golden fish, mid-arc
-  const out = [];
-  for(let k=0;k<n;k++){
-    const t = k/(n-1) - 0.5;
-    out.push({
-      x: cx + t*44,
-      y: Math.max(COIN_MIN_ALT, cy + t*44*slope + (1-4*t*t)*bow*0.4),
-      gold: k === goldK,
-    });
-  }
-  return out;
-}
-
-// ── combo chain ── collecting anything within 3 s of the last pickup
-// multiplies its value; the chain resets when the clock runs out
-function comboMult(){
-  run.combo = run.comboT > 0 ? run.combo+1 : 1;
-  run.comboT = 3;
-  run.maxCombo = Math.max(run.maxCombo, run.combo);
-  return Math.min(1 + 0.3*(run.combo-1), 3);
-}
-function starPos(i, j){
-  if(hash01(i*53+j*97+7) < 0.45) return null;
-  const y = j*STAR_CELL + hash01(i*11+j*13+9)*STAR_CELL;
-  if(y < STAR_MIN_ALT) return null;
-  return { x: i*STAR_CELL + hash01(i*7+j*3+2)*STAR_CELL, y };
-}
-function checkCollectibles(){
-  const ci = Math.round(run.x/COIN_CELL);
-  for(let di=-1; di<=1; di++){
-    const i = ci+di;
-    const cl = coinCluster(i);
-    if(!cl) continue;
-    for(let k=0;k<cl.length;k++){
-      const key = 'c'+i+'_'+k;
-      if(run.collected.has(key)) continue;
-      const c = cl[k];
-      if(Math.hypot(run.x-c.x, run.y-c.y) < COIN_R*2){
-        run.collected.add(key);
-        const m = comboMult();
-        const val = Math.round((10 + Math.round(hash01(i*3+k*7+1)*15)) * (c.gold?6:1) * m);
-        run.coinCash += val; run.coinCount++;
-        const tag = run.combo > 1 ? ` ×${run.combo}` : '';
-        if(c.gold){
-          popup(`✨ GOLDEN FISH +${fmtCash(val)}${tag}`, 24);
-          SFX.ding();
-          burst(c.x, c.y, 18, '#fff3b0', 9);
-        } else {
-          popup(`\u{1F41F} +${fmtCash(val)}${tag}`, 18);
-          SFX.tick();
-          burst(c.x, c.y, 10, '#ffd54a', 6);
-        }
-      }
-    }
-  }
-  if(run.y > STAR_MIN_ALT-50){
-    const si = Math.round(run.x/STAR_CELL), sj = Math.round(run.y/STAR_CELL);
-    for(let di=-1; di<=1; di++) for(let dj=-1; dj<=1; dj++){
-      const i=si+di, j=sj+dj, key = 's'+i+'_'+j;
-      if(run.collected.has(key)) continue;
-      const s = starPos(i,j);
-      if(!s){ run.collected.add(key); continue; }
-      if(Math.hypot(run.x-s.x, run.y-s.y) < STAR_R*1.6){
-        run.collected.add(key);
-        const m = comboMult();
-        const val = Math.round((60 + Math.round(hash01(i*7+j*5)*60)) * m);
-        run.starCash += val; run.starCount++;
-        popup(`⭐ +${fmtCash(val)}${run.combo>1?` ×${run.combo}`:''}`, 24);
-        SFX.ding();
-        cam.shake = Math.min(cam.shake+4, 14);
-        burst(s.x, s.y, 16, '#fff6c0', 9);
-      }
-    }
-  }
-}
-
-/* ════════════════ obstacles ════════════════ */
-// Birds, balloons and planes share one x-cell grid; each cell deterministically
-// rolls a type then an existence chance, same trick as the coin/star fields.
-const OBST_CELL = 260;
-function obstaclePos(i){
-  if(i < 0) return null;
-  const x = i*OBST_CELL + 30 + hash01(i*7+5)*(OBST_CELL-60);
-  // keep obstacles inside the reachable corridor at this distance — a plane
-  // at 5 km altitude 200 m from the ramp is scenery, not gameplay. Only types
-  // whose band fits the corridor here are even considered, so the early game
-  // rolls birds instead of culled balloons.
-  const corr = Math.max(corridorTop(x), 60);
-  const fits = OBSTACLE_TYPES.filter(t => Math.min(t.maxAlt, corr*(t.id==='plane'?2:1)) > t.minAlt);
-  if(!fits.length) return null;
-  const roll = hash01(i*61+13);
-  const type = fits[Math.min(fits.length-1, Math.floor(roll*roll*fits.length))];
-  if(hash01(i*19+37) < type.skip) return null;
-  const top = Math.min(type.maxAlt, corr*(type.id==='plane'?2:1));
-  return { type, x, y: type.minAlt + Math.pow(hash01(i*23+41), 1.4)*(top-type.minAlt) };
-}
-function checkObstacles(){
-  const oi = Math.round(run.x/OBST_CELL);
-  for(let di=-1; di<=1; di++){
-    const i = oi+di, key = 'o'+i;
-    if(run.obGone.has(key)) continue;
-    const o = obstaclePos(i);
-    if(!o){ run.obGone.add(key); continue; }
-    if(Math.hypot(run.x-o.x, run.y-o.y) < o.type.r){
-      run.obGone.add(key);
-      run.obHits++;
-      // a glancing thud, not a brick wall — keep the run alive
-      run.vx *= 0.72; run.vy *= 0.72;
-      run.tumble = Math.min(run.tumble + 3.5, 7);
-      cam.shake = Math.min(cam.shake+8, 14);
-      SFX.thump();
-      popup(`\u{1F4A5} hit a ${o.type.id}!`, 20);
-      burst(o.x, o.y, 16, '#555b6e', 8);
-    }
-  }
-}
-function fireGun(){
-  if(phase!=='flight' || !run || run.sliding || run.done) return;
-  if(!st.gunLevel || run.gunCooldown > 0) return;
-  run.gunCooldown = 0.4;
-  const i0 = Math.floor((run.x-40)/OBST_CELL), i1 = Math.ceil((run.x+st.gunRange)/OBST_CELL);
-  let best=null, bestD=Infinity;
-  for(let i=i0;i<=i1;i++){
-    const key = 'o'+i;
-    if(run.obGone.has(key)) continue;
-    const o = obstaclePos(i);
-    if(!o || o.x < run.x-40) continue;
-    const d = Math.hypot(run.x-o.x, run.y-o.y);
-    if(d <= st.gunRange && d < bestD){ bestD = d; best = {i, o}; }
-  }
-  if(!best) return;
-  const {i, o} = best;
-  if(o.type.tough <= st.gunLevel){
-    run.obGone.add('o'+i);
-    run.gunCash += o.type.cash; run.gunKills++;
-    popup(`\u{1F4A5} ${o.type.id} down! +${fmtCash(o.type.cash)}`, 20);
-    SFX.boom();
-    cam.shake = Math.min(cam.shake+6, 16);
-    burst(o.x, o.y, 22, '#ffae42', 12);
-  } else {
-    popup('TOO TOUGH', 16);
-    SFX.blip(200, 0.1, 'square', 0.05);
-  }
-}
-
-/* ════════════════ boost rings ════════════════ */
-// Golden rings hanging in the corridor: thread one for a speed kick, cash,
-// and a link in the combo chain. Same deterministic cell trick as the rest.
-const RING_CELL = 420, RING_R = 24;
-function ringPos(i){
-  if(i < 1 || hash01(i*71+29) < 0.45) return null;
-  const x = i*RING_CELL + 40 + hash01(i*11+17)*(RING_CELL-80);
-  const top = Math.max(corridorTop(x)*0.9, 55);
-  return { x, y: 28 + Math.pow(hash01(i*41+3), 1.3)*(top-28) };
-}
-function checkRings(){
-  const ri = Math.round(run.x/RING_CELL);
-  for(let di=-1; di<=1; di++){
-    const i = ri+di, key = 'r'+i;
-    if(run.collected.has(key)) continue;
-    const r = ringPos(i);
-    if(!r){ run.collected.add(key); continue; }
-    if(Math.hypot(run.x-r.x, run.y-r.y) < RING_R){
-      run.collected.add(key);
-      const m = comboMult();
-      const val = Math.round(25*m);
-      run.ringCash += val; run.ringCount++;
-      const sp = Math.hypot(run.vx, run.vy) || 1;
-      run.vx += run.vx/sp*16; run.vy += run.vy/sp*16;
-      popup(`\u{1F4AB} RING! +16 m/s${run.combo>1?` ×${run.combo}`:''}`, 24);
-      SFX.ding();
-      cam.shake = Math.min(cam.shake+4, 12);
-      burst(r.x, r.y, 18, '#ffe066', 10);
-    }
-  }
-}
-function drawRingIcon(x, y, s){
-  const pulse = 1 + 0.06*Math.sin(timeSim*5 + x*0.03);
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.strokeStyle = 'rgba(255,214,90,0.25)';
-  ctx.lineWidth = s*0.5;
-  ctx.beginPath(); ctx.ellipse(0, 0, s*0.34*pulse, s*pulse, 0, 0, 7); ctx.stroke();
-  ctx.strokeStyle = '#ffd23f';
-  ctx.lineWidth = Math.max(2, s*0.16);
-  ctx.beginPath(); ctx.ellipse(0, 0, s*0.34*pulse, s*pulse, 0, 0, 7); ctx.stroke();
-  ctx.strokeStyle = '#fff6c0';
-  ctx.lineWidth = Math.max(1, s*0.06);
-  ctx.beginPath(); ctx.ellipse(-s*0.08, 0, s*0.30*pulse, s*0.92*pulse, 0, 0, 7); ctx.stroke();
-  ctx.restore();
-}
-function drawRings(){
-  if(!run) return;
-  const i0 = Math.floor((cam.x - W/cam.z)/RING_CELL)-1, i1 = Math.ceil((cam.x + W/cam.z)/RING_CELL)+1;
-  for(let i=i0;i<=i1;i++){
-    if(run.collected.has('r'+i)) continue;
-    const r = ringPos(i);
-    if(!r) continue;
-    const sx=w2sX(r.x), sy=w2sY(r.y);
-    if(sx<-80||sx>W+80||sy<-80||sy>Hpx+80) continue;
-    drawRingIcon(sx, sy, clamp(RING_R*cam.z*0.8, 16, 34));
-  }
-}
-
-/* ════════════════ landmarks ════════════════ */
-// Physical bosses standing on the ice. Fly into one to damage it — the hurt
-// persists between days — and bring it down for a payout. The Wall is the
-// real victory condition. You CAN fly over them, but they won't forget you.
-function checkLandmarks(spNew){
-  for(const lm of LANDMARKS){
-    if(state.lmHP[lm.id] <= 0) continue;
-    const face = lm.x - lm.w*0.5;
-    if(run.vx > 0 && run.y < lm.h && run.x >= face && run.x <= lm.x + lm.w){
-      const dmg = Math.max(1, Math.round(spNew * st.smash));
-      state.lmHP[lm.id] = Math.max(0, state.lmHP[lm.id] - dmg);
-      if(state.lmHP[lm.id] <= 0){
-        run.smashCash += lm.reward;
-        popup(`\u{1F4A5} ${lm.name} DESTROYED! +${fmtCash(lm.reward)}`, 30);
-        SFX.boom();
-        cam.shake = 16;
-        burst(lm.x, Math.min(run.y+10, lm.h*0.6), 40, lm.color, 18);
-        run.vx *= 0.7;               // smash straight through the wreckage
-      } else {
-        popup(`\u{1F4A5} -${dmg} · ${lm.name} ${Math.ceil(state.lmHP[lm.id]/lm.hp*100)}%`, 22);
-        SFX.thump();
-        cam.shake = Math.min(16, 8 + spNew*0.02);
-        burst(face, run.y, 20, lm.color, 10);
-        run.x = face - 1;
-        run.vx = -Math.abs(run.vx)*(0.25 + 0.05*Math.min(state.lvl.plating,4));
-        run.tumble = Math.min(run.tumble + 5, 8);
-      }
-      save();
-      break;
-    }
-  }
-}
+// A few modules need each other's functions before all of them exist yet
+// (the data table's upgrade-preview text needs physics, physics needs the
+// renderer's popup/burst, the renderer needs world-object positions, world
+// objects need the renderer's popup/burst back). None of these are actually
+// *called* until well after every module below is built — they're all
+// event/frame driven — so a thin forwarding stub per name breaks the cycle
+// without any module needing to know about the others' construction order.
+const bridge = {};
+const call = name => (...args) => bridge[name](...args);
 
 /* ════════════════ sound ════════════════ */
 const SFX = createSound(state);
@@ -767,1227 +491,85 @@ renderMute();
 /* ════════════════ canvas & camera ════════════════ */
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-let W=0, Hpx=0, DPR=1;
 function resize(){
-  DPR = Math.min(window.devicePixelRatio||1, 2);
-  W = window.innerWidth; Hpx = window.innerHeight;
-  canvas.width = W*DPR; canvas.height = Hpx*DPR;
-  ctx.setTransform(DPR,0,0,DPR,0,0);
+  sim.DPR = Math.min(window.devicePixelRatio||1, 2);
+  sim.W = window.innerWidth; sim.Hpx = window.innerHeight;
+  canvas.width = sim.W*sim.DPR; canvas.height = sim.Hpx*sim.DPR;
+  ctx.setTransform(sim.DPR,0,0,sim.DPR,0,0);
 }
 window.addEventListener('resize', resize); resize();
 
-const cam = { x:0, y:0, z:6, shake:0 };
-const w2sX = x => (x-cam.x)*cam.z + W*0.5;
-const w2sY = y => Hpx*0.72 - (y-cam.y)*cam.z;
+const w2sX = x => (x-cam.x)*cam.z + sim.W*0.5;
+const w2sY = y => sim.Hpx*0.72 - (y-cam.y)*cam.z;
 
-/* ════════════════ game objects ════════════════ */
-// phases: 'shop' | 'ramp' | 'flight' | 'results'
-let phase = 'shop';
-let st = derive();            // stats for current run
-let ramp = null;              // {pts:[{x,y,th}], cum:[], len, exitTh}
-let run = null;               // per-run mutable state
-let particles = [];
-let timeSim = 0;
-
-// Catmull-Rom through the control points (endpoints doubled for tangents)
-function sampleShape(ctrl){
-  const P = [ctrl[0], ...ctrl, ctrl[ctrl.length-1]];
-  const out = [];
-  for(let seg=0; seg<ctrl.length-1; seg++){
-    const p0=P[seg], p1=P[seg+1], p2=P[seg+2], p3=P[seg+3];
-    for(let i=(seg===0?0:1); i<=16; i++){
-      const t=i/16, t2=t*t, t3=t2*t;
-      out.push({
-        x: 0.5*(2*p1.x + (-p0.x+p2.x)*t + (2*p0.x-5*p1.x+4*p2.x-p3.x)*t2 + (-p0.x+3*p1.x-3*p2.x+p3.x)*t3),
-        y: 0.5*(2*p1.y + (-p0.y+p2.y)*t + (2*p0.y-5*p1.y+4*p2.y-p3.y)*t2 + (-p0.y+3*p1.y-3*p2.y+p3.y)*t3),
-      });
-    }
-  }
-  return out;
-}
-
-// The track is the player's spline scaled so its arc length is exactly `len`
-// (the material bought with upgrades). Shape-space y spans SHAPE_ASPECT of a
-// unit so its proportions match the editor canvas — the ramp you draw is the
-// ramp you get — and the whole curve is dropped so its LOWEST point rests
-// just above the ice (anchoring the lip instead would flatten any curve that
-// dips below it into the ground).
-const SHAPE_ASPECT = 0.4;
-function buildRamp(len){
-  const raw = sampleShape(state.rampShape).map(p => ({ x:p.x, y:p.y*SHAPE_ASPECT }));
-  let L = 0;
-  for(let i=1;i<raw.length;i++) L += Math.hypot(raw[i].x-raw[i-1].x, raw[i].y-raw[i-1].y);
-  const s = len/Math.max(L, 0.01);
-  const lip = raw[raw.length-1];
-  let minY = Infinity;
-  for(const p of raw) minY = Math.min(minY, p.y);
-  const pts = raw.map(p => ({ x:(p.x-lip.x)*s, y:(p.y-minY)*s + 0.5, th:0 }));
-  for(let i=0;i<pts.length-1;i++)
-    pts[i].th = Math.atan2(pts[i+1].y-pts[i].y, pts[i+1].x-pts[i].x);
-  pts[pts.length-1].th = pts[pts.length-2].th;
-  const cum = [0];
-  for(let i=1;i<pts.length;i++)
-    cum.push(cum[i-1] + Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y));
-  let H = 0;
-  for(const p of pts) H = Math.max(H, p.y);
-  return { pts, cum, len:cum[cum.length-1], exitTh:pts[pts.length-1].th, H };
-}
-
-// exit-speed estimate: gravity drop minus friction, which telescopes to
-// μg·Δx along any downhill-then-flat path (∫μg·cosθ ds = μg·dx)
-function rampExitEst(d, r){
-  const p0 = r.pts[0], lip = r.pts[r.pts.length-1];
-  return Math.sqrt(Math.max(1,
-    d.rampV0*d.rampV0 + 2*9.81*(p0.y-lip.y) - 2*d.mu*9.81*Math.max(0, lip.x-p0.x)));
-}
-function rampPoint(s){
-  const {pts, cum} = ramp;
-  s = clamp(s, 0, ramp.len);
-  let i = 1;
-  while(i<cum.length-1 && cum[i]<s) i++;
-  const t = (s-cum[i-1]) / (cum[i]-cum[i-1] || 1);
-  return { x:lerp(pts[i-1].x, pts[i].x, t), y:lerp(pts[i-1].y, pts[i].y, t), th:lerp(pts[i-1].th, pts[i].th, t) };
-}
-
-function newRun(){
-  st = derive();
-  ramp = buildRamp(st.rampLen);
-  speedLines = [];
-  const start = rampPoint(0);
-  run = {
-    x:start.x, y:start.y, vx:0, vy:0,
-    head:start.th, rampS:0, rampV:st.rampV0,
-    fuel:st.fuelMax, sliding:false, done:false,
-    dist:0, maxAlt:0, maxSpd:0, t:0,          // records only count once airborne
-    thrusting:false, tumble:0, stalled:false,
-    burnerUsed:false, tankUsed:false,
-    trail:[], trailT:0,
-    collected:new Set(), coinCash:0, coinCount:0, starCash:0, starCount:0,
-    obGone:new Set(), gunCash:0, gunKills:0, gunCooldown:0,
-    ringCash:0, ringCount:0, combo:0, comboT:0, maxCombo:0,
-    skimT:0, skimCash:0, skimSeg:0, skimQuiet:0, bounceCount:0,
-    obHits:0, smashCash:0, contractsMet:new Set(), contractT:0,
-    contracts:contractsFor(state.day),   // locked in at launch
-
-    msQueue: MILESTONES.map(m=>m[0]).filter(d=>!state.claimed.includes(d)),
-  };
-}
-
-/* ════════════════ input ════════════════ */
-const input = { up:false, down:false, boost:false, ff:false };
-function bindHold(el, prop){
-  const on = e => { e.preventDefault(); input[prop]=true; SFX.ensure(); };
-  const off = () => { input[prop]=false; };
-  el.addEventListener('pointerdown', on);
-  el.addEventListener('pointerup', off);
-  el.addEventListener('pointercancel', off);
-  el.addEventListener('pointerleave', off);
-}
-bindHold(document.getElementById('t-up'), 'up');
-bindHold(document.getElementById('t-down'), 'down');
-bindHold(document.getElementById('t-boost'), 'boost');
-bindHold(document.getElementById('ff-btn'), 'ff');
-document.getElementById('t-burner').addEventListener('pointerdown', e => { e.preventDefault(); fireAfterburner(); });
-document.getElementById('t-gun').addEventListener('pointerdown', e => { e.preventDefault(); fireGun(); });
-
-function fireAfterburner(){
-  if(phase!=='flight' || !run || run.sliding || run.done) return;
-  if(!state.perm.burner || run.burnerUsed) return;
-  run.burnerUsed = true;
-  run.vx += Math.cos(run.head)*90;
-  run.vy += Math.sin(run.head)*90;
-  cam.shake = Math.min(16, cam.shake+10);
-  SFX.boom();
-  popup('\u{1F4A5} AFTERBURNER!', 28);
-  burst(run.x - Math.cos(run.head)*2, run.y - Math.sin(run.head)*2, 24, '#ff8c1a', 14, run.head+Math.PI);
-}
-
-window.addEventListener('keydown', e => {
-  if(e.repeat) return;
-  switch(e.code){
-    case 'ArrowUp': case 'KeyW': case 'ArrowLeft': case 'KeyA': input.up=true; e.preventDefault(); break;
-    case 'ArrowDown': case 'KeyS': case 'ArrowRight': case 'KeyD': input.down=true; e.preventDefault(); break;
-    case 'Space': input.boost=true; e.preventDefault(); break;
-    case 'KeyF': input.ff=true; break;
-    case 'KeyX': fireAfterburner(); break;
-    case 'KeyC': fireGun(); break;
-    case 'Enter':
-      if(introEl.classList.contains('show')) startLaunch();
-      else if(phase==='shop' && shopEl.classList.contains('show')) startLaunch();
-      else if(phase==='results') closeResults();
-      else if(phase==='flight' && run && run.sliding) skipSlide();
-      break;
-  }
-});
-window.addEventListener('keyup', e => {
-  switch(e.code){
-    case 'ArrowUp': case 'KeyW': case 'ArrowLeft': case 'KeyA': input.up=false; break;
-    case 'ArrowDown': case 'KeyS': case 'ArrowRight': case 'KeyD': input.down=false; break;
-    case 'Space': input.boost=false; break;
-    case 'KeyF': input.ff=false; break;
-  }
+/* ════════════════ modules ════════════════ */
+// Data tables first (upgrade-preview text calls back into physics/renderer
+// through the bridge, filled in once those exist below).
+const {
+  UPGRADES, GEAR, upgCost, MILESTONES, WIN_DIST, OBSTACLE_TYPES,
+  CONTRACT_POOL, contractsFor, LANDMARKS, MEDALS, BONUS_SHOP,
+} = createData({
+  state, clamp, hash01,
+  derive: call('derive'), buildRamp: call('buildRamp'),
+  rampExitEst: call('rampExitEst'), gliderName: call('gliderName'),
 });
 
-/* ════════════════ physics ════════════════ */
-// 2-D flight dynamics on a point mass with attitude. Lift and drag come from
-// the angle of attack against a real exponential atmosphere; the whole sim
-// runs on a fixed timestep (see main loop) with semi-implicit Euler, so it's
-// deterministic and identical in cost every frame.
-const G = 9.81;
-const RHO0 = 1.225;           // sea-level air density, kg/m³
-const SCALE_H = 8500;         // atmospheric scale height, m
-const A_STALL = 15*RAD;       // stall angle of attack
-const GLIDE_ANG = -7*RAD;     // hands-off trim seeks this shallow glide slope
+// World objects (collectibles/obstacles/rings/landmarks) — needs the
+// renderer's popup/burst, bridged since the renderer isn't built yet.
+const world = createWorld({
+  sim, cam, state, SFX, save, fmtCash, hash01, clamp,
+  LANDMARKS, OBSTACLE_TYPES,
+  popup: call('popup'), burst: call('burst'),
+});
 
-// 0 below stall, 1 fully separated, smooth in between
-function stallBlend(aoa){
-  const t = clamp((Math.abs(aoa)-A_STALL)/(10*RAD), 0, 1);
-  return t*t*(3-2*t);
-}
-// thin-airfoil linear region blending into flat-plate behaviour past stall
-function liftCoef(aoa, slope, s){
-  return slope*aoa*(1-s) + 1.05*Math.sin(2*aoa)*s;
-}
+// Flight-sim physics — needs world's real check*() functions (already
+// built) and the renderer's popup/burst/finishRun (still bridged).
+const physics = createPhysics({
+  sim, cam, state, input, SFX, save, fmtDist, fmtCash,
+  clamp, lerp, angDiff, hash01, RAD,
+  MILESTONES, contractsFor,
+  checkCollectibles: world.checkCollectibles,
+  checkObstacles: world.checkObstacles,
+  checkRings: world.checkRings,
+  checkLandmarks: world.checkLandmarks,
+  popup: call('popup'), burst: call('burst'), onFinishRun: call('finishRun'),
+});
+bridge.derive = physics.derive;
+bridge.buildRamp = physics.buildRamp;
+bridge.rampExitEst = physics.rampExitEst;
 
-function trackProgress(){
-  run.dist = Math.max(run.dist, run.x);
-  if(run.msQueue.length && run.dist >= run.msQueue[0]){
-    popup(`\u{1F3C1} ${fmtDist(run.msQueue[0])}!`, 26);
-    SFX.ding();
-    run.msQueue.shift();
-  }
-}
+// Renderer — needs world's real position functions and physics's real
+// SCALE_H constant, both available now.
+const renderer = createRenderer({
+  sim, cam, state, input, ctx, w2sX, w2sY,
+  fmtCash, hash01, clamp, lerp, RAD,
+  LANDMARKS, SCALE_H: physics.SCALE_H,
+  COIN_CELL: world.COIN_CELL, COIN_R: world.COIN_R,
+  STAR_CELL: world.STAR_CELL, STAR_R: world.STAR_R,
+  OBST_CELL: world.OBST_CELL, RING_CELL: world.RING_CELL, RING_R: world.RING_R,
+  coinCluster: world.coinCluster, starPos: world.starPos,
+  obstaclePos: world.obstaclePos, ringPos: world.ringPos,
+});
+bridge.popup = renderer.popup;
+bridge.burst = renderer.burst;
+bridge.gliderName = renderer.gliderName;
 
-function stepRamp(h){
-  const th = rampPoint(run.rampS).th;
-  // waxed track: gravity along the slope, a whisper of friction, air drag
-  const accS = -G*Math.sin(th) - st.mu*G*Math.cos(th)
-             - 0.5*RHO0*run.rampV*run.rampV*st.cdA/st.mass;
-  run.rampV = Math.max(0.3, run.rampV + accS*h);
-  run.rampS += run.rampV*h;
-  if(Math.random() < h*run.rampV*1.5) burst(run.x, run.y+0.2, 1, '#e8f6ff', 2);
-  // a spline with an uphill stretch can eat all the momentum; rather than
-  // crawl the rest of the track forever, tip off it where the speed died
-  if(run.rampV < 0.6) run.rampCrawl = (run.rampCrawl||0) + h;
-  else run.rampCrawl = 0;
-  if(run.rampCrawl > 2.5){
-    const p = rampPoint(run.rampS);
-    run.x = p.x; run.y = p.y; run.head = p.th;
-    run.vx = Math.cos(p.th)*run.rampV;
-    run.vy = Math.sin(p.th)*run.rampV;
-    phase = 'flight';
-    popup('ran out of track speed…', 18);
-    return;
-  }
-  if(run.rampS >= ramp.len){
-    const over = run.rampS - ramp.len;
-    const lip = rampPoint(ramp.len);
-    run.x = lip.x; run.y = lip.y; run.head = ramp.exitTh;
-    run.vx = Math.cos(ramp.exitTh)*run.rampV;
-    run.vy = Math.sin(ramp.exitTh)*run.rampV;
-    phase = 'flight';
-    cam.shake = Math.min(12, 2 + run.rampV*0.05);
-    SFX.launch();
-    popup(`LIFTOFF — ${Math.round(run.rampV)} m/s!`, 22);
-    burst(run.x, run.y, 18, '#ffe066', 8);
-    // hand this substep's leftover time to the flight integrator so the
-    // transition neither drops nor double-counts a slice of time
-    const leftover = clamp(over/Math.max(run.rampV, 0.5), 0, h);
-    if(leftover > 0) stepFlight(leftover);
-  } else {
-    const p = rampPoint(run.rampS);
-    run.x=p.x; run.y=p.y; run.head=p.th;
-    run.vx = Math.cos(p.th)*run.rampV;
-    run.vy = Math.sin(p.th)*run.rampV;
-  }
-}
+// End-of-flight scoring/results screen — needs nothing bridged.
+const results = createResults({
+  sim, state, input, SFX, save, fmtCash, fmtDist, MILESTONES, MEDALS,
+});
+bridge.finishRun = results.finishRun;
 
-function stepFlight(h){
-  run.t += h;
-  run.gunCooldown = Math.max(0, run.gunCooldown - h);
-  run.comboT = Math.max(0, run.comboT - h);
-  const rhoN = Math.exp(-run.y/SCALE_H);   // 1 at sea level
-  const rho = RHO0*rhoN;
-
-  if(run.sliding){
-    // grinding along the ice: snow friction + aerodynamic drag
-    const q = 0.5*rho*run.vx*run.vx;
-    const dec = st.slideDecel + q*st.cdA/st.mass;
-    if(Math.abs(run.vx) <= dec*h || Math.abs(run.vx) < 0.5){ run.vx=0; finishRun(); return; }
-    run.vx -= dec*h*Math.sign(run.vx);
-    run.x += run.vx*h;
-    run.head = lerp(run.head, 0, 1-Math.pow(0.001, h));
-    if(Math.random() < h*45) burst(run.x, 0.3, 1, '#cfe8ff', 2);
-    checkLandmarks(Math.abs(run.vx));
-    trackProgress();
-    return;
-  }
-
-  const sp = Math.hypot(run.vx, run.vy);
-  const velA = sp > 0.5 ? Math.atan2(run.vy, run.vx) : run.head;
-  const q = 0.5*rho*sp*sp;
-
-  // ── attitude ──
-  // The stick commands angle of attack, not a direction: lift is what bends
-  // the flight path, so agility comes from speed, wing area and the airframe
-  // g-limit — fast flight carves wide arcs, slow flight mushes. Hands-off,
-  // the penguin trims to exactly carry its weight: a steady cruise that
-  // holds its line instead of ballooning upward. Past the g-limit the pull
-  // input is capped, so a high-speed pull uses a small, efficient AoA.
-  const stick = (input.up?1:0) - (input.down?1:0);
-  const qS = Math.max(q*st.wingS*st.clSlope, 1e-6);
-  const aoaG = st.gMax*st.mass*G/qS;      // AoA that pulls the structural limit
-  // hands-off trim: enough lift to carry the weight, plus a gentle (≤0.6 g)
-  // correction toward a shallow glide — climbs arc over, dives ease out,
-  // and level flight settles into a steady descent instead of ballooning up.
-  // Under rocket power the seek is off: the rocket flies the line it's on.
-  const boosting = input.boost && st.thrust>0 && run.fuel>0;
-  const gCorr = G*Math.max(Math.cos(velA), 0)
-              + (boosting ? 0 : clamp(sp*0.5*(GLIDE_ANG - velA), -0.6*G, 0.6*G));
-  const aoaHold = clamp(st.mass*gCorr/qS, -2*RAD, A_STALL*0.75);
-  const aoaTgt = stick>0 ? Math.min(A_STALL*1.3, aoaG)
-               : stick<0 ? Math.max(-A_STALL*0.4, -aoaG*0.6)
-               : aoaHold;
-  const airEff = clamp(q/120, 0.15, 1);
-  const slew = st.wingAuth*(0.35+0.65*airEff)*h;
-  const aoa1 = angDiff(run.head, velA);
-  run.head = velA + clamp(aoa1 + clamp(aoaTgt-aoa1, -slew, slew), -0.9, 0.9);
-
-  // ── forces (accelerations, m/s²) ──
-  let ax = 0, ay = -G;
-
-  run.thrusting = input.boost && st.thrust>0 && run.fuel>0;
-  if(run.thrusting){
-    run.fuel = Math.max(0, run.fuel - h);
-    ax += Math.cos(run.head)*st.thrust;
-    ay += Math.sin(run.head)*st.thrust;
-    if(Math.random() < h*120) burst(run.x - Math.cos(run.head)*1.5, run.y - Math.sin(run.head)*1.5, 2, '#ff8c1a', 3, run.head+Math.PI);
-  }
-  SFX.setThrust(run.thrusting);
-
-  let stallS = 0;
-  if(sp > 0.5){
-    const aoa = angDiff(run.head, velA);
-    stallS = stallBlend(aoa);
-    const cl = liftCoef(aoa, st.clSlope, stallS);
-    // wing profile + induced + separated-flow drag; body parasite drag apart
-    const cdWing = st.cd0w + st.k*cl*cl + 1.3*Math.sin(aoa)*Math.sin(aoa)*stallS;
-    const lift = q*st.wingS*cl/st.mass;
-    const drag = q*(st.cdA + st.wingS*cdWing)/st.mass;
-    ax += -Math.sin(velA)*lift - Math.cos(velA)*drag;
-    ay +=  Math.cos(velA)*lift - Math.sin(velA)*drag;
-  }
-
-  // semi-implicit Euler
-  run.vx += ax*h; run.vy += ay*h;
-  run.x += run.vx*h; run.y += run.vy*h;
-  const spNew = Math.hypot(run.vx, run.vy);
-
-  // stall feedback: buffet as the wing lets go, tumble in a deep stall
-  if(stallS > 0.05 && q*st.wingS > 15) cam.shake = Math.min(cam.shake + 20*h*stallS, 3);
-  if(stallS > 0.8 && spNew < 22 && run.y > 4 && !run.thrusting) run.tumble += 9*h;
-  else run.tumble *= Math.pow(0.01, h);
-  if(stallS > 0.5 && spNew < 26 && run.y > 4 && !run.thrusting){
-    if(!run.stalled && st.wingS > 0.05){ run.stalled = true; popup('STALL! nose down to recover', 18); }
-  } else if(stallS < 0.2) run.stalled = false;
-
-  // reentry heat: screaming through thick air
-  if(spNew > 200 && rhoN > 0.35 && Math.random() < h*140){
-    burst(run.x, run.y, 1, '#ff6a00', 8, Math.atan2(run.vy, run.vx)+Math.PI);
-  }
-
-  // ground contact
-  if(run.y <= 0 && run.vy < 0){
-    run.y = 0;
-    const impact = -run.vy;
-    if(state.perm.tank && !run.tankUsed && st.fuelMax > 0){
-      run.tankUsed = true;
-      if(run.fuel < st.fuelMax*0.5){ run.fuel = st.fuelMax*0.5; popup('\u{1F6E2} RESERVE TANK!', 22); }
-    }
-    if(st.rest>0 && impact>2){
-      // even lazy landings get a real hop: floor the rebound so the belly
-      // works at low speed instead of silently splatting
-      run.vy = Math.max(impact*st.rest, Math.min(impact*0.45, 2.0));
-      run.vx *= 0.94;
-      run.bounceCount++;
-      cam.shake = Math.min(10, impact*0.12);
-      SFX.thump();
-      burst(run.x, 0.5, 10, '#cfe8ff', 5);
-      if(run.vy < 1.1){ run.vy=0; run.sliding=true; }
-    } else {
-      run.vy=0; run.vx*=0.75; run.sliding=true;
-      cam.shake = Math.min(10, impact*0.15);
-      SFX.thump();
-      burst(run.x, 0.5, 12, '#cfe8ff', 5);
-    }
-    if(run.sliding){ run.thrusting=false; SFX.setThrust(false); }
-  }
-
-  // ── ice skimming ── hugging the deck at speed pays out: ground effect
-  // gives a whisper of free lift, and the metre keeps running while you
-  // hold the line. Pull away for more than a second and the segment ends.
-  if(run.y > 0.1 && run.y < 6 && spNew > 28 && !run.sliding){
-    run.skimT += h; run.skimSeg += h; run.skimQuiet = 0;
-    run.skimCash += h*(6 + spNew*0.12);
-    run.vy += 1.2*h;   // ground-effect cushion
-    if(run.skimSeg > 0.8 && run.skimSeg - h <= 0.8){
-      popup('\u{2744} SKIMMING!', 20); SFX.tick();
-    }
-    if(Math.random() < h*30) burst(run.x, 0.4, 1, '#e6f6ff', 3);
-  } else if(run.skimSeg > 0){
-    run.skimQuiet += h;
-    if(run.skimQuiet > 1) run.skimSeg = 0;
-  }
-
-  // records only count in the air, off the ramp
-  run.maxAlt = Math.max(run.maxAlt, run.y);
-  run.maxSpd = Math.max(run.maxSpd, spNew);
-  checkCollectibles();
-  checkObstacles();
-  checkRings();
-  checkLandmarks(spNew);
-
-  // live contract completion — celebrate it the moment it happens
-  run.contractT -= h;
-  if(run.contractT <= 0){
-    run.contractT = 0.5;
-    run.contracts.forEach((c, idx) => {
-      if(!run.contractsMet.has(idx) && c.val(run) >= c.target){
-        run.contractsMet.add(idx);
-        popup(`\u{1F4CB} CONTRACT: ${c.text} ✓ +${fmtCash(c.reward)}`, 22);
-        SFX.ding();
-      }
-    });
-  }
-
-  // flight trail
-  run.trailT -= h;
-  if(run.trailT <= 0){
-    run.trail.push({x:run.x, y:run.y, spd:spNew});
-    if(run.trail.length > 80) run.trail.shift();
-    run.trailT = 0.07;
-  }
-
-  trackProgress();
-  if(run.t > 900) finishRun();  // safety valve
-}
-
-function skipSlide(){
-  if(!run || !run.sliding || run.done) return;
-  // stopping distance under friction a plus quadratic drag b·v²:
-  //   s = ln(1 + b·v²/a) / (2b)
-  const a = st.slideDecel;
-  const b = 0.5*RHO0*st.cdA/st.mass;
-  const v = Math.abs(run.vx);
-  run.x += Math.log(1 + b*v*v/a)/(2*b) * Math.sign(run.vx);
-  run.vx = 0;
-  run.dist = Math.max(run.dist, run.x);
-  finishRun();
-}
-
-/* ════════════════ particles / popups ════════════════ */
-function burst(x, y, n, color, spread, dirBias){
-  for(let i=0;i<n;i++){
-    const a = dirBias!==undefined ? dirBias + (Math.random()-0.5)*0.9 : Math.random()*Math.PI*2;
-    const s = Math.random()*spread;
-    particles.push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:0.5+Math.random()*0.5, color, size:0.15+Math.random()*0.3 });
-  }
-  if(particles.length > 400) particles.splice(0, particles.length-400);
-}
-function stepParticles(dt){
-  for(let i=particles.length-1;i>=0;i--){
-    const p = particles[i];
-    p.life -= dt; p.x += p.vx*dt; p.y += p.vy*dt; p.vy -= 4*dt;
-    if(p.life<=0 || p.y<0) particles.splice(i,1);
-  }
-}
-/* ── speed streaks ──
-   Short dashes anchored in WORLD space, seeded in the airspace ahead of the
-   penguin, that fade in and out over ~half a second. Because they hold still
-   while the penguin tears past, they read as real motion parallax instead of
-   the old per-frame random flicker. */
-let speedLines = [];
-function stepSpeedLines(dt){
-  for(let i=speedLines.length-1;i>=0;i--){
-    speedLines[i].life += dt;
-    if(speedLines[i].life >= speedLines[i].max) speedLines.splice(i,1);
-  }
-  if(!run || run.sliding || run.done || phase!=='flight') return;
-  const sp = Math.hypot(run.vx, run.vy);
-  const t = clamp((sp-55)/140, 0, 1);
-  if(t <= 0) return;
-  const dir = Math.atan2(run.vy, run.vx);
-  const n = dt*(8 + 34*t);
-  let count = Math.floor(n) + (Math.random() < n-Math.floor(n) ? 1 : 0);
-  const spanX = W/cam.z, spanY = Hpx/cam.z;
-  while(count-- > 0){
-    const ahead = (0.1 + Math.random()*0.6)*spanX;
-    const side  = (Math.random()-0.5)*0.9*spanY;
-    speedLines.push({
-      x: run.x + Math.cos(dir)*ahead - Math.sin(dir)*side,
-      y: Math.max(1, run.y + Math.sin(dir)*ahead + Math.cos(dir)*side),
-      life: 0, max: 0.4 + Math.random()*0.45,
-    });
-  }
-  if(speedLines.length > 110) speedLines.splice(0, speedLines.length-110);
-}
-
-const popupLayer = document.getElementById('popup-layer');
-function popup(text, size){
-  const el = document.createElement('div');
-  el.className = 'popup';
-  el.style.left = '50%'; el.style.top = '32%';
-  el.style.fontSize = (size||20)+'px';
-  el.textContent = text;
-  popupLayer.appendChild(el);
-  setTimeout(()=>el.remove(), 1700);
-}
-
-/* ════════════════ rendering ════════════════ */
-function skyColor(alt){
-  const t = clamp(alt/8000, 0, 1);
-  const top =    [lerp(0x6d,0x02,t), lerp(0xb3,0x02,t), lerp(0xf2,0x10,t)];
-  const bottom = [lerp(0xae,0x0b,t), lerp(0xe4,0x10,t), lerp(0xff,0x30,t)];
-  const rgb = c => `rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
-  return { top:rgb(top), bottom:rgb(bottom), space:t };
-}
-
-const stars = Array.from({length:130}, (_,i)=>({ x:hash01(i), y:hash01(i+500), r:0.5+hash01(i+900)*1.3 }));
-
-// ── parallax background ──
-// A layer at depth p follows fraction p of the camera's motion on BOTH axes,
-// and everything is sampled in world coordinates — so zooming scales the
-// scene about the screen centre instead of making layers slide sideways,
-// and distant things genuinely crawl while near things sweep past.
-
-// smooth value noise in [0,1]
-function ridgeN(u, seed){
-  const i = Math.floor(u), t = u-i, sm = t*t*(3-2*t);
-  return lerp(hash01(i*7+seed), hash01((i+1)*7+seed), sm);
-}
-// silhouette mountain ridge; profile lives in layer space (world · p) with
-// three noise octaves, so there are visible peaks at every camera zoom
-function drawRidge(p, amp, seg, color){
-  const baseY = Hpx*0.72 + cam.y*p*cam.z + 2;
-  const hpx = amp * clamp(cam.z*0.35, 0.75, 1.5);
-  if(baseY - hpx*1.1 > Hpx+40 || baseY < -20) return;
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.moveTo(-14, baseY);
-  for(let sx=-14; sx<=W+14; sx+=10){
-    const xw = (sx - W*0.5)/cam.z + cam.x*p;
-    const hN = 0.58*ridgeN(xw/seg, p*997)
-             + 0.30*ridgeN(xw/(seg*0.31), p*577)
-             + 0.12*ridgeN(xw/(seg*0.11), p*211);
-    ctx.lineTo(sx, baseY - hpx*(0.15+0.85*hN));
-  }
-  ctx.lineTo(W+14, baseY);
-  ctx.closePath(); ctx.fill();
-}
-
-// one cloud field at depth p: deterministic per cell, slow wind drift,
-// shaded underside beneath sunlit puffs, fading out as the air runs out
-function drawCloudLayer(spaceT, p, alpha, cell, sMul, seed){
-  const fade = clamp(1 - spaceT/0.75, 0, 1);
-  if(fade <= 0.02) return;
-  const wOff = timeSim*(3 + 9*p);          // wind; near layers drift faster
-  const half = W*0.55/cam.z;
-  const i0 = Math.floor((cam.x*p - half + wOff)/cell), i1 = Math.ceil((cam.x*p + half + wOff)/cell);
-  for(let i=i0;i<=i1;i++){
-    if(hash01(i*3+seed) < 0.42) continue;
-    const cx = i*cell + hash01(i*5+seed)*cell*0.8 - wOff;
-    const cy = 140 + hash01(i*7+seed+2)*4300;
-    const cs = (26 + hash01(i*13+seed+5)*74) * sMul * cam.z;
-    const sx = (cx - cam.x*p)*cam.z + W*0.5;
-    const sy = Hpx*0.72 - (cy - cam.y*p)*cam.z;
-    if(sx<-cs*2.2||sx>W+cs*2.2||sy<-cs||sy>Hpx+cs) continue;
-    const a = alpha*fade;
-    ctx.fillStyle = `rgba(178,196,222,${(a*0.55).toFixed(3)})`;
-    ctx.beginPath();
-    ctx.ellipse(sx, sy+cs*0.12, cs*1.02, cs*0.30, 0, 0, 7);
-    ctx.fill();
-    ctx.fillStyle = `rgba(255,255,255,${a.toFixed(3)})`;
-    ctx.beginPath();
-    ctx.ellipse(sx, sy, cs, cs*0.34, 0, 0, 7);
-    ctx.ellipse(sx-cs*0.55, sy+cs*0.10, cs*0.5, cs*0.24, 0, 0, 7);
-    ctx.ellipse(sx+cs*0.5, sy+cs*0.09, cs*0.55, cs*0.26, 0, 0, 7);
-    ctx.ellipse(sx-cs*0.15, sy-cs*0.16, cs*0.42, cs*0.26, 0, 0, 7);
-    ctx.fill();
-  }
-}
-
-function draw(dtReal){
-  const p = run || { x:0, y:0, vx:0, vy:0 };
-  const sp = Math.hypot(p.vx, p.vy);
-
-  // camera — the zoom/look-ahead targets are driven off a lightly smoothed
-  // velocity, not the raw instantaneous one, so a sudden physics event
-  // (launch kick, afterburner, thrust ignition) eases the camera in over a
-  // few frames instead of snapping it in one, which reads as a hard hitch.
-  if(cam.vxS===undefined){ cam.vxS = p.vx; cam.vyS = p.vy; }
-  const velSmooth = 1-Math.pow(0.0006, dtReal);
-  cam.vxS = lerp(cam.vxS, p.vx, velSmooth);
-  cam.vyS = lerp(cam.vyS, p.vy, velSmooth);
-  const spCam = Math.hypot(cam.vxS, cam.vyS);
-
-  let tz, tx, ty;
-  if(phase==='shop'){
-    tz = clamp(320/(ramp.H+16), 1.2, 8);
-    tx = -ramp.len*0.28; ty = ramp.H*0.32;
-  } else {
-    tz = clamp(1200/(80 + 2.0*spCam + 0.32*p.y), 0.8, 9);
-    tx = p.x + cam.vxS*0.35;
-    ty = Math.max(0, p.y - (Hpx*0.30)/tz);
-  }
-  cam.z = lerp(cam.z, tz, 1-Math.pow(0.02, dtReal));
-  cam.x = lerp(cam.x, tx, 1-Math.pow(0.001, dtReal));
-  cam.y = lerp(cam.y, ty, 1-Math.pow(0.001, dtReal));
-  let shx=0, shy=0;
-  if(cam.shake>0.2){
-    shx=(Math.random()-0.5)*cam.shake; shy=(Math.random()-0.5)*cam.shake;
-    cam.shake *= Math.pow(0.001, dtReal);
-  }
-  ctx.save();
-  ctx.translate(shx, shy);
-
-  // sky
-  const sky = skyColor(cam.y + Hpx*0.4/cam.z);
-  const grad = ctx.createLinearGradient(0,0,0,Hpx);
-  grad.addColorStop(0, sky.top); grad.addColorStop(1, sky.bottom);
-  ctx.fillStyle = grad;
-  ctx.fillRect(-10,-10,W+20,Hpx+20);
-
-  // stars
-  if(sky.space > 0.25){
-    ctx.fillStyle = '#fff';
-    for(const s of stars){
-      ctx.globalAlpha = clamp((sky.space-0.25)*1.6,0,1) * (0.4+0.6*hash01(s.x*997));
-      ctx.beginPath(); ctx.arc(s.x*W, s.y*Hpx, s.r, 0, 7); ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  // sun — soft glow that sharpens as the air thins
-  {
-    const sx0 = W*0.78, sy0 = Hpx*0.17;
-    const sunR = 80 + 30*sky.space;
-    const sg = ctx.createRadialGradient(sx0, sy0, 3, sx0, sy0, sunR);
-    sg.addColorStop(0, 'rgba(255,250,220,0.95)');
-    sg.addColorStop(0.2, `rgba(255,240,170,${0.5-0.25*sky.space})`);
-    sg.addColorStop(1, 'rgba(255,240,170,0)');
-    ctx.fillStyle = sg;
-    ctx.beginPath(); ctx.arc(sx0, sy0, sunR, 0, 7); ctx.fill();
-    ctx.fillStyle = '#fff6d8';
-    ctx.beginPath(); ctx.arc(sx0, sy0, 13, 0, 7); ctx.fill();
-  }
-
-  // far and mid cloud fields behind the mountains
-  drawCloudLayer(sky.space, 0.22, 0.20, 760, 0.55, 11);
-  drawCloudLayer(sky.space, 0.50, 0.30, 620, 0.80, 47);
-
-  // mountain ridges, far to near
-  drawRidge(0.10, 150, 300, 'rgba(168,192,220,0.5)');
-  drawRidge(0.24, 92, 190,  'rgba(120,150,186,0.65)');
-  drawRidge(0.42, 54, 130,  'rgba(88,116,152,0.75)');
-
-  // low haze hugging the horizon
-  {
-    const gy0 = w2sY(0);
-    if(gy0 > -10 && gy0 < Hpx+240){
-      const hh = 110;
-      const hg = ctx.createLinearGradient(0, gy0-hh, 0, gy0);
-      hg.addColorStop(0, 'rgba(235,245,255,0)');
-      hg.addColorStop(1, `rgba(235,245,255,${(0.34*(1-sky.space)).toFixed(3)})`);
-      ctx.fillStyle = hg;
-      ctx.fillRect(-10, gy0-hh, W+20, hh);
-    }
-  }
-
-  // near clouds float in front of the ridges
-  drawCloudLayer(sky.space, 0.85, 0.50, 520, 1.05, 3);
-
-  drawCollectibles();
-  drawRings();
-  drawObstacles();
-
-  // ground
-  const gy = w2sY(0);
-  if(gy < Hpx+20){
-    const gg = ctx.createLinearGradient(0,gy,0,gy+90);
-    gg.addColorStop(0,'#eaf6ff'); gg.addColorStop(0.12,'#bcd9ee'); gg.addColorStop(1,'#5d7f9c');
-    ctx.fillStyle = gg;
-    ctx.fillRect(-10, gy, W+20, Hpx-gy+20);
-    // distance markers
-    const step = cam.z>6 ? 50 : cam.z>2.2 ? 250 : cam.z>0.9 ? 1000 : 5000;
-    const m0 = Math.max(0, Math.floor((cam.x - W/cam.z)/step)*step);
-    const m1 = (cam.x + W/cam.z);
-    ctx.fillStyle = '#33506b'; ctx.strokeStyle = '#33506b';
-    ctx.font = `${Math.max(10,Math.min(13, cam.z*2+8))}px "Courier New", monospace`;
-    ctx.textAlign = 'center';
-    for(let m=m0; m<=m1; m+=step){
-      if(m===0) continue;
-      const sx = w2sX(m);
-      ctx.beginPath(); ctx.moveTo(sx, gy); ctx.lineTo(sx, gy+8); ctx.stroke();
-      ctx.fillText(m>=1000 ? (m/1000)+'km' : m+'m', sx, gy+22);
-    }
-    // ice sheen streaks
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-    ctx.lineWidth = 1;
-    const iceStep = 26;
-    const c0 = Math.floor((cam.x - W/cam.z)/iceStep), c1 = Math.ceil((cam.x + W/cam.z)/iceStep);
-    for(let i=c0;i<=c1;i++){
-      if(hash01(i*11+3) < 0.55) continue;
-      const sx = w2sX(i*iceStep + hash01(i*5+1)*iceStep);
-      const ln = (10+hash01(i*9+6)*40)*clamp(cam.z*0.4, 0.5, 3);
-      const yo = 8 + hash01(i*17+9)*46;
-      ctx.beginPath(); ctx.moveTo(sx, gy+yo); ctx.lineTo(sx+ln, gy+yo*1.04); ctx.stroke();
-    }
-  }
-
-  drawLandmarks();
-  drawRamp();
-
-  // flight trail — width & tint track speed so dives/climbs actually read as motion
-  if(run && run.trail.length > 1){
-    for(let i=1;i<run.trail.length;i++){
-      const a = run.trail[i-1], b = run.trail[i];
-      const age = i/run.trail.length;
-      const fast = clamp((b.spd-40)/180, 0, 1);
-      ctx.lineWidth = lerp(1.2, 3.2, fast) * clamp(cam.z, 0.6, 1.6);
-      const r = lerp(255,120,fast), g = lerp(255,220,fast), bcol = 255;
-      ctx.strokeStyle = `rgba(${r|0},${g|0},${bcol},${0.32*age})`;
-      ctx.beginPath();
-      ctx.moveTo(w2sX(a.x), w2sY(a.y));
-      ctx.lineTo(w2sX(b.x), w2sY(b.y));
-      ctx.stroke();
-    }
-  }
-
-  // particles
-  for(const pt of particles){
-    ctx.globalAlpha = clamp(pt.life*2, 0, 1);
-    ctx.fillStyle = pt.color;
-    const s = Math.max(2, pt.size*cam.z);
-    ctx.fillRect(w2sX(pt.x)-s/2, w2sY(pt.y)-s/2, s, s);
-  }
-  ctx.globalAlpha = 1;
-
-  if(run){
-    const px = w2sX(run.x), py = w2sY(run.y);
-    const rhoN = Math.exp(-run.y/SCALE_H);
-    // speed streaks — world-anchored, oriented along the (smoothed) velocity
-    if(speedLines.length){
-      const sdir = Math.atan2(cam.vyS, cam.vxS);
-      const lenW = clamp(sp*0.16, 3, 55);
-      const ldx = Math.cos(sdir)*lenW, ldy = Math.sin(sdir)*lenW;
-      const inten = clamp((sp-55)/140, 0.25, 1);
-      ctx.lineWidth = Math.max(1, cam.z*0.18);
-      ctx.lineCap = 'round';
-      for(const sl of speedLines){
-        const lx = w2sX(sl.x), ly = w2sY(sl.y);
-        if(lx<-90||lx>W+90||ly<-90||ly>Hpx+90) continue;
-        const a = Math.sin(Math.PI*sl.life/sl.max)*0.38*inten;
-        ctx.strokeStyle = `rgba(255,255,255,${a.toFixed(3)})`;
-        ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(w2sX(sl.x-ldx), w2sY(sl.y-ldy)); ctx.stroke();
-      }
-      ctx.lineCap = 'butt';
-    }
-    // reentry glow
-    if(sp > 200 && rhoN > 0.35 && !run.sliding){
-      const heat = clamp((sp-200)/200, 0, 1) * clamp((rhoN-0.35)/0.5, 0, 1);
-      const gsize = 30 + heat*40;
-      const gl = ctx.createRadialGradient(px, py, 4, px, py, gsize);
-      gl.addColorStop(0, `rgba(255,180,60,${0.55*heat})`);
-      gl.addColorStop(1, 'rgba(255,80,0,0)');
-      ctx.fillStyle = gl;
-      ctx.beginPath(); ctx.arc(px, py, gsize, 0, 7); ctx.fill();
-    }
-    // contact shadow when near the ground
-    const gy0 = w2sY(0);
-    if(run.y < 70 && gy0 < Hpx+20){
-      const shA = (1-run.y/70)*0.28;
-      ctx.fillStyle = `rgba(10,20,40,${shA.toFixed(3)})`;
-      const rs = Math.max(cam.z*1.3, 13)*(1.35 - run.y/110);
-      ctx.beginPath(); ctx.ellipse(px, gy0+3, rs, rs*0.25, 0, 0, 7); ctx.fill();
-    }
-    drawPenguin(px, py, run.head + run.tumble, Math.max(cam.z*1.3, 13));
-  }
-  ctx.restore();
-}
-
-function drawFishIcon(x, y, s, gold){
-  ctx.save();
-  ctx.translate(x, y + Math.sin(timeSim*3 + x*0.05)*s*0.2);
-  // soft glow so it reads as a pickup against any sky
-  if(gold){
-    s *= 1.25;
-    const tw = 0.75 + 0.25*Math.sin(timeSim*7 + x*0.1);
-    ctx.fillStyle = `rgba(255,246,190,${(0.4*tw).toFixed(3)})`;
-    ctx.beginPath(); ctx.arc(0, 0, s*2.3, 0, 7); ctx.fill();
-  }
-  ctx.fillStyle = 'rgba(255,214,90,0.22)';
-  ctx.beginPath(); ctx.arc(0, 0, s*1.9, 0, 7); ctx.fill();
-  // forked tail
-  ctx.fillStyle = gold ? '#ffce2e' : '#f09b1f';
-  ctx.beginPath();
-  ctx.moveTo(-s*0.65, 0);
-  ctx.lineTo(-s*1.25, -s*0.5);
-  ctx.lineTo(-s*1.0, 0);
-  ctx.lineTo(-s*1.25, s*0.5);
-  ctx.closePath(); ctx.fill();
-  // dorsal fin
-  ctx.beginPath();
-  ctx.moveTo(-s*0.3, -s*0.35);
-  ctx.quadraticCurveTo(s*0.05, -s*0.95, s*0.35, -s*0.4);
-  ctx.closePath(); ctx.fill();
-  // body
-  ctx.fillStyle = gold ? '#ffe14d' : '#ffb63b';
-  ctx.beginPath(); ctx.ellipse(0, 0, s, s*0.55, 0, 0, 7); ctx.fill();
-  // belly
-  ctx.fillStyle = gold ? '#fff6c0' : '#ffe08f';
-  ctx.beginPath(); ctx.ellipse(s*0.08, s*0.18, s*0.7, s*0.28, 0, 0, 7); ctx.fill();
-  // eye
-  ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(s*0.55, -s*0.12, s*0.16, 0, 7); ctx.fill();
-  ctx.fillStyle = '#26160a';
-  ctx.beginPath(); ctx.arc(s*0.6, -s*0.12, s*0.08, 0, 7); ctx.fill();
-  ctx.restore();
-}
-function drawStarIcon(x, y, s){
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.globalAlpha = 0.75 + 0.25*Math.sin(timeSim*4 + x*0.07 + y*0.05);
-  ctx.fillStyle = '#fff6c0';
-  ctx.beginPath();
-  for(let k=0;k<10;k++){
-    const a = -Math.PI/2 + k*Math.PI/5;
-    const r = k%2===0 ? s : s*0.42;
-    const px = Math.cos(a)*r, py = Math.sin(a)*r;
-    if(k===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
-  }
-  ctx.closePath(); ctx.fill();
-  ctx.globalAlpha = 1;
-  ctx.restore();
-}
-function drawCollectibles(){
-  if(!run) return;
-  const ci0 = Math.floor((cam.x - W/cam.z)/COIN_CELL)-1, ci1 = Math.ceil((cam.x + W/cam.z)/COIN_CELL)+1;
-  for(let i=ci0;i<=ci1;i++){
-    const cl = coinCluster(i);
-    if(!cl) continue;
-    for(let k=0;k<cl.length;k++){
-      if(run.collected.has('c'+i+'_'+k)) continue;
-      const c = cl[k];
-      const sx=w2sX(c.x), sy=w2sY(c.y);
-      if(sx<-60||sx>W+60||sy<-60||sy>Hpx+60) continue;
-      drawFishIcon(sx, sy, clamp(COIN_R*cam.z*0.6, 7, 14), c.gold);
-    }
-  }
-  const si0 = Math.floor((cam.x - W/cam.z)/STAR_CELL)-1, si1 = Math.ceil((cam.x + W/cam.z)/STAR_CELL)+1;
-  const sj0 = Math.max(0, Math.floor((cam.y - Hpx/(2*cam.z))/STAR_CELL)-1), sj1 = Math.ceil((cam.y + Hpx/(2*cam.z))/STAR_CELL)+1;
-  for(let i=si0;i<=si1;i++) for(let j=sj0;j<=sj1;j++){
-    if(run.collected.has('s'+i+'_'+j)) continue;
-    const s = starPos(i,j);
-    if(!s) continue;
-    const sx=w2sX(s.x), sy=w2sY(s.y);
-    if(sx<-40||sx>W+40||sy<-40||sy>Hpx+40) continue;
-    drawStarIcon(sx, sy, clamp(STAR_R*cam.z*0.8, 13, 28));
-  }
-}
-
-function drawBird(x, y, s, seed){
-  ctx.save();
-  ctx.translate(x, y);
-  const flap = Math.sin(timeSim*6 + seed)*0.5 + 0.5;
-  ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = Math.max(1.5, s*0.18);
-  ctx.beginPath();
-  ctx.moveTo(-s, -flap*s*0.6); ctx.lineTo(0, 0); ctx.lineTo(s, -flap*s*0.6);
-  ctx.stroke();
-  ctx.restore();
-}
-function drawBalloon(x, y, s, seed){
-  ctx.save();
-  ctx.translate(x, y);
-  const hue = Math.floor(hash01(seed)*300);
-  ctx.fillStyle = `hsl(${hue},70%,55%)`;
-  ctx.beginPath(); ctx.ellipse(0, -s*0.3, s, s*1.15, 0, 0, 7); ctx.fill();
-  ctx.strokeStyle = '#4a3418'; ctx.lineWidth = Math.max(1, s*0.06);
-  ctx.beginPath();
-  ctx.moveTo(-s*0.5, s*0.6); ctx.lineTo(-s*0.28, s*1.1);
-  ctx.moveTo(s*0.5, s*0.6); ctx.lineTo(s*0.28, s*1.1);
-  ctx.stroke();
-  ctx.fillStyle = '#5c4326';
-  ctx.fillRect(-s*0.3, s*1.05, s*0.6, s*0.35);
-  ctx.restore();
-}
-function drawPlane(x, y, s, seed){
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.fillStyle = '#d8dee8';
-  ctx.beginPath(); ctx.ellipse(0, 0, s*1.3, s*0.4, 0, 0, 7); ctx.fill();
-  ctx.fillStyle = '#b7c0d1';
-  ctx.beginPath(); ctx.moveTo(-s*0.2,-s*0.15); ctx.lineTo(-s*1.1,-s*0.75); ctx.lineTo(-s*0.75,-s*0.15); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(-s*0.2,s*0.15); ctx.lineTo(-s*1.1,s*0.75); ctx.lineTo(-s*0.75,s*0.15); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#e63946';
-  ctx.beginPath(); ctx.moveTo(s*1.0,0); ctx.lineTo(s*1.5,-s*0.3); ctx.lineTo(s*1.5,s*0.3); ctx.closePath(); ctx.fill();
-  ctx.restore();
-}
-function drawObstacles(){
-  if(!run) return;
-  const i0 = Math.floor((cam.x - W/cam.z)/OBST_CELL)-1, i1 = Math.ceil((cam.x + W/cam.z)/OBST_CELL)+1;
-  for(let i=i0;i<=i1;i++){
-    if(run.obGone.has('o'+i)) continue;
-    const o = obstaclePos(i);
-    if(!o) continue;
-    const sx=w2sX(o.x), sy=w2sY(o.y);
-    if(sx<-80||sx>W+80||sy<-80||sy>Hpx+80) continue;
-    const s = clamp(o.type.r*cam.z*0.55, o.type.r*0.8, o.type.r*1.5);
-    if(o.type.id==='bird') drawBird(sx, sy, s, i);
-    else if(o.type.id==='balloon') drawBalloon(sx, sy, s, i);
-    else drawPlane(sx, sy, s, i);
-  }
-}
-
-function drawLandmarks(){
-  const gy = w2sY(0);
-  for(const lm of LANDMARKS){
-    const sx = w2sX(lm.x);
-    const wpx = Math.max(lm.w*cam.z, 8), hpx = lm.h*cam.z;
-    if(sx < -wpx*3-160 || sx > W+wpx*3+160) continue;
-    const dead = state.lmHP[lm.id] <= 0;
-    if(lm.id === 'snowman'){
-      ctx.fillStyle = '#f4f8ff';
-      if(dead){
-        ctx.beginPath(); ctx.ellipse(sx, gy, wpx*1.3, Math.max(3, hpx*0.10), 0, 0, 7); ctx.fill();
-        ctx.fillStyle = '#ff8c1a';
-        ctx.fillRect(sx - wpx*0.5, gy - Math.max(2, hpx*0.05), Math.max(3, wpx*0.3), Math.max(2, hpx*0.03));
-      } else {
-        ctx.beginPath(); ctx.arc(sx, gy - hpx*0.22, hpx*0.24, 0, 7); ctx.fill();
-        ctx.beginPath(); ctx.arc(sx, gy - hpx*0.55, hpx*0.19, 0, 7); ctx.fill();
-        ctx.beginPath(); ctx.arc(sx, gy - hpx*0.83, hpx*0.14, 0, 7); ctx.fill();
-        ctx.fillStyle = '#222';
-        ctx.fillRect(sx - hpx*0.10, gy - hpx*1.02, hpx*0.20, hpx*0.06);
-        ctx.fillRect(sx - hpx*0.06, gy - hpx*1.10, hpx*0.12, hpx*0.09);
-        ctx.beginPath(); ctx.arc(sx - hpx*0.045, gy - hpx*0.86, Math.max(1, hpx*0.016), 0, 7); ctx.fill();
-        ctx.beginPath(); ctx.arc(sx + hpx*0.045, gy - hpx*0.86, Math.max(1, hpx*0.016), 0, 7); ctx.fill();
-        ctx.fillStyle = '#ff8c1a';
-        ctx.beginPath();
-        ctx.moveTo(sx, gy - hpx*0.84); ctx.lineTo(sx + hpx*0.11, gy - hpx*0.82); ctx.lineTo(sx, gy - hpx*0.80);
-        ctx.closePath(); ctx.fill();
-      }
-    } else if(lm.id === 'iceberg'){
-      ctx.fillStyle = dead ? 'rgba(191,230,255,0.55)' : '#cfeaff';
-      ctx.strokeStyle = '#8fc4e8'; ctx.lineWidth = Math.max(1, cam.z*0.3);
-      ctx.beginPath();
-      if(dead){
-        ctx.moveTo(sx - wpx*1.6, gy);
-        ctx.lineTo(sx - wpx*0.9, gy - hpx*0.10);
-        ctx.lineTo(sx - wpx*0.2, gy);
-        ctx.lineTo(sx + wpx*0.4, gy - hpx*0.14);
-        ctx.lineTo(sx + wpx*1.1, gy);
-      } else {
-        ctx.moveTo(sx - wpx*0.9, gy);
-        ctx.lineTo(sx - wpx*0.6, gy - hpx*0.45);
-        ctx.lineTo(sx - wpx*0.2, gy - hpx*0.30);
-        ctx.lineTo(sx + wpx*0.05, gy - hpx);
-        ctx.lineTo(sx + wpx*0.35, gy - hpx*0.55);
-        ctx.lineTo(sx + wpx*0.7, gy - hpx*0.7);
-        ctx.lineTo(sx + wpx*0.95, gy);
-      }
-      ctx.closePath(); ctx.fill(); ctx.stroke();
-    } else {
-      // THE WALL — courses of grey brick to the stratosphere
-      if(dead){
-        ctx.fillStyle = '#9b9186';
-        ctx.beginPath(); ctx.ellipse(sx, gy, wpx*2.0, Math.max(4, hpx*0.02), 0, 0, 7); ctx.fill();
-        ctx.fillStyle = '#847a6f';
-        ctx.beginPath(); ctx.ellipse(sx - wpx*0.8, gy, wpx*0.9, Math.max(3, hpx*0.014), 0, 0, 7); ctx.fill();
-      } else {
-        const top = gy - hpx;
-        ctx.fillStyle = '#a89c8e';
-        ctx.fillRect(sx - wpx*0.5, top, wpx, hpx);
-        ctx.strokeStyle = 'rgba(60,50,40,0.5)';
-        ctx.lineWidth = Math.max(1, cam.z*0.2);
-        const rows = Math.min(40, Math.max(6, Math.floor(hpx/26)));
-        for(let rIdx=1; rIdx<rows; rIdx++){
-          const y = top + hpx*rIdx/rows;
-          ctx.beginPath(); ctx.moveTo(sx - wpx*0.5, y); ctx.lineTo(sx + wpx*0.5, y); ctx.stroke();
-          const off = (rIdx%2) ? 0 : wpx*0.25;
-          ctx.beginPath(); ctx.moveTo(sx - wpx*0.25 + off, y); ctx.lineTo(sx - wpx*0.25 + off, y - hpx/rows); ctx.stroke();
-        }
-        ctx.fillStyle = '#c2b6a6';
-        ctx.fillRect(sx - wpx*0.58, top - Math.max(3, hpx*0.008), wpx*1.16, Math.max(3, hpx*0.008));
-      }
-    }
-    // name + health bar when the penguin is anywhere near
-    if(!dead && run && Math.abs(run.x - lm.x) < 1500){
-      const frac = state.lmHP[lm.id]/lm.hp;
-      const bw = Math.max(70, wpx*1.4);
-      const by = Math.max(30, w2sY(lm.h) - 26);
-      ctx.fillStyle = 'rgba(5,8,30,0.7)';
-      ctx.fillRect(sx - bw/2 - 2, by - 2, bw + 4, 10);
-      ctx.fillStyle = '#FF0000';
-      ctx.fillRect(sx - bw/2, by, bw*frac, 6);
-      ctx.fillStyle = '#eef1ff';
-      ctx.font = '11px "Courier New", monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${lm.name} ${Math.ceil(frac*100)}%`, sx, by - 7);
-    }
-  }
-}
-
-function drawRamp(){
-  if(!ramp) return;
-  const pts = ramp.pts;
-  // support struts with diagonal cross-bracing
-  ctx.strokeStyle = '#7a4a21'; ctx.lineWidth = Math.max(1.5, cam.z*0.35);
-  for(let i=0;i<pts.length;i+=6){
-    const sx = w2sX(pts[i].x);
-    ctx.beginPath(); ctx.moveTo(sx, w2sY(pts[i].y)); ctx.lineTo(sx, w2sY(0)); ctx.stroke();
-  }
-  ctx.strokeStyle = 'rgba(122,74,33,0.65)'; ctx.lineWidth = Math.max(1, cam.z*0.2);
-  for(let i=0;i+6<pts.length;i+=6){
-    const a = pts[i], b = pts[i+6];
-    ctx.beginPath();
-    ctx.moveTo(w2sX(a.x), w2sY(a.y*0.55));
-    ctx.lineTo(w2sX(b.x), w2sY(b.y));
-    ctx.moveTo(w2sX(a.x), w2sY(a.y*0.55));
-    ctx.lineTo(w2sX(b.x), w2sY(b.y*0.5));
-    ctx.stroke();
-  }
-  // track
-  ctx.strokeStyle = '#a0622d'; ctx.lineWidth = Math.max(3, cam.z*0.7);
-  ctx.beginPath();
-  ctx.moveTo(w2sX(pts[0].x), w2sY(pts[0].y));
-  for(const p of pts) ctx.lineTo(w2sX(p.x), w2sY(p.y));
-  ctx.stroke();
-  ctx.strokeStyle = '#e8f4ff'; ctx.lineWidth = Math.max(1.2, cam.z*0.25);
-  ctx.beginPath();
-  ctx.moveTo(w2sX(pts[0].x), w2sY(pts[0].y));
-  for(const p of pts) ctx.lineTo(w2sX(p.x), w2sY(p.y));
-  ctx.stroke();
-  // flag on top
-  const top = pts[0];
-  const fx = w2sX(top.x), fy = w2sY(top.y);
-  ctx.strokeStyle = '#ddd'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx, fy-26); ctx.stroke();
-  ctx.fillStyle = '#FF0000';
-  ctx.beginPath(); ctx.moveTo(fx, fy-26); ctx.lineTo(fx+20, fy-20); ctx.lineTo(fx, fy-14); ctx.fill();
-}
-
-const gliderTier = l => l>=9?5 : l>=7?4 : l>=5?3 : l>=3?2 : l>=1?1 : 0;
-function gliderName(l){
-  return ['no wings','Cardboard Planks','Bamboo Kite','Delta Wing','Carbon Swept','Golden Albatross'][gliderTier(l)];
-}
-// the rig strapped to the penguin's back — a visibly cooler glider for each
-// wing tier, drawn behind the body in the penguin's rotated frame
-function drawGlider(s, lvl){
-  const tier = gliderTier(lvl);
-  if(!tier) return;
-  ctx.save();
-  if(tier===1){
-    // cardboard planks and packing tape
-    ctx.rotate(0.12);
-    ctx.fillStyle = '#cdb58c';
-    ctx.fillRect(-s*1.25, -s*0.62, s*2.2, s*0.2);
-    ctx.fillStyle = '#b09668';
-    ctx.fillRect(-s*0.9, -s*0.62, s*0.22, s*0.2);
-    ctx.fillRect(s*0.45, -s*0.62, s*0.22, s*0.2);
-  } else if(tier===2){
-    // bamboo kite: taut paper triangle on an A-frame
-    ctx.strokeStyle = '#8a6d3f'; ctx.lineWidth = Math.max(1.5, s*0.09);
-    ctx.beginPath(); ctx.moveTo(-s*0.1, -s*0.2); ctx.lineTo(s*0.05, -s*1.05); ctx.stroke();
-    ctx.fillStyle = 'rgba(240,230,200,0.92)';
-    ctx.beginPath();
-    ctx.moveTo(-s*1.45, -s*0.85);
-    ctx.lineTo(s*1.6, -s*1.1);
-    ctx.lineTo(s*0.1, -s*0.5);
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = '#8a6d3f'; ctx.lineWidth = Math.max(1, s*0.06);
-    ctx.stroke();
-  } else if(tier===3){
-    // red delta wing with a white flash
-    ctx.fillStyle = '#d1332e';
-    ctx.beginPath();
-    ctx.moveTo(-s*1.7, -s*0.75);
-    ctx.quadraticCurveTo(-s*0.2, -s*1.5, s*1.9, -s*1.05);
-    ctx.quadraticCurveTo(s*0.4, -s*0.85, -s*0.1, -s*0.35);
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#f4f6f8';
-    ctx.beginPath();
-    ctx.moveTo(-s*1.2, -s*0.78);
-    ctx.quadraticCurveTo(0, -s*1.25, s*1.4, -s*1.0);
-    ctx.quadraticCurveTo(s*0.3, -s*1.05, -s*0.75, -s*0.68);
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = '#7a1d1a'; ctx.lineWidth = Math.max(1, s*0.06);
-    ctx.beginPath(); ctx.moveTo(-s*0.1, -s*0.35); ctx.lineTo(0, -s*0.1); ctx.stroke();
-  } else if(tier===4){
-    // carbon swept wing, thin and glossy, upturned winglet
-    ctx.fillStyle = '#2c3542';
-    ctx.beginPath();
-    ctx.moveTo(-s*1.9, -s*0.55);
-    ctx.quadraticCurveTo(-s*0.3, -s*1.05, s*2.1, -s*1.25);
-    ctx.lineTo(s*2.3, -s*1.7);
-    ctx.lineTo(s*2.35, -s*1.2);
-    ctx.quadraticCurveTo(s*0.4, -s*0.75, -s*1.9, -s*0.32);
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(140,190,255,0.75)'; ctx.lineWidth = Math.max(1, s*0.05);
-    ctx.beginPath();
-    ctx.moveTo(-s*1.75, -s*0.5);
-    ctx.quadraticCurveTo(-s*0.3, -s*0.98, s*2.05, -s*1.2);
-    ctx.stroke();
-  } else {
-    // golden albatross: broad feathered wings with a soft glow
-    const beat = Math.sin(timeSim*3)*0.06;
-    ctx.rotate(beat);
-    ctx.fillStyle = 'rgba(255,225,120,0.25)';
-    ctx.beginPath(); ctx.ellipse(0, -s*0.9, s*2.4, s*0.9, -0.1, 0, 7); ctx.fill();
-    ctx.fillStyle = '#f6d76a';
-    ctx.beginPath();
-    ctx.moveTo(-s*0.2, -s*0.3);
-    ctx.quadraticCurveTo(-s*1.4, -s*1.35, -s*2.5, -s*1.1);
-    ctx.lineTo(-s*1.9, -s*0.75); ctx.lineTo(-s*2.2, -s*0.65); ctx.lineTo(-s*1.6, -s*0.45);
-    ctx.quadraticCurveTo(-s*0.8, -s*0.25, -s*0.2, -s*0.3);
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#ffe89a';
-    ctx.beginPath();
-    ctx.moveTo(-s*0.1, -s*0.35);
-    ctx.quadraticCurveTo(s*1.2, -s*1.5, s*2.6, -s*1.25);
-    ctx.lineTo(s*2.0, -s*0.85); ctx.lineTo(s*2.3, -s*0.75); ctx.lineTo(s*1.7, -s*0.5);
-    ctx.quadraticCurveTo(s*0.7, -s*0.2, -s*0.1, -s*0.35);
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = '#c9a53a'; ctx.lineWidth = Math.max(1, s*0.05);
-    ctx.beginPath();
-    ctx.moveTo(-s*0.1, -s*0.35);
-    ctx.quadraticCurveTo(s*1.2, -s*1.5, s*2.6, -s*1.25);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function drawPenguin(px, py, ang, s){
-  ctx.save();
-  ctx.translate(px, py);
-  ctx.rotate(-ang);
-  drawGlider(s, state.lvl.wings);
-  // rocket pack — three visible models as the upgrade climbs
-  if(st.thrust > 0){
-    const rl = state.lvl.rocket;
-    if(rl <= 3){
-      // strapped-on soda-can booster
-      ctx.fillStyle = '#b8bec9';
-      ctx.fillRect(-s*0.75, -s*0.85, s*0.9, s*0.42);
-      ctx.fillStyle = '#FF0000';
-      ctx.beginPath(); ctx.moveTo(s*0.15, -s*0.85); ctx.lineTo(s*0.45, -s*0.64); ctx.lineTo(s*0.15, -s*0.43); ctx.fill();
-    } else if(rl <= 6){
-      // twin chrome boosters
-      ctx.fillStyle = '#c8cfda';
-      ctx.fillRect(-s*0.85, -s*1.0,  s*1.1, s*0.3);
-      ctx.fillRect(-s*0.85, -s*0.62, s*1.1, s*0.3);
-      ctx.fillStyle = '#FF0000';
-      ctx.beginPath(); ctx.moveTo(s*0.25, -s*1.0);  ctx.lineTo(s*0.55, -s*0.85); ctx.lineTo(s*0.25, -s*0.7);  ctx.fill();
-      ctx.beginPath(); ctx.moveTo(s*0.25, -s*0.62); ctx.lineTo(s*0.55, -s*0.47); ctx.lineTo(s*0.25, -s*0.32); ctx.fill();
-    } else {
-      // the big one: finned red rocket with a porthole
-      ctx.fillStyle = '#e63946';
-      ctx.beginPath(); ctx.ellipse(-s*0.15, -s*0.85, s*0.85, s*0.3, 0, 0, 7); ctx.fill();
-      ctx.fillStyle = '#f4f6f8';
-      ctx.beginPath(); ctx.moveTo(s*0.55, -s*0.85); ctx.lineTo(s*0.95, -s*0.85); ctx.lineTo(s*0.62, -s*0.7); ctx.fill();
-      ctx.beginPath(); ctx.arc(-s*0.1, -s*0.85, s*0.12, 0, 7); ctx.fill();
-      ctx.fillStyle = '#a52833';
-      ctx.beginPath(); ctx.moveTo(-s*0.85, -s*1.05); ctx.lineTo(-s*1.2, -s*1.25); ctx.lineTo(-s*0.95, -s*0.9); ctx.fill();
-    }
-    if(run && run.thrusting){
-      ctx.fillStyle = '#ffb020';
-      ctx.beginPath();
-      ctx.moveTo(-s*0.85, -s*0.85); ctx.lineTo(-s*(1.45+Math.random()*0.5), -s*0.68); ctx.lineTo(-s*0.85, -s*0.5);
-      ctx.fill();
-    }
-  }
-  // scarf, streaming behind and fluttering
-  {
-    const wave = Math.sin(timeSim*9)*0.5;
-    ctx.fillStyle = '#e0313f';
-    ctx.beginPath();
-    ctx.moveTo(s*0.35, -s*0.42);
-    ctx.quadraticCurveTo(-s*0.4, -s*(0.78+wave*0.25), -s*1.05, -s*(0.62+wave*0.4));
-    ctx.lineTo(-s*0.72, -s*(0.34+wave*0.2));
-    ctx.closePath(); ctx.fill();
-  }
-  // body
-  ctx.fillStyle = '#1b2430';
-  ctx.beginPath(); ctx.ellipse(0, 0, s, s*0.62, 0, 0, 7); ctx.fill();
-  // belly
-  ctx.fillStyle = '#f4f6f8';
-  ctx.beginPath(); ctx.ellipse(s*0.08, s*0.2, s*0.7, s*0.38, 0, 0, 7); ctx.fill();
-  // wing — angles with the stick, flaps in a panic on a hard pull
-  {
-    const pull = (run && !run.sliding && !run.done) ? ((input.up?1:0)-(input.down?1:0)) : 0;
-    const flap = pull>0 ? Math.sin(timeSim*16)*0.35 : 0;
-    ctx.fillStyle = '#101720';
-    ctx.beginPath(); ctx.ellipse(-s*0.15, -s*0.05, s*0.42, s*0.2, 0.5 - pull*0.25 + flap, 0, 7); ctx.fill();
-  }
-  // beak
-  ctx.fillStyle = '#ff9d00';
-  ctx.beginPath(); ctx.moveTo(s*0.95, -s*0.12); ctx.lineTo(s*1.35, s*0.02); ctx.lineTo(s*0.9, s*0.16); ctx.fill();
-  // eye + goggle band
-  ctx.strokeStyle = '#ff2255'; ctx.lineWidth = Math.max(1.5, s*0.09);
-  ctx.beginPath(); ctx.moveTo(s*0.25, -s*0.38); ctx.lineTo(s*0.85, -s*0.28); ctx.stroke();
-  ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(s*0.62, -s*0.18, s*0.15, 0, 7); ctx.fill();
-  ctx.fillStyle = '#000';
-  ctx.beginPath(); ctx.arc(s*0.67, -s*0.18, s*0.07, 0, 7); ctx.fill();
-  // feet
-  ctx.fillStyle = '#ff9d00';
-  ctx.beginPath(); ctx.ellipse(-s*0.75, s*0.28, s*0.22, s*0.1, -0.3, 0, 7); ctx.fill();
-  ctx.restore();
-}
-
-/* ════════════════ HUD ════════════════ */
-const hudEl = document.getElementById('hud');
-const hintEl = document.getElementById('hint');
-const touchEl = document.getElementById('touch');
-const ffBtn = document.getElementById('ff-btn');
-const hudDist = document.getElementById('hud-dist');
-const hudAlt = document.getElementById('hud-alt');
-const hudSpd = document.getElementById('hud-spd');
-const altWrap = document.getElementById('alt-wrap');
-const spdWrap = document.getElementById('spd-wrap');
-const fuelWrap = document.getElementById('fuel-wrap');
-const fuelBar = document.getElementById('fuel-bar');
-const burnerWrap = document.getElementById('burner-wrap');
-const hudBurner = document.getElementById('hud-burner');
-
-function renderHUD(){
-  hudDist.textContent = fmtDist(Math.max(0, run.dist));
-  if(state.perm.alti){
-    altWrap.style.display = 'block';
-    hudAlt.textContent = fmtDist(Math.max(0, run.y));
-  } else altWrap.style.display = 'none';
-  if(state.perm.speedo){
-    spdWrap.style.display = 'block';
-    hudSpd.textContent = Math.round(Math.hypot(run.vx, run.vy));
-  } else spdWrap.style.display = 'none';
-  if(st.fuelMax > 0){
-    fuelWrap.style.display = 'block';
-    fuelBar.style.width = (run.fuel/st.fuelMax*100)+'%';
-  } else fuelWrap.style.display = 'none';
-  if(state.perm.burner){
-    burnerWrap.style.display = 'block';
-    hudBurner.textContent = run.burnerUsed ? 'SPENT' : '\u{1F4A5} READY';
-    hudBurner.className = run.burnerUsed ? 'spent' : '';
-  } else burnerWrap.style.display = 'none';
-  ffBtn.classList.toggle('on', input.ff);
-  if(run.sliding){
-    hintEl.textContent = 'sliding… press ENTER to skip ahead';
-    hintEl.style.display = 'block';
-  } else if(state.day <= 3 && phase==='flight'){
-    hintEl.textContent = state.lvl.wings>0
-      ? '⇧ pull up · ⇩ dive for speed' + (st.thrust>0 ? ' · SPACE rocket' : '') + (st.gunLevel>0 ? ' · C fire cannon' : '') + ' · F fast-forward'
-      : 'no wings yet… enjoy the flop';
-    hintEl.style.display = 'block';
-  } else hintEl.style.display = 'none';
-}
+// HUD + keyboard/touch input — needs physics/world action callbacks, and
+// the main-loop orchestration functions defined further down (hoisted
+// function declarations, so referencing them here by name is fine).
+const hudInput = createHudInput({
+  sim, state, input, SFX, fmtDist,
+  startLaunch, closeResults,
+  skipSlide: physics.skipSlide,
+  fireAfterburner: physics.fireAfterburner,
+  fireGun: world.fireGun,
+});
 
 /* ════════════════ shop UI ════════════════ */
 // The shop screen itself (tabs, upgrade/gear/bonus/medal shelves, ramp
@@ -1998,202 +580,19 @@ const shopEl = document.getElementById('shop');
 const resultsEl = document.getElementById('results');
 const victoryEl = document.getElementById('victory');
 
-function recompute(){ st = derive(); ramp = buildRamp(st.rampLen); }
+function recompute(){ sim.st = physics.derive(); sim.ramp = physics.buildRamp(sim.st.rampLen); }
 
 const store = createStore({
   state, UPGRADES, GEAR, BONUS_SHOP, MEDALS, LANDMARKS, MILESTONES,
   contractsFor, upgCost, fmtCash, fmtDist, save, SFX, defaultState,
-  getSt: () => st, getRamp: () => ramp, recompute,
-  sampleShape, clamp, RAD,
+  getSt: () => sim.st, getRamp: () => sim.ramp, recompute,
+  sampleShape: physics.sampleShape, clamp, RAD,
 });
 const renderShop = store.renderShop;
 
-/* ════════════════ results UI ════════════════ */
-let countUpTimers = [];
-function animateCash(el, target, delay, dur){
-  el.textContent = '$0';
-  const t0 = performance.now() + delay;
-  let lastTick = 0;
-  function frame(now){
-    if(now < t0){ countUpTimers.push(requestAnimationFrame(frame)); return; }
-    const t = clamp((now-t0)/dur, 0, 1);
-    const eased = 1-Math.pow(1-t,3);
-    el.textContent = fmtCash(target*eased);
-    if(t<1){
-      if(now-lastTick > 60 && target>0){ SFX.tick(); lastTick = now; }
-      countUpTimers.push(requestAnimationFrame(frame));
-    }
-  }
-  countUpTimers.push(requestAnimationFrame(frame));
-}
-
-function finishRun(){
-  if(run.done) return;
-  run.done = true;
-  SFX.setThrust(false);
-  phase = 'results';
-
-  const dist = Math.max(0, run.dist);
-  const cashDist = 6 + 2.0*Math.pow(dist, 0.9);
-  const cashAlt = state.perm.alti ? run.maxAlt*0.3 : 0;
-  const cashSpd = state.perm.speedo ? run.maxSpd*1.6 : 0;
-  // airtime multiplier, the LtF classic: staying up pays, up to ×2 at 2 min
-  const airMult = 1 + Math.min(run.t, 120)/120;
-  const payMult = st.mult * airMult;
-  const subtotal = (cashDist+cashAlt+cashSpd) * payMult;
-
-  // milestones
-  let bonusTotal = 0;
-  const newBonuses = [];
-  for(const [d, cash] of MILESTONES){
-    if(dist >= d && !state.claimed.includes(d)){
-      state.claimed.push(d); bonusTotal += cash; newBonuses.push([d, cash]);
-    }
-  }
-  // contracts — judged against the targets locked in at launch
-  const contractResults = run.contracts.map((c, i) =>
-    ({ ...c, got:c.val(run), met:run.contractsMet.has(i) || c.val(run) >= c.target }));
-  const contractTotal = contractResults.reduce((sum,c) => sum + (c.met ? c.reward : 0), 0);
-  const skimCash = Math.round(run.skimCash);
-  const total = Math.round(subtotal + bonusTotal + contractTotal + run.smashCash
-    + run.coinCash + run.starCash + run.gunCash + run.ringCash + skimCash);
-  state.money += total;
-
-  const recD = dist > state.best.dist, recA = run.maxAlt > state.best.alt, recS = run.maxSpd > state.best.spd;
-  state.best.dist = Math.max(state.best.dist, dist);
-  state.best.alt = Math.max(state.best.alt, run.maxAlt);
-  state.best.spd = Math.max(state.best.spd, run.maxSpd);
-
-  // medals — permanent, and they pay Bonus Points
-  const newMedals = [];
-  for(const m of MEDALS){
-    if(state.medals.includes(m.id)) continue;
-    if(m.chk(run)){ state.medals.push(m.id); state.bp += m.bp; newMedals.push(m); }
-  }
-
-  document.getElementById('res-day').textContent = state.day;
-  const headline = dist < 30 ? 'THAT WAS… A START' :
-                   dist < 200 ? 'GETTING SOMEWHERE' :
-                   dist < 1000 ? 'NOW WE’RE FLYING' :
-                   dist < 8000 ? 'INCREDIBLE FLIGHT' : 'ABSOLUTELY LEGENDARY';
-  document.getElementById('res-headline').textContent = headline;
-  document.getElementById('res-dist').textContent = fmtDist(dist);
-  document.getElementById('res-alt').textContent = fmtDist(run.maxAlt);
-  document.getElementById('res-spd').textContent = Math.round(run.maxSpd)+' m/s';
-  document.getElementById('rec-dist').textContent = recD ? '★ NEW BEST' : '';
-  document.getElementById('rec-alt').textContent = recA ? '★' : '';
-  document.getElementById('rec-spd').textContent = recS ? '★' : '';
-
-  document.getElementById('res-air').textContent = Math.round(run.t);
-  document.getElementById('cash-air').textContent = '×'+airMult.toFixed(2);
-  const multRow = document.getElementById('res-mult-row');
-  if(st.mult > 1){
-    multRow.style.display = 'flex';
-    document.getElementById('cash-mult').textContent = '×'+st.mult.toFixed(2);
-  } else multRow.style.display = 'none';
-
-  // clear any stragglers from the previous results screen BEFORE scheduling
-  // this one's animations, or they'd be cancelled the moment they're queued
-  countUpTimers.forEach(cancelAnimationFrame);
-  countUpTimers = [];
-
-  const bonusBox = document.getElementById('res-bonuses');
-  bonusBox.innerHTML = '';
-  newBonuses.forEach(([d, cash], i) => {
-    const row = document.createElement('div');
-    row.className = 'res-row bonus';
-    row.innerHTML = `<span class="val">\u{1F3C1} Milestone: ${fmtDist(d)}!</span><span class="cash"></span>`;
-    bonusBox.appendChild(row);
-    animateCash(row.querySelector('.cash'), cash, 1300+i*250, 500);
-  });
-  if(newBonuses.length) setTimeout(()=>SFX.ding(), 1300);
-  if(run.smashCash > 0){
-    const row = document.createElement('div');
-    row.className = 'res-row bonus';
-    row.innerHTML = `<span class="val">\u{1F4A5} DEMOLITION!</span><span class="cash"></span>`;
-    bonusBox.appendChild(row);
-    animateCash(row.querySelector('.cash'), run.smashCash, 1350, 600);
-  }
-  newMedals.forEach((m, i) => {
-    const row = document.createElement('div');
-    row.className = 'res-row bonus';
-    row.innerHTML = `<span class="val">\u{1F3C5} MEDAL: ${m.name}</span><span class="cash">+${m.bp} BP</span>`;
-    bonusBox.appendChild(row);
-  });
-  if(newMedals.length) setTimeout(()=>SFX.ding(), 1500);
-  contractResults.forEach((c, i) => {
-    const row = document.createElement('div');
-    row.className = 'res-row' + (c.met ? ' bonus' : '');
-    if(c.met){
-      row.innerHTML = `<span class="val">\u{1F4CB} Contract: ${c.text} ✓</span><span class="cash"></span>`;
-      bonusBox.appendChild(row);
-      animateCash(row.querySelector('.cash'), c.reward, 1400+i*250, 500);
-    } else {
-      row.innerHTML = `<span class="val" style="color:var(--muted)">\u{1F4CB} ${c.text} — ${c.got}/${c.target}</span><span class="cash" style="color:#555b9e">✗</span>`;
-      bonusBox.appendChild(row);
-    }
-  });
-
-  animateCash(document.getElementById('cash-dist'), Math.round(cashDist*payMult), 200, 700);
-  const altCashEl = document.getElementById('cash-alt');
-  const spdCashEl = document.getElementById('cash-spd');
-  if(state.perm.alti){
-    altCashEl.className = 'cash';
-    animateCash(altCashEl, Math.round(cashAlt*payMult), 550, 500);
-  } else { altCashEl.className = 'cash locked'; altCashEl.textContent = 'needs Altimeter'; }
-  if(state.perm.speedo){
-    spdCashEl.className = 'cash';
-    animateCash(spdCashEl, Math.round(cashSpd*payMult), 850, 500);
-  } else { spdCashEl.className = 'cash locked'; spdCashEl.textContent = 'needs Speedometer'; }
-
-  const coinsRow = document.getElementById('res-coins-row');
-  if(run.coinCount > 0){
-    coinsRow.style.display = 'flex';
-    document.getElementById('res-coins-count').textContent = run.coinCount;
-    animateCash(document.getElementById('cash-coins'), run.coinCash, 950, 500);
-  } else coinsRow.style.display = 'none';
-  const starsRow = document.getElementById('res-stars-row');
-  if(run.starCount > 0){
-    starsRow.style.display = 'flex';
-    document.getElementById('res-stars-count').textContent = run.starCount;
-    animateCash(document.getElementById('cash-stars'), run.starCash, 1100, 500);
-  } else starsRow.style.display = 'none';
-  const ringsRow = document.getElementById('res-rings-row');
-  if(run.ringCount > 0){
-    ringsRow.style.display = 'flex';
-    document.getElementById('res-rings-count').textContent = run.ringCount;
-    animateCash(document.getElementById('cash-rings'), run.ringCash, 1150, 500);
-  } else ringsRow.style.display = 'none';
-  const skimRow = document.getElementById('res-skim-row');
-  if(run.skimT > 1){
-    skimRow.style.display = 'flex';
-    document.getElementById('res-skim-count').textContent = run.skimT.toFixed(1);
-    animateCash(document.getElementById('cash-skim'), skimCash, 1200, 500);
-  } else skimRow.style.display = 'none';
-  const gunRow = document.getElementById('res-gun-row');
-  if(run.gunKills > 0){
-    gunRow.style.display = 'flex';
-    document.getElementById('res-gun-count').textContent = run.gunKills;
-    animateCash(document.getElementById('cash-gun'), run.gunCash, 1250, 500);
-  } else gunRow.style.display = 'none';
-
-  animateCash(document.getElementById('cash-total'), total, 1300+(newBonuses.length+contractResults.length)*250, 900);
-
-  state.day++;
-  save();
-
-  hudEl.style.display = 'none';
-  hintEl.style.display = 'none';
-  ffBtn.style.display = 'none';
-  input.ff = false;
-  touchEl.classList.remove('flying');
-  resultsEl.classList.add('show');
-}
-
+/* ════════════════ launch / shop / results flow ════════════════ */
 function closeResults(){
   resultsEl.classList.remove('show');
-  countUpTimers.forEach(cancelAnimationFrame);
-  countUpTimers = [];
   if(!state.won && state.lmHP.wall <= 0){
     state.won = true; save();
     victoryEl.classList.add('show');
@@ -2204,10 +603,9 @@ function closeResults(){
 }
 
 function openShop(){
-  phase = 'shop';
-  run = null;
-  st = derive();
-  ramp = buildRamp(st.rampLen);
+  sim.phase = 'shop';
+  sim.run = null;
+  recompute();
   renderShop();
   shopEl.classList.add('show');
 }
@@ -2217,18 +615,18 @@ function startLaunch(){
   if(!state.started){ state.started = true; save(); }
   introEl.classList.remove('show');
   shopEl.classList.remove('show');
-  newRun();
-  phase = 'ramp';
-  if(st.sling > 0){
-    popup(`\u{1F3AF} CATAPULT +${st.sling} m/s!`, 24);
+  physics.newRun();
+  sim.phase = 'ramp';
+  if(sim.st.sling > 0){
+    renderer.popup(`\u{1F3AF} CATAPULT +${sim.st.sling} m/s!`, 24);
     SFX.boom();
-    cam.shake = Math.min(12, 4 + st.sling*0.04);
-    const p0 = rampPoint(0);
-    burst(p0.x, p0.y, 14, '#ffe066', 7, p0.th);
+    cam.shake = Math.min(12, 4 + sim.st.sling*0.04);
+    const p0 = physics.rampPoint(0);
+    renderer.burst(p0.x, p0.y, 14, '#ffe066', 7, p0.th);
   }
-  hudEl.style.display = 'flex';
-  ffBtn.style.display = 'block';
-  touchEl.classList.add('flying');
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('ff-btn').style.display = 'block';
+  document.getElementById('touch').classList.add('flying');
   document.getElementById('t-burner').classList.toggle('hidden', !state.perm.burner);
   document.getElementById('t-gun').classList.toggle('hidden', !state.lvl.gun);
 }
@@ -2243,8 +641,12 @@ document.getElementById('victory-btn').addEventListener('click', () => {
 document.getElementById('reset-btn').addEventListener('click', () => {
   if(!confirm('Start over from Day 1? Medals, Bonus Points and Bonus Shop levels are permanent and carry over.')) return;
   const keep = { muted:state.muted, medals:state.medals, bp:state.bp, bonus:state.bonus };
-  state = defaultState();
-  Object.assign(state, keep);
+  const fresh = defaultState();
+  // mutate the existing object in place — every module holds a reference
+  // to this same `state`, so reassigning the variable would leave them
+  // all reading a stale copy.
+  for(const k of Object.keys(state)) delete state[k];
+  Object.assign(state, fresh, keep);
   state.started = true;   // they know the drill
   save();
   openShop();
@@ -2260,42 +662,42 @@ function loop(now){
   requestAnimationFrame(loop);
   const dtReal = Math.min((now-lastT)/1000, 0.1);
   lastT = now;
-  timeSim += dtReal;
+  sim.timeSim += dtReal;
 
   // time scale: player fast-forward, plus auto-FF for slide-outs and long ramp rides
   let scale = 1;
-  if(phase==='flight' && run){
-    scale = input.ff ? 3 : (run.sliding ? 2.5 : 2.4);
-  } else if(phase==='ramp' && ramp){
-    scale = clamp(1.8 + ramp.len/150, 1.8, 3.2);
+  if(sim.phase==='flight' && sim.run){
+    scale = input.ff ? 3 : (sim.run.sliding ? 2.5 : 2.4);
+  } else if(sim.phase==='ramp' && sim.ramp){
+    scale = clamp(1.8 + sim.ramp.len/150, 1.8, 3.2);
   }
   const dt = dtReal*scale;
 
-  if(phase==='ramp' || phase==='flight'){
+  if(sim.phase==='ramp' || sim.phase==='flight'){
     simAcc = Math.min(simAcc + dt, 0.15);
     while(simAcc >= FIXED_DT){
-      if(phase==='ramp') stepRamp(FIXED_DT);
-      else if(run && !run.done) stepFlight(FIXED_DT);
+      if(sim.phase==='ramp') physics.stepRamp(FIXED_DT);
+      else if(sim.run && !sim.run.done) physics.stepFlight(FIXED_DT);
       else break;
       simAcc -= FIXED_DT;
-      if(phase==='results'){ simAcc = 0; break; }
+      if(sim.phase==='results'){ simAcc = 0; break; }
     }
   } else simAcc = 0;
 
-  stepParticles(dt);
-  stepSpeedLines(dt);
-  draw(dtReal);
-  if((phase==='ramp'||phase==='flight') && run){
+  renderer.stepParticles(dt);
+  renderer.stepSpeedLines(dt);
+  renderer.draw(dtReal);
+  if((sim.phase==='ramp'||sim.phase==='flight') && sim.run){
     hudT -= dtReal;
-    if(hudT <= 0){ renderHUD(); hudT = 0.08; }   // ~12 Hz is plenty for text
+    if(hudT <= 0){ hudInput.renderHUD(); hudT = 0.08; }   // ~12 Hz is plenty for text
   } else hudT = 0;
 }
 
 // boot: first-ever visit goes straight to the ramp, no shop
-st = derive();
-ramp = buildRamp(st.rampLen);
+sim.st = physics.derive();
+sim.ramp = physics.buildRamp(sim.st.rampLen);
 if(!state.started){
-  phase = 'shop';           // idle camera on the ramp behind the intro
+  sim.phase = 'shop';           // idle camera on the ramp behind the intro
   introEl.classList.add('show');
 } else {
   openShop();
