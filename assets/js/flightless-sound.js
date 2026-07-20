@@ -210,39 +210,113 @@ export function createSound(state){
 
     // ---- BACKGROUND MUSIC -----------------------------------------------
     //
-    // A lightweight procedural synth bed: a short arpeggio pattern scheduled
-    // in a lookahead loop (Web Audio best-practice). Uses its OWN gain node
-    // so state.musicMuted gates it entirely independently of state.muted.
+    // A small procedural four-piece band, scheduled in a lookahead loop
+    // (Web Audio best-practice): a lead arpeggio, a bar-length pad, a
+    // plucked bass, and a light kick/hat/snap drum kit, all voiced from a
+    // four-chord minor progression (i–VI–III–VII) instead of one static
+    // scale looped forever — the harmony actually moves. Every voice feeds
+    // musicGain, its OWN gain node, so state.musicMuted gates the whole band
+    // independently of state.muted (SFX). musicGain in turn feeds a warm
+    // low-pass and a short feedback-delay send for a bit of space, instead
+    // of firing oscillators straight at destination.
     //
-    // C minor pentatonic: C3 Eb3 F3 G3 Bb3 C4
-    _ARP_NOTES: [130.81, 155.56, 174.61, 196.00, 233.08, 261.63],
-    _ARP_PATTERN: [0, 2, 4, 3, 1, 4, 2, 5],  // indices into _ARP_NOTES
+    // Key: C minor. semi() maps a semitone offset (0 = C3) to Hz.
+    _MUSIC_ROOT_HZ: 130.81,  // C3
+    _noteHz(semi){ return this._MUSIC_ROOT_HZ * Math.pow(2, semi/12); },
+
+    // i (Cm) → VI (Ab) → III (Eb) → VII (Bb): each chord holds for one
+    // 8-step bar. `root` is the chord's bass semitone offset; `arp` is the
+    // lead's up-down arpeggio through the triad across the bar's 8 steps.
+    _PROGRESSION: [
+      { root: 0,  arp: [0,  3,  7,  12, 7,  3,  0,  3 ] },  // i   Cm
+      { root: 8,  arp: [8,  12, 15, 20, 15, 12, 8,  12] },  // VI  Ab
+      { root: 3,  arp: [3,  7,  10, 15, 10, 7,  3,  7 ] },  // III Eb
+      { root: 10, arp: [10, 14, 17, 22, 17, 14, 10, 14] },  // VII Bb
+    ],
     _ARP_STEP_SEC: 0.22,
     _ARP_STEP_IDX: 0,
 
+    // bar-length pad: two detuned low sines under the current chord's root
+    // and fifth, faded up/down so bars cross-fade instead of clicking
+    _musicPad(time, root, dur){
+      [root - 12, root - 5].forEach((semi, i) => {
+        const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+        o.type = 'sine'; o.frequency.value = this._noteHz(semi);
+        o.detune.value = i===0 ? -4 : 4;
+        g.gain.setValueAtTime(0, time);
+        g.gain.linearRampToValueAtTime(0.035, time + 0.3);
+        g.gain.setValueAtTime(0.035, time + dur - 0.35);
+        g.gain.linearRampToValueAtTime(0, time + dur);
+        o.connect(g); g.connect(this.musicGain);
+        o.start(time); o.stop(time + dur + 0.05);
+      });
+    },
+    // plucked bass note, one octave+ below the chord tone
+    _musicBass(time, semi, dur){
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = this._noteHz(semi - 12);
+      g.gain.setValueAtTime(0.0001, time);
+      g.gain.linearRampToValueAtTime(0.09, time + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+      o.connect(g); g.connect(this.musicGain);
+      o.start(time); o.stop(time + dur + 0.02);
+    },
+    _musicKick(time){
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(140, time);
+      o.frequency.exponentialRampToValueAtTime(46, time + 0.12);
+      g.gain.setValueAtTime(0.2, time);
+      g.gain.exponentialRampToValueAtTime(0.0001, time + 0.16);
+      o.connect(g); g.connect(this.musicGain);
+      o.start(time); o.stop(time + 0.18);
+    },
+    // short filtered-noise burst shared by hat/snap, tuned by freq+dur+vol
+    _musicNoiseHit(time, freq, q, dur, vol){
+      const c = this.ctx;
+      const len = Math.max(1, Math.floor(c.sampleRate * dur));
+      const buf = c.createBuffer(1, len, c.sampleRate);
+      const d = buf.getChannelData(0);
+      for(let i=0;i<len;i++) d[i] = (Math.random()*2-1) * (1 - i/len);
+      const src = c.createBufferSource(); src.buffer = buf;
+      const filt = c.createBiquadFilter();
+      filt.type = freq > 3000 ? 'highpass' : 'bandpass';
+      filt.frequency.value = freq; filt.Q.value = q;
+      const g = c.createGain();
+      g.gain.setValueAtTime(vol, time);
+      g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+      src.connect(filt); filt.connect(g); g.connect(this.musicGain);
+      src.start(time); src.stop(time + dur + 0.01);
+    },
+
     _scheduleMusicNote(time){
       if(!this.musicGain || !this.ctx) return;
-      const notes = this._ARP_NOTES;
-      const pat   = this._ARP_PATTERN;
-      const freq  = notes[pat[this._ARP_STEP_IDX % pat.length]];
+      const prog = this._PROGRESSION;
+      const barStep = this._ARP_STEP_IDX % 8;
+      const bar = Math.floor(this._ARP_STEP_IDX / 8);
+      const chord = prog[bar % prog.length];
       this._ARP_STEP_IDX++;
+      const barDur = this._ARP_STEP_SEC * 8;
 
-      // pad layer — sine at root freq for warmth
-      const pad = this.ctx.createOscillator();
-      pad.type = 'sine'; pad.frequency.value = freq * 0.5;
-      const padG = this.ctx.createGain();
-      padG.gain.setValueAtTime(0, time);
-      padG.gain.linearRampToValueAtTime(0.04, time + 0.04);
-      padG.gain.setValueAtTime(0.04, time + this._ARP_STEP_SEC * 2.5);
-      padG.gain.linearRampToValueAtTime(0, time + this._ARP_STEP_SEC * 3.5);
-      pad.connect(padG); padG.connect(this.musicGain);
-      pad.start(time); pad.stop(time + this._ARP_STEP_SEC * 4);
+      // rhythm section: kick + bass on beats 1 and 3, snap on the backbeat,
+      // a soft hat every step, pad renewed once per bar
+      if(barStep === 0){
+        this._musicPad(time, chord.root, barDur);
+        this._musicBass(time, chord.root, this._ARP_STEP_SEC * 1.8);
+        this._musicKick(time);
+      } else if(barStep === 4){
+        this._musicBass(time, chord.root + 7, this._ARP_STEP_SEC * 1.8);
+        this._musicKick(time);
+      }
+      if(barStep === 2 || barStep === 6) this._musicNoiseHit(time, 1600, 0.9, 0.09, 0.05);
+      this._musicNoiseHit(time, 7000, 1, 0.035, barStep % 2 === 0 ? 0.045 : 0.026);
 
-      // arp note — triangle, one step duration
+      // lead arpeggio, triangle, riding the current chord
+      const freq = this._noteHz(chord.arp[barStep]);
       const arp = this.ctx.createOscillator();
       arp.type = 'triangle'; arp.frequency.value = freq;
       const arpG = this.ctx.createGain();
-      arpG.gain.setValueAtTime(0.06, time);
+      arpG.gain.setValueAtTime(barStep === 0 ? 0.085 : 0.06, time);
       arpG.gain.exponentialRampToValueAtTime(0.0001, time + this._ARP_STEP_SEC * 0.85);
       arp.connect(arpG); arpG.connect(this.musicGain);
       arp.start(time); arp.stop(time + this._ARP_STEP_SEC);
@@ -257,6 +331,8 @@ export function createSound(state){
       }
     },
 
+    _MUSIC_BASE_GAIN: 0.42,
+
     startMusic(){
       // Gate: don't start if music is muted
       if(state.musicMuted ?? false) return;
@@ -265,8 +341,24 @@ export function createSound(state){
       const c = this._ensureCtx(); if(!c) return;
       if(!this.musicGain){
         this.musicGain = c.createGain();
-        this.musicGain.gain.value = 0.5;
-        this.musicGain.connect(c.destination);
+        this.musicGain.gain.value = this._MUSIC_BASE_GAIN;
+
+        // warm low-pass on the dry signal so the synth band doesn't sound harsh
+        this.musicFilter = c.createBiquadFilter();
+        this.musicFilter.type = 'lowpass'; this.musicFilter.frequency.value = 2400;
+        this.musicGain.connect(this.musicFilter);
+        this.musicFilter.connect(c.destination);
+
+        // short feedback delay send for a touch of space, synced to 2 steps
+        this.musicDelay = c.createDelay(1.0);
+        this.musicDelay.delayTime.value = this._ARP_STEP_SEC * 2;
+        this.musicFeedback = c.createGain(); this.musicFeedback.gain.value = 0.27;
+        this.musicWet = c.createGain(); this.musicWet.gain.value = 0.32;
+        this.musicGain.connect(this.musicDelay);
+        this.musicDelay.connect(this.musicFeedback);
+        this.musicFeedback.connect(this.musicDelay);
+        this.musicDelay.connect(this.musicWet);
+        this.musicWet.connect(this.musicFilter);
       }
       this.musicRunning = true;
       this.musicNextTime = c.currentTime + 0.05;
@@ -290,7 +382,7 @@ export function createSound(state){
     setMusicVolume(v){
       const vol = Math.max(0, Math.min(1, v));
       if(this.musicGain && this.ctx){
-        this.musicGain.gain.setTargetAtTime(vol * 0.5, this.ctx.currentTime, 0.05);
+        this.musicGain.gain.setTargetAtTime(vol * this._MUSIC_BASE_GAIN, this.ctx.currentTime, 0.05);
       }
     },
   };
