@@ -31,6 +31,27 @@ export function createStore(deps){
       ? deps.importSave
       : null;
 
+  // ── shopping-spree surcharge ──
+  // Each $ purchase (upgrades + gear; the BP-funded bonus shop is a separate,
+  // already-scarce currency and stays untouched) makes the NEXT one in the
+  // same sitting cost a bit more. Resets the moment a flight happens (state.
+  // day changes). Without this, a payout that comfortably affords every
+  // upgrade's base cost turns each shop visit into clicking "buy" ten times
+  // in a row with no real prioritization — the surcharge makes the 4th+
+  // purchase in one visit noticeably pricier, so spreading buys across
+  // flights is the better play instead of clearing the whole shelf at once.
+  let spreeDay = state.day;
+  let spreeBuys = 0;
+  const SPREE_RATE = 1.15;
+  function spreeSurcharge(){
+    if(spreeDay !== state.day){ spreeDay = state.day; spreeBuys = 0; }
+    return Math.pow(SPREE_RATE, spreeBuys);
+  }
+  function spreeRegister(){
+    if(spreeDay !== state.day){ spreeDay = state.day; spreeBuys = 0; }
+    spreeBuys++;
+  }
+
   const shopGrid = document.getElementById('shop-grid');
   const gearGrid = document.getElementById('gear-grid');
   const bonusGrid = document.getElementById('bonus-grid');
@@ -418,7 +439,8 @@ export function createStore(deps){
       const dealDiscount = isDailyDeal && typeof todaysDeal.discount === 'number'
         ? clamp(todaysDeal.discount, 0, 0.9)
         : 0;
-      const cost = isDailyDeal ? Math.max(1, Math.round(baseCost * (1 - dealDiscount))) : baseCost;
+      const dealCost = isDailyDeal ? Math.max(1, Math.round(baseCost * (1 - dealDiscount))) : baseCost;
+      const cost = Math.round(dealCost * spreeSurcharge());
 
       const locked = u.requires && state.lvl[u.requires] === 0;
       if(!locked && lvl===0 && state.money < cost && u !== cheapestNewUpg) continue;
@@ -453,19 +475,26 @@ export function createStore(deps){
              ⚡ DAILY DEAL −${Math.round(dealDiscount*100)}%
            </div><br>`
         : '';
+      const spreePct = Math.round((cost/dealCost - 1) * 100);
+      const spreeBadgeHTML = spreePct > 0
+        ? `<div style="font-size:9px;font-weight:bold;color:#ffb066;background:#402400;padding:1px 5px;border-radius:2px;margin-bottom:3px;display:inline-block;" title="Prices creep up the more you buy in one visit — fresh again after your next flight.">
+             🛍️ +${spreePct}% (shopping spree)
+           </div><br>`
+        : '';
 
       card.innerHTML = `
         <div class="upg-head"><span class="upg-icon">${u.icon}</span><span class="upg-name">${u.name}</span></div>
-        ${dealBadgeHTML}
+        ${dealBadgeHTML}${spreeBadgeHTML}
         <div class="upg-desc">${u.desc}</div>
         <div class="upg-stat">${u.val(lvl)}${ladderHTML ? `<span style="color:var(--muted)"> → </span>${ladderHTML}` : ''}</div>
         <div class="pips">${pips}</div>
         ${locked ? `<div class="locked-note">requires ${UPGRADES.find(x=>x.id===u.requires).name}</div>` : ''}
-        <button ${(locked || state.money<cost)?'disabled':''}>${isDailyDeal ? `Deal — ${fmtCash(cost)}` : `Buy — ${fmtCash(cost)}`}${isDailyDeal && baseCost !== cost ? ` <s style="color:var(--muted);font-size:9px">${fmtCash(baseCost)}</s>` : ''}</button>`;
+        <button ${(locked || state.money<cost)?'disabled':''}>${isDailyDeal ? `Deal — ${fmtCash(cost)}` : `Buy — ${fmtCash(cost)}`}${dealCost !== cost ? ` <s style="color:var(--muted);font-size:9px">${fmtCash(dealCost)}</s>` : ''}</button>`;
       card.querySelector('button').addEventListener('click', () => {
         if(state.money < cost || locked) return;
         state.money -= cost;
         state.lvl[u.id]++;
+        spreeRegister();
         econLog?.logBuy({ name: u.name, id: u.id, cost, lvl: state.lvl[u.id] });
         SFX.buy();
         save();
@@ -554,20 +583,25 @@ export function createStore(deps){
     const cheapestNewGear = gearAvail.reduce((min,g) => (!min || g.cost < min.cost) ? g : min, null);
     let gearAffordable = 0;
     for(const g of gearAvail){
-      if(state.money < g.cost && g !== cheapestNewGear) continue;
-      const affordable = state.money >= g.cost;
+      const cost = Math.round(g.cost * spreeSurcharge());
+      if(state.money < cost && g !== cheapestNewGear) continue;
+      const affordable = state.money >= cost;
       if(affordable) gearAffordable++;
       const card = document.createElement('div');
       card.className = 'upg gear' + (affordable ? ' affordable' : '');
+      const spreeNote = cost !== g.cost
+        ? ` <s style="color:var(--muted);font-size:9px">${fmtCash(g.cost)}</s>`
+        : '';
       card.innerHTML = `
         <div class="upg-head"><span class="upg-icon">${g.icon}</span><span class="upg-name">${g.name}</span></div>
         <div class="upg-desc">${g.desc}</div>
-        <button ${state.money<g.cost?'disabled':''}>Buy — ${fmtCash(g.cost)}</button>`;
+        <button ${state.money<cost?'disabled':''}>Buy — ${fmtCash(cost)}</button>${spreeNote}`;
       card.querySelector('button').addEventListener('click', () => {
-        if(state.money < g.cost) return;
-        state.money -= g.cost;
+        if(state.money < cost) return;
+        state.money -= cost;
         state.perm[g.id] = true;
-        econLog?.logBuy({ name: g.name, id: g.id, cost: g.cost, lvl: 'owned' });
+        spreeRegister();
+        econLog?.logBuy({ name: g.name, id: g.id, cost, lvl: 'owned' });
         SFX.buy();
         save();
         renderShop();
