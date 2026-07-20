@@ -309,10 +309,10 @@ export function createPhysics(deps){
     sim.run.head = velA + clamp(aoa1 + clamp(aoaTgt-aoa1, -slew, slew), -0.9, 0.9);
 
     // ── forces (accelerations, m/s²) ──
-    // Daily-modifier wind: state.dailyMod is an optional object set by the
-    // data/store agent (daily modifier table). Read defensively — completely
-    // absent dailyMod or a missing .wind field is a guaranteed no-op.
-    const wind = state.dailyMod?.wind ?? 0;     // m/s² horizontal acceleration
+    // Daily-modifier wind: state.dailyMod is an optional object set at
+    // launch from DAILY_MOD_TABLE (flightless-data.js). Read defensively —
+    // an absent dailyMod or missing field is a guaranteed no-op.
+    const wind = state.dailyMod?.windX ?? 0;    // m/s² horizontal acceleration
     const windY = state.dailyMod?.windY ?? 0;   // m/s² vertical (optional, e.g. updraft)
     let ax = wind, ay = -G + windY;
 

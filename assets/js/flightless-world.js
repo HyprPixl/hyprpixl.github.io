@@ -23,7 +23,7 @@ export function createWorld(deps){
   // the ramp, opening up as flights get longer
   const corridorTop = x => clamp(25 + x*0.55, 60, COIN_MAX_ALT);
   function coinCluster(i){
-    if(i < 0 || hash01(i*17+3) < 0.35) return null;
+    if(i < 0 || hash01(i*17+3) < 0.18) return null;
     const cx = i*COIN_CELL + 20 + hash01(i*5+11)*(COIN_CELL-40);
     const top = corridorTop(cx);
     // skew toward the low corridor — that's where flights actually happen
@@ -55,7 +55,7 @@ export function createWorld(deps){
     return Math.min(1 + 0.3*(sim.run.combo-1), 3);
   }
   function starPos(i, j){
-    if(hash01(i*53+j*97+7) < 0.45) return null;
+    if(hash01(i*53+j*97+7) < 0.28) return null;
     const y = j*STAR_CELL + hash01(i*11+j*13+9)*STAR_CELL;
     if(y < STAR_MIN_ALT) return null;
     return { x: i*STAR_CELL + hash01(i*7+j*3+2)*STAR_CELL, y };
@@ -187,7 +187,7 @@ export function createWorld(deps){
   // and a link in the combo chain. Same deterministic cell trick as the rest.
   const RING_CELL = 420, RING_R = 24;
   function ringPos(i){
-    if(i < 1 || hash01(i*71+29) < 0.45) return null;
+    if(i < 1 || hash01(i*71+29) < 0.30) return null;
     const x = i*RING_CELL + 40 + hash01(i*11+17)*(RING_CELL-80);
     const top = Math.max(corridorTop(x)*0.9, 55);
     return { x, y: 28 + Math.pow(hash01(i*41+3), 1.3)*(top-28) };
@@ -222,8 +222,8 @@ export function createWorld(deps){
   // type 0 = fuel canister (blue), type 1 = speed boost (orange)
   function pickupPos(i){
     if(i < 1) return null;
-    // ~35 % of cells have a pickup; split ~60/40 fuel/boost
-    if(hash01(i*83+19) < 0.65) return null;
+    // ~55 % of cells have a pickup; split ~60/40 fuel/boost
+    if(hash01(i*83+19) < 0.45) return null;
     const x = i*PICKUP_CELL + 50 + hash01(i*13+7)*(PICKUP_CELL-100);
     const top = Math.max(corridorTop(x)*0.85, 30);
     const y = 20 + Math.pow(hash01(i*37+53), 1.5)*(top-20);

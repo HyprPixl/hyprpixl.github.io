@@ -592,6 +592,7 @@ const w2sY = y => sim.Hpx*0.72 - (y-cam.y)*cam.z;
 const {
   UPGRADES, GEAR, upgCost, MILESTONES, WIN_DIST, OBSTACLE_TYPES,
   CONTRACT_POOL, contractsFor, LANDMARKS, MEDALS, BONUS_SHOP, DAILY_CAP_BASE,
+  dailyModFor,
 } = createData({
   state, clamp, hash01,
   derive: call('derive'), buildRamp: call('buildRamp'),
@@ -753,6 +754,9 @@ function startLaunch(){
   // Kick off background music on first user gesture (defensive: may not exist)
   if(typeof SFX.startMusic === 'function') SFX.startMusic();
   if(!state.started){ state.started = true; save(); }
+  // seed today's weather (wind + ambient sky visuals — see flightless-data.js's
+  // DAILY_MOD_TABLE and flightless-render.js's ambientMode())
+  if(typeof dailyModFor === 'function') state.dailyMod = dailyModFor(state.day);
   introEl.classList.remove('show');
   shopEl.classList.remove('show');
   physics.newRun();

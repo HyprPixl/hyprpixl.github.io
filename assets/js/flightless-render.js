@@ -170,10 +170,9 @@ export function createRenderer(deps){
   }
   // Return the current ambient mode: 'snow', 'aurora', or null.
   function ambientMode(){
-    const mod = state.dailyMod ?? null;
-    if(!mod) return null;
-    if(mod === 'snow' || mod === 'blizzard') return 'snow';
-    if(mod === 'aurora') return 'aurora';
+    const id = state.dailyMod?.id ?? null;
+    if(id === 'snow' || id === 'blizzard') return 'snow';
+    if(id === 'aurora') return 'aurora';
     return null;
   }
   function stepAmbientParticles(dt){
@@ -315,7 +314,7 @@ export function createRenderer(deps){
     else           return { strut:'#7a4a21', track:'#c07830', brace:'rgba(122,74,33,0.65)', snowCap:'#fff0c0' };
   }
 
-  const stars = Array.from({length:130}, (_,i)=>({ x:hash01(i), y:hash01(i+500), r:0.5+hash01(i+900)*1.3 }));
+  const stars = Array.from({length:240}, (_,i)=>({ x:hash01(i), y:hash01(i+500), r:0.5+hash01(i+900)*1.3 }));
 
   // ── parallax background ──
   // A layer at depth p follows fraction p of the camera's motion on BOTH axes,
@@ -357,7 +356,7 @@ export function createRenderer(deps){
     const half = sim.W*0.55/cam.z;
     const i0 = Math.floor((cam.x*p - half + wOff)/cell), i1 = Math.ceil((cam.x*p + half + wOff)/cell);
     for(let i=i0;i<=i1;i++){
-      if(hash01(i*3+seed) < 0.42) continue;
+      if(hash01(i*3+seed) < 0.22) continue;
       const cx = i*cell + hash01(i*5+seed)*cell*0.8 - wOff;
       const cy = 140 + hash01(i*7+seed+2)*4300;
       const cs = (26 + hash01(i*13+seed+5)*74) * sMul * cam.z;
@@ -388,14 +387,17 @@ export function createRenderer(deps){
     const p = sim.run || { x:0, y:0, vx:0, vy:0 };
     const sp = Math.hypot(p.vx, p.vy);
 
-    // camera — the zoom/look-ahead targets are driven off a lightly smoothed
-    // velocity, not the raw instantaneous one, so a sudden physics event
-    // (launch kick, afterburner, thrust ignition) eases the camera in over a
-    // few frames instead of snapping it in one, which reads as a hard hitch.
-    if(cam.vxS===undefined){ cam.vxS = p.vx; cam.vyS = p.vy; }
+    // camera — the zoom/look-ahead targets are driven off lightly smoothed
+    // velocity AND altitude, not the raw instantaneous values, so a sudden
+    // physics event (launch kick, afterburner, a bounce) eases the camera
+    // in over a few frames instead of snapping it in one, which reads as a
+    // hard hitch. altitude gets the same treatment as velocity — without it
+    // a ground bounce or landmark impact yanks the zoom target every frame.
+    if(cam.vxS===undefined){ cam.vxS = p.vx; cam.vyS = p.vy; cam.yS = p.y; }
     const velSmooth = 1-Math.pow(0.0006, dtReal);
     cam.vxS = lerp(cam.vxS, p.vx, velSmooth);
     cam.vyS = lerp(cam.vyS, p.vy, velSmooth);
+    cam.yS  = lerp(cam.yS,  p.y,  velSmooth);
     const spCam = Math.hypot(cam.vxS, cam.vyS);
 
     let tz, tx, ty;
@@ -403,11 +405,19 @@ export function createRenderer(deps){
       tz = clamp(320/(sim.ramp.H+16), 0.12, 8);
       tx = -sim.ramp.len*0.28; ty = sim.ramp.H*0.32;
     } else {
-      tz = clamp(1200/(80 + 2.0*spCam + 0.32*p.y), 0.8, 9);
+      // floor dropped 0.8→0.28 so zoom-out keeps scaling with speed/altitude
+      // through the ranges a maxed ramp+rocket build now reaches, instead of
+      // pinning at the old ceiling and going visually static right when a
+      // flight is at its most dramatic.
+      tz = clamp(1200/(80 + 2.0*spCam + 0.32*cam.yS), 0.28, 9);
       tx = p.x + cam.vxS*0.35;
       ty = Math.max(0, p.y - (sim.Hpx*0.30)/tz);
     }
-    cam.z = lerp(cam.z, tz, 1-Math.pow(0.02, dtReal));
+    // zoom eases noticeably slower than position/look-ahead (0.1 vs 0.001
+    // base — lower base = faster convergence) — a lazy, cinematic drift
+    // instead of a camera that visibly hunts for its target every time
+    // speed or altitude ticks over.
+    cam.z = lerp(cam.z, tz, 1-Math.pow(0.1, dtReal));
     cam.x = lerp(cam.x, tx, 1-Math.pow(0.001, dtReal));
     cam.y = lerp(cam.y, ty, 1-Math.pow(0.001, dtReal));
     const rm = isReducedMotion();
@@ -453,9 +463,11 @@ export function createRenderer(deps){
       ctx.beginPath(); ctx.arc(sx0, sy0, 13, 0, 7); ctx.fill();
     }
 
-    // far and mid cloud fields behind the mountains
-    drawCloudLayer(sky.space, 0.22, 0.20, 760, 0.55, 11);
-    drawCloudLayer(sky.space, 0.50, 0.30, 620, 0.80, 47);
+    // far/mid/wisp cloud fields behind the mountains — an extra distant wisp
+    // layer plus tighter cell spacing on all of them for a busier, denser sky
+    drawCloudLayer(sky.space, 0.08, 0.12, 900, 0.35, 71);
+    drawCloudLayer(sky.space, 0.22, 0.24, 620, 0.55, 11);
+    drawCloudLayer(sky.space, 0.50, 0.34, 500, 0.80, 47);
 
     // mountain ridges, far to near
     drawRidge(0.10, 150, 300, 'rgba(168,192,220,0.5)');
@@ -476,7 +488,7 @@ export function createRenderer(deps){
     }
 
     // near clouds float in front of the ridges
-    drawCloudLayer(sky.space, 0.85, 0.50, 520, 1.05, 3);
+    drawCloudLayer(sky.space, 0.85, 0.50, 430, 1.05, 3);
 
     // ambient weather layer (snow / aurora)
     drawAmbientParticles();

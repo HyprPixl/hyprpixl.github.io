@@ -317,6 +317,12 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
     { id:'dense',     label:'Dense Air',      windX:0,    windY:0,    dragMul:1.20, cashMul:1.25 },
     { id:'bonusday',  label:'Sponsor\'s Day', windX:0,    windY:0,    dragMul:1.00, cashMul:1.50 },
     { id:'gusty',     label:'Gusty Winds',    windX:3,    windY:2,    dragMul:1.08, cashMul:1.10 },
+    // snow/aurora: mostly a visual treat (falling snow / an aurora ribbon —
+    // see flightless-render.js's ambientMode()), with a mild physics flavor
+    // to match. dailyModFor() picks one id per day, so these show up in the
+    // same rotation as the other weather days.
+    { id:'snow',      label:'Snowfall',       windX:-1,   windY:0,    dragMul:1.05, cashMul:1.00 },
+    { id:'aurora',    label:'Aurora Night',   windX:0,    windY:0,    dragMul:1.00, cashMul:1.10 },
   ];
 
   // ─── DAILY DEAL TABLE ─────────────────────────────────────────────────────
