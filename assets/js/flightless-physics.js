@@ -31,8 +31,11 @@ export function createPhysics(deps){
     const k     = 1/(Math.PI*ar*0.85);                      // induced drag factor (e = 0.85)
     const cd0eff = cdA/wingS + cd0w;
     // upgrades buy ramp track length; the player-drawn spline (state.rampShape)
-    // decides what that length is spent on — see buildRamp
-    const rampLen = 32 + 12*L.ramp + 1.2*L.ramp*L.ramp;
+    // decides what that length is spent on — see buildRamp. Base and linear
+    // term keep early levels close to the old curve (still affordable/modest
+    // in 1-3 days); the steep quadratic term is what makes a maxed ramp truly
+    // preposterous — level 12 lands at ~3500 m, 10x the old ~350 m cap.
+    const rampLen = 32 + 12*L.ramp + 23*L.ramp*L.ramp;
     const mu = Math.max(0.008, 0.02 - 0.0012*L.aero);
     const sling = L.sling * 20;
     const rampV0 = 2 + sling;
@@ -165,6 +168,17 @@ export function createPhysics(deps){
   const A_STALL = 15*RAD;       // stall angle of attack
   const GLIDE_ANG = -7*RAD;     // hands-off trim seeks this shallow glide slope
 
+  // Ramp-phase drag compensation. Quadratic air drag integrates with distance
+  // (and any uphill kicker at the end scales up right along with the rest of
+  // the player-drawn spline), so once ramp levels push track length well past
+  // what the original ~350 m max ever reached, uncompensated drag eats the
+  // entire speed gain and can even stall the sled out before the lip — the
+  // opposite of the huge launches a preposterous ramp should deliver. Below
+  // the old max length nothing changes (scale is 1); beyond it, ramp-phase
+  // drag eases off so extra track keeps buying extra exit speed instead of
+  // taxing itself to death.
+  const RAMP_DRAG_REF_LEN = 350;
+
   // overheat: sustained rocket use risks a melt-down.
   // heat climbs at 1/s while thrusting, cools at HEAT_COOL/s otherwise.
   // Above HEAT_MAX the thrust is cut to HEAT_PENALTY fraction; a popup fires
@@ -200,8 +214,10 @@ export function createPhysics(deps){
   function stepRamp(h){
     const th = rampPoint(sim.run.rampS).th;
     // waxed track: gravity along the slope, a whisper of friction, air drag
+    // (drag eased off on preposterously long ramps — see RAMP_DRAG_REF_LEN)
+    const dragScale = Math.min(1, RAMP_DRAG_REF_LEN / sim.st.rampLen);
     const accS = -G*Math.sin(th) - sim.st.mu*G*Math.cos(th)
-               - 0.5*RHO0*sim.run.rampV*sim.run.rampV*sim.st.cdA/sim.st.mass;
+               - 0.5*RHO0*sim.run.rampV*sim.run.rampV*sim.st.cdA*dragScale/sim.st.mass;
     sim.run.rampV = Math.max(0.3, sim.run.rampV + accS*h);
     sim.run.rampS += sim.run.rampV*h;
     if(Math.random() < h*sim.run.rampV*1.5) burst(sim.run.x, sim.run.y+0.2, 1, '#e8f6ff', 2);

@@ -400,7 +400,7 @@ export function createRenderer(deps){
 
     let tz, tx, ty;
     if(sim.phase==='shop'){
-      tz = clamp(320/(sim.ramp.H+16), 1.2, 8);
+      tz = clamp(320/(sim.ramp.H+16), 0.12, 8);
       tx = -sim.ramp.len*0.28; ty = sim.ramp.H*0.32;
     } else {
       tz = clamp(1200/(80 + 2.0*spCam + 0.32*p.y), 0.8, 9);
@@ -972,20 +972,44 @@ export function createRenderer(deps){
       ctx.strokeStyle = '#7a1d1a'; ctx.lineWidth = Math.max(1, s*0.06);
       ctx.beginPath(); ctx.moveTo(-s*0.1, -s*0.35); ctx.lineTo(0, -s*0.1); ctx.stroke();
     } else if(tier===4){
-      // carbon swept wing, thin and glossy, upturned winglet
-      ctx.fillStyle = '#2c3542';
+      // carbon swept wing: a raked, aggressively swept-back blade with a
+      // two-plane carbon finish, a crisp separate winglet at the tip, a
+      // glossy leading-edge highlight, and a faint woven-carbon hatch
+      ctx.fillStyle = '#141a22';
       ctx.beginPath();
-      ctx.moveTo(-s*1.9, -s*0.55);
-      ctx.quadraticCurveTo(-s*0.3, -s*1.05, s*2.1, -s*1.25);
-      ctx.lineTo(s*2.3, -s*1.7);
-      ctx.lineTo(s*2.35, -s*1.2);
-      ctx.quadraticCurveTo(s*0.4, -s*0.75, -s*1.9, -s*0.32);
+      ctx.moveTo(-s*1.85, -s*0.42);
+      ctx.quadraticCurveTo(s*0.15, -s*0.9, s*2.55, -s*1.4);
+      ctx.lineTo(s*2.3, -s*1.05);
+      ctx.quadraticCurveTo(s*0.25, -s*0.62, -s*1.55, -s*0.22);
       ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = 'rgba(140,190,255,0.75)'; ctx.lineWidth = Math.max(1, s*0.05);
+      // lighter top panel following the same sweep, reads as a second facet
+      ctx.fillStyle = '#232d3a';
       ctx.beginPath();
-      ctx.moveTo(-s*1.75, -s*0.5);
-      ctx.quadraticCurveTo(-s*0.3, -s*0.98, s*2.05, -s*1.2);
+      ctx.moveTo(-s*1.55, -s*0.5);
+      ctx.quadraticCurveTo(s*0.2, -s*0.95, s*2.4, -s*1.32);
+      ctx.lineTo(s*2.25, -s*1.14);
+      ctx.quadraticCurveTo(s*0.3, -s*0.78, -s*1.35, -s*0.4);
+      ctx.closePath(); ctx.fill();
+      // upturned winglet, a distinct crisp blade off the raked tip
+      ctx.fillStyle = '#0d1117';
+      ctx.beginPath();
+      ctx.moveTo(s*2.3, -s*1.32);
+      ctx.lineTo(s*2.62, -s*1.82);
+      ctx.lineTo(s*2.5, -s*1.22);
+      ctx.closePath(); ctx.fill();
+      // glossy leading-edge highlight
+      ctx.strokeStyle = 'rgba(150,205,255,0.7)'; ctx.lineWidth = Math.max(1, s*0.05);
+      ctx.beginPath();
+      ctx.moveTo(-s*1.7, -s*0.46);
+      ctx.quadraticCurveTo(s*0.2, -s*0.93, s*2.48, -s*1.38);
       ctx.stroke();
+      // faint twill hatch so the panel reads as woven carbon, not flat plastic
+      ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = Math.max(0.6, s*0.025);
+      for(let i=1;i<5;i++){
+        const t = i/5;
+        const hx = lerp(-s*1.4, s*2.2, t), hy = lerp(-s*0.5, -s*1.2, t);
+        ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx - s*0.25, hy + s*0.32); ctx.stroke();
+      }
     } else {
       // golden albatross: broad feathered wings with a soft glow
       const beat = Math.sin(sim.timeSim*3)*0.06;
