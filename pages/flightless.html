@@ -168,6 +168,8 @@
   }
   .topline .chip b{ color:var(--yellow); }
   .topline .chip.money b{ color:var(--cash); }
+  .topline .chip.cap-out{ border-color:#a33; }
+  .topline .chip.cap-out b{ color:#ff8a8a; }
 
   .section-label{
     color:var(--muted); font-size:11px; letter-spacing:2px; text-transform:uppercase;
@@ -374,6 +376,7 @@
         <div class="chip">&#128197; Day <b id="shop-day">1</b></div>
         <div class="chip">&#127942; Best <b id="shop-best">0 m</b></div>
         <div class="chip">&#127941; <b id="shop-bp">0 BP</b></div>
+        <div class="chip" id="shop-cap-chip">&#128230; <b id="shop-cap">3/3</b></div>
       </div>
     </div>
     <div class="goals">
@@ -415,7 +418,7 @@
       <button class="big-btn" id="launch-btn">&#128640; Launch</button>
       <div class="notes">
         <p class="small-note">&#8679;/&#8681; or W/S steer &middot; SPACE rocket &middot; X afterburner &middot; C fire cannon &middot; F fast-forward &middot; ENTER launch</p>
-        <p class="small-note">&#128717;&#65039; prices creep up the more you buy in one visit &mdash; fresh again after your next flight</p>
+        <p class="small-note">&#128230; Fish Co. only delivers so many upgrades before your next flight &mdash; buy Cargo Crate for a bigger allowance</p>
         <button class="reset-link" id="reset-btn">reset all progress</button>
       </div>
     </div>
@@ -588,7 +591,7 @@ const w2sY = y => sim.Hpx*0.72 - (y-cam.y)*cam.z;
 // through the bridge, filled in once those exist below).
 const {
   UPGRADES, GEAR, upgCost, MILESTONES, WIN_DIST, OBSTACLE_TYPES,
-  CONTRACT_POOL, contractsFor, LANDMARKS, MEDALS, BONUS_SHOP,
+  CONTRACT_POOL, contractsFor, LANDMARKS, MEDALS, BONUS_SHOP, DAILY_CAP_BASE,
 } = createData({
   state, clamp, hash01,
   derive: call('derive'), buildRamp: call('buildRamp'),
@@ -673,7 +676,7 @@ const settingsEl = document.getElementById('settings');
 function recompute(){ sim.st = physics.derive(); sim.ramp = physics.buildRamp(sim.st.rampLen); }
 
 const store = createStore({
-  state, UPGRADES, GEAR, BONUS_SHOP, MEDALS, LANDMARKS, MILESTONES,
+  state, UPGRADES, GEAR, BONUS_SHOP, MEDALS, LANDMARKS, MILESTONES, DAILY_CAP_BASE,
   contractsFor, upgCost, fmtCash, fmtDist, save, SFX, defaultState,
   exportSave, importSave, econLog,
   getSt: () => sim.st, getRamp: () => sim.ramp, recompute,

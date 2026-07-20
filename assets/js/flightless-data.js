@@ -21,7 +21,25 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
   //   • Late-tier (sponsor/plating/gun) takes sustained good flights to max.
   // mul raised from 1.55 on ramp/rocket/gun to slow their late-level cost climb.
 
+  // Daily delivery cap: how many $ purchases (upgrades + gear; the BP-funded
+  // bonus shop is a separate economy and isn't capped) Fish Co. will drop
+  // off before your next flight. Resets when a flight happens — see
+  // store.js's cap-gate logic, which reads this constant directly so the
+  // number here and the number enforced never drift apart.
+  //
+  // Exists so a rich payout can't turn into clicking "buy" across every
+  // upgrade at once with no real choice — a logged playtest showed a
+  // single flight comfortably affording one level of nearly every upgrade
+  // in the game simultaneously. Cargo Crate (below) raises the cap for
+  // players who want bigger shopping sprees and are willing to pay for it.
+  const DAILY_CAP_BASE = 3;
+
   const UPGRADES = [
+    // Cargo Crate: buys headroom in the daily delivery cap itself, so it's
+    // the one upgrade worth grabbing early regardless of build.
+    { id:'cargo', icon:'\u{1F4E6}', name:'Cargo Crate', base:100, mul:1.6, max:7, unlock:0,
+      desc:'How many upgrades Fish Co. can drop off before your next flight. Bigger crate, more buys per visit.',
+      val:l=>`${DAILY_CAP_BASE+l} deliveries/day` },
     // mul raised 1.55→1.65: the ramp-length rework made a maxed ramp ~2.4x
     // more powerful (exit speed ~45→~109 m/s) without touching cost, and a
     // logged playtest showed exactly the predictable result — an entire
@@ -353,6 +371,7 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
   return {
     UPGRADES, GEAR, upgCost, MILESTONES, WIN_DIST, OBSTACLE_TYPES,
     CONTRACT_POOL, contractsFor, LANDMARKS, MEDALS, BONUS_SHOP,
+    DAILY_CAP_BASE,
     // New exports — consumed defensively (typeof guard) by other modules:
     DAILY_MOD_TABLE, dailyModFor,
     DAILY_DEAL_TABLE, dailyDealFor,
