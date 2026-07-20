@@ -9,11 +9,14 @@
   :root{
     --navy:#000080;
     --yellow:#FFFF00;
+    --gold:#e8d44a;
     --panel:#0d1030;
-    --panel2:#141850;
+    --panel2:#161a52;
+    --ink:#05060f;
     --text:#eef1ff;
     --muted:#9aa3d8;
-    --border:#3a41a8;
+    --border:#4a52c8;
+    --border-dim:#2a3078;
     --good:#7CFC00;
     --bad:#ff5e5e;
   }
@@ -26,119 +29,195 @@
   }
   #game{ position:absolute; inset:0; width:100%; height:100%; display:block; image-rendering:pixelated; cursor:crosshair; }
 
+  /* pixel-frame treatment shared by all chrome */
+  .chrome{
+    background:linear-gradient(180deg, rgba(18,22,64,0.96), rgba(9,11,40,0.96));
+    border:2px solid var(--border);
+    box-shadow:0 0 0 2px var(--ink), 0 6px 18px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.07);
+  }
+
   .overlay-link{
     position:absolute; top:10px; left:12px; z-index:30;
-    color:var(--yellow); background:rgba(0,0,128,0.85);
-    border:2px solid var(--yellow); padding:4px 10px;
-    text-decoration:none; font-weight:bold; font-size:13px;
+    color:var(--yellow); background:linear-gradient(180deg,#141a5e,#0a0e3c);
+    border:2px solid var(--yellow); box-shadow:0 0 0 2px var(--ink);
+    padding:4px 10px; text-decoration:none; font-weight:bold; font-size:13px; letter-spacing:1px;
   }
   .overlay-link:hover{ background:var(--yellow); color:var(--navy); }
 
   .topbtn{
     position:absolute; top:10px; z-index:30;
-    background:rgba(0,0,128,0.85); color:var(--yellow);
-    border:2px solid var(--yellow); padding:4px 10px;
-    font-family:inherit; font-weight:bold; font-size:13px; cursor:pointer;
+    background:linear-gradient(180deg,#141a5e,#0a0e3c); color:var(--yellow);
+    border:2px solid var(--yellow); box-shadow:0 0 0 2px var(--ink);
+    padding:4px 10px; font-family:inherit; font-weight:bold; font-size:13px; letter-spacing:1px; cursor:pointer;
   }
   .topbtn:hover{ background:var(--yellow); color:var(--navy); }
+  .topbtn:active{ transform:translateY(1px); }
   #mute-btn{ right:12px; }
-  #help-btn{ right:72px; }
-  #save-btn{ right:150px; }
+  #help-btn{ right:78px; }
+  #save-btn{ right:162px; }
 
-  /* status strip under the top-left link */
+  /* ── hover/status HUD (top-left) ── */
   #status{
-    position:absolute; top:46px; left:12px; z-index:20;
+    position:absolute; top:48px; left:12px; z-index:20;
     font-size:12px; color:var(--muted);
-    background:rgba(5,8,30,0.7); border:1px solid var(--border);
-    padding:4px 8px; pointer-events:none; max-width:340px; line-height:1.5;
+    padding:6px 10px; pointer-events:none; max-width:360px; line-height:1.6;
   }
   #status b{ color:var(--yellow); }
+  #status .rbar{ height:7px; background:var(--ink); border:1px solid var(--border-dim); margin-top:3px; width:220px; }
+  #status .rbar > div{ height:100%; background:linear-gradient(90deg,#8a97ff,var(--yellow)); }
+
+  /* ── resource strip (top-center) ── */
+  #resources{
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    z-index:20; display:flex; gap:2px; padding:4px 6px; pointer-events:none;
+    max-width:min(58vw, 760px); flex-wrap:wrap; justify-content:center;
+  }
+  #resources:empty{ display:none; }
+  .res{
+    display:flex; align-items:center; gap:4px; padding:1px 7px 1px 3px;
+    background:rgba(5,6,15,0.55); border:1px solid var(--border-dim);
+    font-size:12px; color:var(--text);
+  }
+  .res img{ width:18px; height:18px; image-rendering:pixelated; }
+  .res b{ color:var(--gold); font-weight:bold; }
 
   /* ── hotbar ── */
   #hotbar{
     position:absolute; left:50%; bottom:12px; transform:translateX(-50%);
-    z-index:20; display:flex; gap:4px;
-    background:rgba(5,8,30,0.85); border:2px solid var(--border); padding:6px;
+    z-index:20; display:flex; gap:5px; padding:7px; align-items:stretch;
   }
   .hslot{
-    width:52px; height:58px; border:2px solid var(--border); background:var(--panel);
+    width:56px; height:66px;
+    border:2px solid var(--border-dim);
+    background:linear-gradient(180deg,#0a0d2c,#111544);
+    box-shadow:inset 0 2px 6px rgba(0,0,0,0.6);
     display:flex; flex-direction:column; align-items:center; justify-content:center;
-    cursor:pointer; position:relative; gap:1px;
+    cursor:pointer; position:relative; gap:2px;
   }
-  .hslot:hover{ border-color:var(--yellow); }
-  .hslot.sel{ border-color:var(--yellow); background:var(--panel2); }
-  .hslot.locked{ opacity:0.32; }
-  .hslot img{ width:30px; height:30px; image-rendering:pixelated; }
-  .hslot .cnt{ font-size:11px; color:var(--good); }
+  .hslot:hover{ border-color:var(--gold); }
+  .hslot.sel{
+    border-color:var(--yellow);
+    background:linear-gradient(180deg,#1b2066,#232a80);
+    box-shadow:0 0 10px rgba(255,255,0,0.45), inset 0 0 8px rgba(255,255,0,0.15);
+  }
+  .hslot.locked{ opacity:0.35; filter:grayscale(0.7); }
+  .hslot.locked::after{ content:'🔒'; position:absolute; bottom:2px; right:3px; font-size:10px; }
+  .hslot img{ width:35px; height:35px; image-rendering:pixelated; }
+  .hslot .cnt{
+    font-size:11px; color:var(--good); font-weight:bold;
+    background:rgba(0,0,0,0.5); padding:0 5px; border-radius:2px;
+  }
   .hslot .cnt.zero{ color:var(--bad); }
-  .hslot .key{ position:absolute; top:1px; left:3px; font-size:10px; color:var(--muted); }
+  .hslot .key{
+    position:absolute; top:-2px; left:-2px; font-size:10px; font-weight:bold;
+    color:var(--ink); background:var(--border); padding:0 4px 1px;
+  }
+  .hslot.sel .key{ background:var(--yellow); }
+  .hslot .txt{ font-size:18px; line-height:1; }
 
   /* ── side panel ── */
   #panel{
-    position:absolute; top:46px; right:12px; bottom:90px; width:340px; z-index:25;
-    background:rgba(8,10,38,0.94); border:2px solid var(--border);
+    position:absolute; top:48px; right:12px; bottom:96px; width:352px; z-index:25;
     display:none; flex-direction:column; font-size:13px;
   }
   #panel.open{ display:flex; }
   #panel-head{
     display:flex; align-items:center; justify-content:space-between;
-    background:var(--navy); padding:6px 10px; border-bottom:2px solid var(--border);
+    background:linear-gradient(180deg,#1a1f6e,#0e1250);
+    padding:7px 12px; border-bottom:2px solid var(--border);
   }
-  #panel-title{ color:var(--yellow); font-weight:bold; }
-  #panel-close{ background:none; border:none; color:var(--yellow); font-family:inherit; font-size:15px; font-weight:bold; cursor:pointer; }
-  #panel-body{ overflow-y:auto; padding:10px; flex:1; }
-  #panel-body::-webkit-scrollbar{ width:8px; }
-  #panel-body::-webkit-scrollbar-thumb{ background:var(--border); }
+  #panel-title{ color:var(--yellow); font-weight:bold; letter-spacing:2px; font-size:14px; }
+  #panel-close{
+    background:none; border:1px solid var(--border); color:var(--yellow);
+    font-family:inherit; font-size:13px; font-weight:bold; cursor:pointer; padding:1px 7px;
+  }
+  #panel-close:hover{ background:var(--yellow); color:var(--navy); border-color:var(--yellow); }
+  #panel-body{ overflow-y:auto; padding:12px; flex:1; scrollbar-width:thin; scrollbar-color:var(--border) var(--ink); }
+  #panel-body::-webkit-scrollbar{ width:9px; }
+  #panel-body::-webkit-scrollbar-track{ background:var(--ink); }
+  #panel-body::-webkit-scrollbar-thumb{ background:var(--border); border:2px solid var(--ink); }
 
   .slotrow{
-    display:flex; align-items:center; gap:8px; margin:6px 0;
-    background:var(--panel); border:1px solid var(--border); padding:5px 8px;
+    display:flex; align-items:center; gap:9px; margin:7px 0;
+    background:linear-gradient(180deg,#0e1138,#0a0d2c);
+    border:1px solid var(--border-dim); border-left:3px solid var(--border);
+    padding:6px 9px;
   }
-  .slotrow img{ width:24px; height:24px; image-rendering:pixelated; }
-  .slotrow .lab{ flex:1; }
-  .slotrow .n{ color:var(--good); min-width:38px; text-align:right; }
+  .slotrow .icobox{
+    width:32px; height:32px; flex:none; display:flex; align-items:center; justify-content:center;
+    background:var(--ink); border:1px solid var(--border-dim);
+  }
+  .slotrow img{ width:26px; height:26px; image-rendering:pixelated; }
+  .slotrow .lab{ flex:1; line-height:1.35; }
+  .slotrow .n{ color:var(--good); min-width:40px; text-align:right; font-weight:bold; }
   .pbtn{
-    background:var(--panel2); color:var(--yellow); border:1px solid var(--border);
-    font-family:inherit; font-size:11px; padding:2px 7px; cursor:pointer;
+    background:linear-gradient(180deg,#1b2066,#12154a); color:var(--yellow);
+    border:1px solid var(--border);
+    font-family:inherit; font-size:11px; font-weight:bold; letter-spacing:1px;
+    padding:3px 9px; cursor:pointer;
   }
-  .pbtn:hover:not(:disabled){ background:var(--yellow); color:var(--navy); }
-  .pbtn:disabled{ opacity:0.35; cursor:default; }
-  .pbtn.big{ font-size:14px; padding:6px 14px; font-weight:bold; }
+  .pbtn:hover:not(:disabled){ background:var(--yellow); color:var(--navy); border-color:var(--yellow); }
+  .pbtn:active:not(:disabled){ transform:translateY(1px); }
+  .pbtn:disabled{ opacity:0.32; cursor:default; }
+  .pbtn.big{ font-size:14px; padding:7px 16px; }
 
-  .bar{ height:8px; background:#060818; border:1px solid var(--border); margin:4px 0 8px; }
-  .bar > div{ height:100%; background:var(--yellow); width:0%; }
+  .bar{
+    height:10px; background:var(--ink); border:1px solid var(--border-dim);
+    margin:5px 0 9px; position:relative; overflow:hidden;
+  }
+  .bar > div{ height:100%; background:linear-gradient(90deg,#b8a020,var(--yellow)); width:0%; }
   .bar.fuel > div{ background:linear-gradient(90deg,#ff5e00,#ffd000); }
 
   .recipe-opt{
-    display:flex; align-items:center; gap:6px; padding:4px 6px; margin:3px 0;
-    border:1px solid var(--border); background:var(--panel); cursor:pointer;
+    display:flex; align-items:center; gap:8px; padding:5px 8px; margin:4px 0;
+    border:1px solid var(--border-dim); background:#0a0d2c; cursor:pointer;
   }
-  .recipe-opt:hover{ border-color:var(--yellow); }
-  .recipe-opt.sel{ border-color:var(--good); }
-  .recipe-opt img{ width:20px; height:20px; image-rendering:pixelated; }
-  .ing{ display:inline-flex; align-items:center; gap:2px; margin-right:6px; font-size:11px; }
-  .ing img{ width:14px; height:14px; image-rendering:pixelated; vertical-align:middle; }
+  .recipe-opt:hover{ border-color:var(--gold); background:#10143c; }
+  .recipe-opt.sel{ border-color:var(--good); background:#0d1a10; }
+  .recipe-opt.sel::after{ content:'◄ SET'; margin-left:auto; color:var(--good); font-size:10px; letter-spacing:1px; }
+  .recipe-opt img{ width:22px; height:22px; image-rendering:pixelated; }
+  .ing{ display:inline-flex; align-items:center; gap:3px; margin-right:8px; font-size:11px; color:var(--muted); }
+  .ing img{ width:16px; height:16px; image-rendering:pixelated; vertical-align:middle; }
   .ing.short{ color:var(--bad); }
   .muted{ color:var(--muted); }
-  .sechead{ color:var(--yellow); font-weight:bold; margin:12px 0 4px; border-bottom:1px solid var(--border); }
+  .sechead{
+    color:var(--yellow); font-weight:bold; letter-spacing:2px; font-size:11px;
+    margin:16px 0 6px; padding-bottom:3px; border-bottom:1px solid var(--border-dim);
+  }
+  .sechead:first-child{ margin-top:0; }
+
+  /* inventory grid in the craft panel */
+  .invgrid{ display:flex; flex-wrap:wrap; gap:5px; }
+  .invcell{
+    width:52px; height:56px; background:#0a0d2c; border:1px solid var(--border-dim);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+    position:relative;
+  }
+  .invcell img{ width:28px; height:28px; image-rendering:pixelated; }
+  .invcell b{ font-size:11px; color:var(--good); }
 
   .tech{
-    border:1px solid var(--border); background:var(--panel); padding:6px 8px; margin:5px 0;
+    border:1px solid var(--border-dim); border-left:3px solid var(--border);
+    background:#0a0d2c; padding:8px 10px; margin:6px 0;
   }
-  .tech.done{ border-color:var(--good); }
-  .tech.active{ border-color:var(--yellow); }
-  .tech.locked{ opacity:0.45; }
-  .tech .tname{ color:var(--yellow); font-weight:bold; }
-  .tech .tdesc{ font-size:11px; color:var(--muted); margin:2px 0; }
+  .tech.done{ border-left-color:var(--good); }
+  .tech.done .tname{ color:var(--good); }
+  .tech.active{ border-color:var(--yellow); border-left-color:var(--yellow); box-shadow:0 0 8px rgba(255,255,0,0.2); }
+  .tech.locked{ opacity:0.42; }
+  .tech .tname{ color:var(--yellow); font-weight:bold; letter-spacing:1px; }
+  .tech .tdesc{ font-size:11px; color:var(--muted); margin:3px 0 5px; line-height:1.45; }
+  .tech .tcost{ display:flex; align-items:center; gap:4px; }
+  .tech .tcost img{ width:17px; height:17px; image-rendering:pixelated; }
 
   /* ── toasts ── */
   #toasts{
-    position:absolute; bottom:96px; left:50%; transform:translateX(-50%);
-    z-index:40; display:flex; flex-direction:column; align-items:center; gap:4px; pointer-events:none;
+    position:absolute; bottom:104px; left:50%; transform:translateX(-50%);
+    z-index:40; display:flex; flex-direction:column; align-items:center; gap:5px; pointer-events:none;
   }
   .toast{
-    background:rgba(0,0,128,0.92); border:1px solid var(--yellow); color:var(--text);
-    padding:4px 14px; font-size:13px; animation:tfade 3.5s forwards;
+    background:linear-gradient(180deg,rgba(20,26,94,0.97),rgba(8,10,50,0.97));
+    border:1px solid var(--gold); box-shadow:0 0 0 2px var(--ink), 0 4px 10px rgba(0,0,0,0.5);
+    color:var(--text); padding:5px 16px; font-size:13px; animation:tfade 3.5s forwards;
   }
   @keyframes tfade{ 0%{opacity:0; transform:translateY(8px);} 8%{opacity:1; transform:none;} 80%{opacity:1;} 100%{opacity:0;} }
 
@@ -181,10 +260,11 @@
 <button id="mute-btn" class="topbtn">MUTE</button>
 
 <div id="status"></div>
+<div id="resources"></div>
 
-<div id="hotbar"></div>
+<div id="hotbar" class="chrome"></div>
 
-<div id="panel">
+<div id="panel" class="chrome">
   <div id="panel-head">
     <span id="panel-title"></span>
     <button id="panel-close">✕</button>
@@ -200,8 +280,8 @@
     <p class="muted">A tiny factory. Every sprite is 5×5 pixels. Mine ore, automate everything, launch a rocket.</p>
     <h2>THE LOOP</h2>
     <ul>
-      <li><b>Hand-mine</b>: hold <b>left-click</b> on an ore patch to mine it yourself.</li>
-      <li><b>Craft</b> (<kbd>C</kbd>): turn plates into gears, circuits, and machines by hand.</li>
+      <li><b>Hand-mine</b>: hold <b>left-click</b> on an ore patch. Loot appears in the strip at the top of the screen.</li>
+      <li><b>Craft</b> (<kbd>E</kbd>): turn plates into gears, circuits, and machines by hand.</li>
       <li><b>Automate</b>: Miners dig ore and spit it forward. Belts carry items. Inserters move items between belts and machines. Furnaces and Miners burn <b>coal</b> as fuel.</li>
       <li><b>Research</b> (<kbd>T</kbd>): build Labs, feed them science packs, unlock better toys.</li>
       <li><b>Win</b>: research Rocketry, build a Silo, feed it 10 Rocket Parts, hit LAUNCH.</li>
@@ -212,7 +292,7 @@
       <li><kbd>1</kbd>–<kbd>9</kbd> pick a building · <kbd>R</kbd> rotate · <kbd>Q</kbd>/<kbd>Esc</kbd> cancel</li>
       <li><b>Left-click / drag</b> place · <b>Right-click / drag</b> demolish (refunds everything)</li>
       <li>Click any machine to open it. Click its slots to take items out; use the buttons to put fuel/ingredients in.</li>
-      <li><kbd>C</kbd> crafting &amp; inventory · <kbd>T</kbd> research · <kbd>H</kbd> this screen</li>
+      <li><kbd>E</kbd>/<kbd>C</kbd> crafting &amp; inventory · <kbd>T</kbd> research · <kbd>H</kbd> this screen</li>
     </ul>
     <h2>TIPS</h2>
     <ul>
@@ -247,7 +327,7 @@
    ============================================================ */
 
 const TPS = 20;              // simulation ticks per second
-const SPX = 5;               // sprite size in pixels
+const SPX = 7;               // sprite size in pixels
 const CHUNK = 32;            // tiles per chunk side
 const GAP = 0.25;            // min spacing between belt items (tiles)
 const BELT_SPEED = 1.5;      // tiles/second
@@ -260,24 +340,96 @@ const SAVE_KEY = 'gridworks-save-v1';
 const DX = [0,1,0,-1], DY = [-1,0,1,0]; // 0=N 1=E 2=S 3=W
 
 /* ── Items ─────────────────────────────────────────────── */
-// Each sprite: 5 strings of 5 chars, plus a palette map. '.' = transparent.
+// Each sprite: 7 strings of 7 chars, plus a palette map. '.' = transparent.
+// Ore cluster shape shared by all four ores (colors differ).
+const ORE_PX = [
+  '.aa....',
+  'abba.a.',
+  '.aa.aba',
+  'a....a.',
+  'aba.aa.',
+  '.a.abba',
+  '....aa.',
+];
+// Plate slab shared by metals.
+const PLATE_PX = [
+  '.......',
+  'aaaaaa.',
+  'abbbba.',
+  'abbbba.',
+  'abbbba.',
+  'aaaaaa.',
+  '.......',
+];
+// Science flask shared by pack colors.
+const FLASK_PX = [
+  '..aaa..',
+  '...a...',
+  '...a...',
+  '..aca..',
+  '.accca.',
+  'accccca',
+  '.aaaaa.',
+];
+// Circuit board shared by circuit tiers.
+const CHIP_PX = [
+  '.b.b.b.',
+  'aaaaaaa',
+  'a.ccc.a',
+  'a.cbc.a',
+  'a.ccc.a',
+  'aaaaaaa',
+  '.b.b.b.',
+];
 const ITEMS = {
-  'iron-ore':    {name:'Iron Ore',      spr:[['.a.a.','ab.ba','.a.a.','a.ab.','.a.a.'],{a:'#8fa6b8',b:'#c3d3de'}]},
-  'copper-ore':  {name:'Copper Ore',    spr:[['.a.a.','ab.ba','.a.a.','a.ab.','.a.a.'],{a:'#c96f2e',b:'#eda05c'}]},
-  'coal':        {name:'Coal',          spr:[['.a.a.','ab.aa','.a.b.','a.aa.','.a.a.'],{a:'#3a3f4a',b:'#5b6270'}]},
-  'stone':       {name:'Stone',         spr:[['.a.a.','ab.ba','.a.a.','a.ab.','.a.a.'],{a:'#9a8f78',b:'#c2b89f'}]},
-  'iron-plate':  {name:'Iron Plate',    spr:[['.....','aaaa.','abbba','.aaaa','.....'],{a:'#aebfd0',b:'#d8e4ee'}]},
-  'copper-plate':{name:'Copper Plate',  spr:[['.....','aaaa.','abbba','.aaaa','.....'],{a:'#d07b36',b:'#f0aa66'}]},
-  'stone-brick': {name:'Stone Brick',   spr:[['.....','aabaa','bbbbb','aabaa','.....'],{a:'#8d8271',b:'#6b6152'}]},
-  'steel':       {name:'Steel',         spr:[['.....','aaaa.','abbba','.aaaa','.....'],{a:'#e8eef4',b:'#b8c8d8'}]},
-  'gear':        {name:'Gear',          spr:[['a.a.a','.aaa.','aa.aa','.aaa.','a.a.a'],{a:'#c8cdd6'}]},
-  'wire':        {name:'Copper Wire',   spr:[['.aaa.','a...a','a.a.a','a...a','.aaa.'],{a:'#e8964a'}]},
-  'circuit':     {name:'Circuit',       spr:[['.b.b.','aaaaa','abbba','aaaaa','.b.b.'],{a:'#2e8b3e',b:'#e8d44a'}]},
-  'adv-circuit': {name:'Adv. Circuit',  spr:[['.b.b.','aaaaa','abbba','aaaaa','.b.b.'],{a:'#b23a3a',b:'#e8d44a'}]},
-  'red-sci':     {name:'Red Science',   spr:[['..a..','..a..','.aca.','accca','.aaa.'],{a:'#cfd6e6',c:'#ff4a4a'}]},
-  'green-sci':   {name:'Green Science', spr:[['..a..','..a..','.aca.','accca','.aaa.'],{a:'#cfd6e6',c:'#4ade4a'}]},
-  'blue-sci':    {name:'Blue Science',  spr:[['..a..','..a..','.aca.','accca','.aaa.'],{a:'#cfd6e6',c:'#4a9aff'}]},
-  'rocket-part': {name:'Rocket Part',   spr:[['..a..','.aba.','.aba.','abbba','a.a.a'],{a:'#d0d8e4',b:'#ff8c3a'}]},
+  'iron-ore':    {name:'Iron Ore',      spr:[ORE_PX,{a:'#8fa6b8',b:'#cfdde8'}]},
+  'copper-ore':  {name:'Copper Ore',    spr:[ORE_PX,{a:'#c96f2e',b:'#f2ad68'}]},
+  'coal':        {name:'Coal',          spr:[ORE_PX,{a:'#33373f',b:'#5b6270'}]},
+  'stone':       {name:'Stone',         spr:[ORE_PX,{a:'#9a8f78',b:'#cec4aa'}]},
+  'iron-plate':  {name:'Iron Plate',    spr:[PLATE_PX,{a:'#8fa2b5',b:'#cfdce8'}]},
+  'copper-plate':{name:'Copper Plate',  spr:[PLATE_PX,{a:'#a85c22',b:'#eda05c'}]},
+  'steel':       {name:'Steel',         spr:[PLATE_PX,{a:'#b8c8d8',b:'#f0f5fa'}]},
+  'stone-brick': {name:'Stone Brick',   spr:[[
+    '.......',
+    'aab.baa',
+    'aab.baa',
+    '.......',
+    'b.baab.',
+    'b.baab.',
+    '.......',
+  ],{a:'#8d8271',b:'#6b6152'}]},
+  'gear':        {name:'Gear',          spr:[[
+    '...a...',
+    '.a.a.a.',
+    '..a.a..',
+    'aa...aa',
+    '..a.a..',
+    '.a.a.a.',
+    '...a...',
+  ],{a:'#c8cdd6'}]},
+  'wire':        {name:'Copper Wire',   spr:[[
+    '.......',
+    '.a.a.a.',
+    'a.a.a.a',
+    'a.a.a.a',
+    'a.a.a.a',
+    '.a.a.a.',
+    '.......',
+  ],{a:'#e8964a'}]},
+  'circuit':     {name:'Circuit',       spr:[CHIP_PX,{a:'#2e8b3e',b:'#e8d44a',c:'#123a1a'}]},
+  'adv-circuit': {name:'Adv. Circuit',  spr:[CHIP_PX,{a:'#b23a3a',b:'#e8d44a',c:'#4a1414'}]},
+  'red-sci':     {name:'Red Science',   spr:[FLASK_PX,{a:'#cfd6e6',c:'#ff4a4a'}]},
+  'green-sci':   {name:'Green Science', spr:[FLASK_PX,{a:'#cfd6e6',c:'#4ade4a'}]},
+  'blue-sci':    {name:'Blue Science',  spr:[FLASK_PX,{a:'#cfd6e6',c:'#4a9aff'}]},
+  'rocket-part': {name:'Rocket Part',   spr:[[
+    '...a...',
+    '..aaa..',
+    '..aba..',
+    '..aba..',
+    '.aaaaa.',
+    '.a.b.a.',
+    'aa...aa',
+  ],{a:'#d0d8e4',b:'#ff8c3a'}]},
   // buildings (as inventory items; world sprites assigned below)
   'belt':        {name:'Belt',          spr:null},
   'miner':       {name:'Miner',         spr:null},
@@ -292,22 +444,125 @@ const ITEMS = {
 
 /* World sprites for buildings (all drawn facing NORTH, rotated as needed) */
 const BSPR = {
-  'belt0':   [['e.b.e','eb..e','e...e','e.b.e','eb..e'],{e:'#3a3f55',b:'#e8d44a'}], // frames built procedurally below
-  'miner':   [['a.c.a','a.b.a','abbba','a.b.a','aaaaa'],{a:'#7a8494',b:'#e8d44a',c:'#2c3140'}],
-  'furnace': [['.aaa.','aaaaa','aafaa','aafaa','.aaa.'],{a:'#8d8271',f:'#402c1e'}],
-  'furnace-on':[['.aaa.','aaaaa','aafaa','aagaa','.aaa.'],{a:'#8d8271',f:'#ffd000',g:'#ff5e00'}],
-  'inserter':[['.....','.aaa.','.aba.','.aaa.','.....'],{a:'#6a5a2a',b:'#e8d44a'}],
-  'chest':   [['.....','aaaaa','ab..a','aaaaa','.....'],{a:'#b08a4a',b:'#e8d44a'}],
-  'splitter':[['a.a.a','ababa','aaaaa','a...a','aaaaa'],{a:'#7a8494',b:'#e8d44a'}],
-  'assembler':[['aaaaa','a.b.a','abgba','a.b.a','aaaaa'],{a:'#4a5a8a',b:'#8a97b8',g:'#2c3140'}],
-  'assembler-on':[['aaaaa','a.b.a','abgba','a.b.a','aaaaa'],{a:'#4a5a8a',b:'#8a97b8',g:'#e8d44a'}],
-  'lab':     [['.aaa.','ab.ba','a.b.a','ab.ba','.aaa.'],{a:'#c8cdd6',b:'#4a9aff'}],
-  'lab-on':  [['.aaa.','ab.ba','a.b.a','ab.ba','.aaa.'],{a:'#c8cdd6',b:'#e8d44a'}],
-  'silo':    [['aaaaa','arrra','arbra','arrra','aaaaa'],{a:'#5a6274',r:'#8a97b8',b:'#ff5e00'}],
-  'rocket':  [['..a..','.aaa.','.aba.','.aaa.','a.f.a'],{a:'#e8eef4',b:'#4a9aff',f:'#ff8c3a'}],
+  'miner': [[
+    'aa.g.aa',
+    'a..b..a',
+    'a.bbb.a',
+    'a.bcb.a',
+    'a.bbb.a',
+    'a.....a',
+    'aaaaaaa',
+  ],{a:'#7a8494',b:'#e8d44a',c:'#2c3140',g:'#111420'}],
+  'furnace': [[
+    '.aaaaa.',
+    'abaaaba',
+    'aabbbaa',
+    'aabbbaa',
+    'aabbbaa',
+    'abaaaba',
+    '.aaaaa.',
+  ],{a:'#8d8271',b:'#3a2c20'}],
+  'furnace-on': [[
+    '.aaaaa.',
+    'abaaaba',
+    'aacccaa',
+    'aacdcaa',
+    'aadddaa',
+    'abaaaba',
+    '.aaaaa.',
+  ],{a:'#8d8271',b:'#3a2c20',c:'#ffd000',d:'#ff5e00'}],
+  'inserter': [[
+    '.......',
+    '.aaaaa.',
+    '.a...a.',
+    '.a.b.a.',
+    '.a...a.',
+    '.aaaaa.',
+    '.......',
+  ],{a:'#6a5a2a',b:'#e8d44a'}],
+  'chest': [[
+    '.......',
+    'aaaaaaa',
+    'abbbbba',
+    'aaacaaa',
+    'abbbbba',
+    'aaaaaaa',
+    '.......',
+  ],{a:'#7c5a2c',b:'#b08a4a',c:'#e8d44a'}],
+  'splitter': [[
+    'a.b.b.a',
+    'abb.bba',
+    'a.b.b.a',
+    'aaaaaaa',
+    'aa...aa',
+    'a.ccc.a',
+    'aaaaaaa',
+  ],{a:'#7a8494',b:'#e8d44a',c:'#111420'}],
+  'assembler': [[
+    'aaaaaaa',
+    'ab...ba',
+    'a.ccc.a',
+    'a.cgc.a',
+    'a.ccc.a',
+    'ab...ba',
+    'aaaaaaa',
+  ],{a:'#4a5a8a',b:'#8a97b8',c:'#1a2038',g:'#5a6488'}],
+  'assembler-on': [[
+    'aaaaaaa',
+    'ab...ba',
+    'a.ccc.a',
+    'a.cgc.a',
+    'a.ccc.a',
+    'ab...ba',
+    'aaaaaaa',
+  ],{a:'#4a5a8a',b:'#8a97b8',c:'#1a2038',g:'#e8d44a'}],
+  'lab': [[
+    '..aaa..',
+    '.a...a.',
+    'a..b..a',
+    'a.bbb.a',
+    'a..b..a',
+    '.a...a.',
+    '..aaa..',
+  ],{a:'#c8cdd6',b:'#4a9aff'}],
+  'lab-on': [[
+    '..aaa..',
+    '.a...a.',
+    'a..b..a',
+    'a.bbb.a',
+    'a..b..a',
+    '.a...a.',
+    '..aaa..',
+  ],{a:'#c8cdd6',b:'#e8d44a'}],
+  'silo': [[
+    'aaaaaaa',
+    'arrrrra',
+    'ar.b.ra',
+    'arbbbra',
+    'ar.b.ra',
+    'arrrrra',
+    'aaaaaaa',
+  ],{a:'#5a6274',r:'#8a97b8',b:'#ff5e00'}],
+  'rocket': [[
+    '...a...',
+    '..aaa..',
+    '..aba..',
+    '..aba..',
+    '..aaa..',
+    '.aaaaa.',
+    'aa.f.aa',
+  ],{a:'#e8eef4',b:'#4a9aff',f:'#ff8c3a'}],
 };
 // Item-icon sprites for buildings mirror the world sprite.
-ITEMS['belt'].spr      = [['e.b.e','eb.be','e...e','e.b.e','eb.be'],{e:'#3a3f55',b:'#e8d44a'}];
+ITEMS['belt'].spr = [[
+  'eb...be',
+  'e.b.b.e',
+  'e..b..e',
+  'eb...be',
+  'e.b.b.e',
+  'e..b..e',
+  'eb...be',
+],{e:'#3a3f55',b:'#e8d44a'}];
 ITEMS['miner'].spr     = BSPR['miner'];
 ITEMS['furnace'].spr   = BSPR['furnace'];
 ITEMS['inserter'].spr  = BSPR['inserter'];
@@ -431,33 +686,37 @@ function rotSprite(src, times){
 const SPRITES = {};   // key -> canvas (or [4 dirs] arrays)
 const ICON_URL = {};  // item -> dataURL at 4x
 
+function iconFrom(canvas){
+  const c = document.createElement('canvas'); c.width=SPX*5; c.height=SPX*5;
+  const g = c.getContext('2d'); g.imageSmoothingEnabled=false;
+  g.drawImage(canvas,0,0,SPX*5,SPX*5);
+  return c.toDataURL();
+}
 function buildSprites(){
   for(const id in ITEMS){
     const s = ITEMS[id].spr;
     SPRITES['item:'+id] = makeSprite(s[0], s[1]);
-    const c = document.createElement('canvas'); c.width=SPX*4; c.height=SPX*4;
-    const g = c.getContext('2d'); g.imageSmoothingEnabled=false;
-    g.drawImage(SPRITES['item:'+id],0,0,SPX*4,SPX*4);
-    ICON_URL[id] = c.toDataURL();
+    ICON_URL[id] = iconFrom(SPRITES['item:'+id]);
   }
   for(const id in BSPR){
-    if(id==='belt0') continue;
     const base = makeSprite(BSPR[id][0], BSPR[id][1]);
     SPRITES[id] = [0,1,2,3].map(d=>rotSprite(base,d));
   }
-  // belt animation: 3 frames, chevrons crawling in travel direction (north base = upward)
-  const railPal = {e:'#3a3f55', b:'#c8b93a', d:'#23263a'};
-  for(let f=0; f<3; f++){
+  // belt animation: 4 frames, chevrons crawling in travel direction (north base = upward)
+  const beltPal = {e:'#3a3f55', b:'#c8b93a', d:'#23263a'};
+  const CHEV = ['..b..','.b.b.','b...b','.....']; // chevron tip → arms → gap
+  for(let f=0; f<4; f++){
     const rows = [];
-    for(let y=0;y<5;y++){
-      // pattern period 3 down the belt; shift by frame so chevrons move up (against y)
-      const ph = ((y + f) % 3 + 3) % 3;
-      const mid = ph===0 ? '.b.' : ph===1 ? 'b.b' : '...';
+    for(let y=0;y<SPX;y++){
+      const ph = ((y + f) % 4 + 4) % 4;
+      const mid = CHEV[ph].replace(/\./g,'d');
       rows.push('e'+mid+'e');
     }
-    const base = makeSprite(rows, railPal);
+    const base = makeSprite(rows, beltPal);
     SPRITES['belt'+f] = [0,1,2,3].map(d=>rotSprite(base,d));
   }
+  // belt inventory icon mirrors the real animated belt (frame 0)
+  ICON_URL['belt'] = iconFrom(SPRITES['belt0'][0]);
 }
 
 /* ── World generation ──────────────────────────────────── */
@@ -553,8 +812,9 @@ function renderChunk(ch){
 function ent(x,y){ return entities.get(x+','+y); }
 function chestTotal(e){ let n=0; for(const k in e.inv) n+=e.inv[k]; return n; }
 
+const NON_DIRECTIONAL = {chest:1, furnace:1, lab:1, silo:1, assembler:1};
 function newEntity(it,x,y,dir){
-  const base = {t:it, x, y, dir};
+  const base = {t:it, x, y, dir: NON_DIRECTIONAL[it] ? 0 : dir};
   switch(it){
     case 'belt':      return {...base, items:[]};
     case 'miner':     return {...base, fuel:0, p:0, bufIt:null, bufN:0};
@@ -828,10 +1088,27 @@ function tick(){
     if(mine.p >= 1){
       mine.p = 0;
       const o = oreAt(mine.x, mine.y);
-      if(o){ const it = mineOre(mine.x, mine.y); if(it){ invAdd(it,1); sfx('mine'); renderHotbar(); } }
+      if(o){
+        const it = mineOre(mine.x, mine.y);
+        if(it){
+          invAdd(it,1);
+          addFloater(mine.x, mine.y, '+1 '+ITEMS[it].name);
+          sfx('mine');
+        }
+      }
       if(!oreAt(mine.x, mine.y)) mine.active = false;
     }
   }
+}
+
+/* floating pickup text, drawn in world space */
+let floaters = [];
+function addFloater(x, y, text){
+  // merge rapid pickups on the same tile into one counter
+  const f = floaters.find(f=>f.x===x && f.y===y && f.base===text.replace(/^\+\d+ /,'') && f.age<0.6);
+  if(f){ f.n++; f.text='+'+f.n+' '+f.base; f.age=0; return; }
+  floaters.push({x, y, n:+(text.match(/^\+(\d+)/)||[0,1])[1], base:text.replace(/^\+\d+ /,''), text, age:0});
+  if(floaters.length>24) floaters.shift();
 }
 
 /* ── Placement / demolition ────────────────────────────── */
@@ -917,7 +1194,7 @@ function draw(now){
   }
   // entities in the visible tile range
   const x0=Math.floor(wx0)-1, x1=Math.ceil(wx1)+1, y0=Math.floor(wy0)-1, y1=Math.ceil(wy1)+1;
-  const beltFrame = Math.floor(animT*8)%3;
+  const beltFrame = Math.floor(animT*10)%4;
   const inserters = [];
   for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++){
     const e = ent(x,y);
@@ -1002,25 +1279,60 @@ function draw(now){
   // hand mining progress
   if(mine.active){
     const [mx,my] = worldToScreen(mine.x, mine.y);
-    ctx.fillStyle='#000000aa'; ctx.fillRect(mx, my+t-5, t, 4);
-    ctx.fillStyle='#ffd000'; ctx.fillRect(mx, my+t-5, t*mine.p, 4);
+    ctx.fillStyle='#000000aa'; ctx.fillRect(mx, my+t-6, t, 5);
+    ctx.fillStyle='#ffd000'; ctx.fillRect(mx+1, my+t-5, (t-2)*mine.p, 3);
+    ctx.strokeStyle='#ffd000'; ctx.lineWidth=2;
+    ctx.strokeRect(mx+0.5, my+0.5, t-1, t-1);
   }
+  // floating pickup text
+  for(const f of floaters){
+    const [fx,fy] = worldToScreen(f.x+0.5, f.y);
+    const a = Math.max(0, 1 - f.age/1.4);
+    ctx.font = 'bold 13px Courier New';
+    ctx.textAlign = 'center';
+    const yy = fy - f.age*34;
+    ctx.fillStyle = `rgba(0,0,0,${a*0.8})`;
+    ctx.fillText(f.text, fx+1, yy+1);
+    ctx.fillStyle = `rgba(124,252,0,${a})`;
+    ctx.fillText(f.text, fx, yy);
+  }
+  ctx.textAlign = 'left';
 }
 
 /* ── Status strip ──────────────────────────────────────── */
 const statusEl = document.getElementById('status');
+statusEl.classList.add('chrome');
 function renderStatus(){
   const o = oreAt(hover.x, hover.y);
   const e = ent(hover.x, hover.y);
   let s = '';
   if(research.tech){
     const t = TECHS[research.tech];
-    s += `<b>Researching:</b> ${t.name} ${research.prog}/${t.count}<br>`;
+    s += `<b>⚗ ${t.name}</b> ${research.prog}/${t.count}`+
+         `<div class="rbar"><div style="width:${(research.prog/t.count*100)|0}%"></div></div>`;
   }
-  if(e) s += `<b>${ITEMS[e.t].name}</b>`;
-  else if(o) s += `<b>${ITEMS[o.it].name}</b> · ${o.amt} left · hold click to mine`;
+  if(e) s += `<b>${ITEMS[e.t].name}</b> <span class="muted">· click to open</span>`;
+  else if(o) s += `<b>${ITEMS[o.it].name}</b> · ${o.amt} left · <span class="muted">hold click to mine</span>`;
   else s += `<span class="muted">(${hover.x}, ${hover.y})</span>`;
   statusEl.innerHTML = s;
+}
+
+/* ── Resource strip (top-center inventory readout) ─────── */
+const resourcesEl = document.getElementById('resources');
+resourcesEl.classList.add('chrome');
+const RES_ORDER = ['iron-ore','copper-ore','coal','stone',
+                   'iron-plate','copper-plate','steel','stone-brick',
+                   'gear','wire','circuit','adv-circuit',
+                   'red-sci','green-sci','blue-sci','rocket-part'];
+let lastResHtml = '';
+function renderResources(){
+  let h = '';
+  for(const it of RES_ORDER){
+    const n = inv[it]||0;
+    if(n<1) continue;
+    h += `<span class="res"><img src="${ICON_URL[it]}" alt="" title="${ITEMS[it].name}"><b>${n}</b></span>`;
+  }
+  if(h!==lastResHtml){ resourcesEl.innerHTML = h; lastResHtml = h; }
 }
 
 /* ── Hotbar ────────────────────────────────────────────── */
@@ -1039,12 +1351,14 @@ function renderHotbar(){
     hotbarEl.appendChild(d);
   });
   // craft + tech buttons at the end
-  const cb=document.createElement('div'); cb.className='hslot';
-  cb.innerHTML='<span class="key">C</span><div style="font-size:20px">⚒</div><span class="cnt">craft</span>';
+  const cb=document.createElement('div'); cb.className='hslot' + (panelMode==='craft'?' sel':'');
+  cb.innerHTML='<span class="key">E</span><div class="txt">⚒</div><span class="cnt">CRAFT</span>';
+  cb.title='Crafting & inventory (E or C)';
   cb.onclick=()=>togglePanel('craft');
   hotbarEl.appendChild(cb);
-  const tb=document.createElement('div'); tb.className='hslot';
-  tb.innerHTML='<span class="key">T</span><div style="font-size:20px">⚗</div><span class="cnt">tech</span>';
+  const tb=document.createElement('div'); tb.className='hslot' + (panelMode==='tech'?' sel':'');
+  tb.innerHTML='<span class="key">T</span><div class="txt">⚗</div><span class="cnt">TECH</span>';
+  tb.title='Research (T)';
   tb.onclick=()=>togglePanel('tech');
   hotbarEl.appendChild(tb);
 }
@@ -1061,12 +1375,13 @@ const panelTitle = document.getElementById('panel-title');
 const panelBody = document.getElementById('panel-body');
 document.getElementById('panel-close').onclick = closePanel;
 
-function closePanel(){ panelEl.classList.remove('open'); openEnt=null; panelMode=null; }
+function closePanel(){ panelEl.classList.remove('open'); openEnt=null; panelMode=null; renderHotbar(); }
 function togglePanel(mode){
   if(panelMode===mode){ closePanel(); return; }
   panelMode = mode; openEnt = null;
   panelEl.classList.add('open');
   renderPanel();
+  renderHotbar();
 }
 function openEntityPanel(e){
   openEnt = e; panelMode = 'entity';
@@ -1074,16 +1389,17 @@ function openEntityPanel(e){
   renderPanel();
 }
 function icon(it){ return `<img src="${ICON_URL[it]}" alt="">`; }
+function boxIcon(it){ return `<span class="icobox">${icon(it)}</span>`; }
 function ingHtml(ins, mul=1){
   let s='';
   for(const k in ins){
     const need=ins[k]*mul, have=inv[k]||0;
-    s += `<span class="ing${have<need?' short':''}">${icon(k)}${need}<span class="muted">/${have}</span></span>`;
+    s += `<span class="ing${have<need?' short':''}" title="${ITEMS[k].name}: need ${need}, have ${have}">${icon(k)}${need}<span class="muted">(${have})</span></span>`;
   }
   return s;
 }
 function slotRow(it, n, label, buttons){
-  return `<div class="slotrow">${it?icon(it):''}<span class="lab">${label}</span><span class="n">${n}</span>${buttons||''}</div>`;
+  return `<div class="slotrow">${it?boxIcon(it):''}<span class="lab">${label}</span><span class="n">${n}</span>${buttons||''}</div>`;
 }
 
 function renderPanel(){
@@ -1122,8 +1438,7 @@ function giveBtn(e, it, n, label){
 function takeAll(fn){ return ()=>{ fn(); sfx('craft'); renderHotbar(); renderPanel(); }; }
 
 function fuelRow(e){
-  const coal = Math.floor(e.fuel/FUEL_PER_COAL*10)/10;
-  return `<div class="slotrow">${icon('coal')}<span class="lab">Fuel</span><span class="n">${e.fuel.toFixed(0)} ops</span>${giveBtn(e,'coal',5,'+5 coal')}</div>`;
+  return `<div class="slotrow">${boxIcon('coal')}<span class="lab">Fuel <span class="muted">(you have ${inv['coal']||0} coal)</span></span><span class="n">${e.fuel.toFixed(0)} ops</span>${giveBtn(e,'coal',5,'+5 COAL')}</div>`;
 }
 function progBar(p, cls=''){ return `<div class="bar ${cls}"><div style="width:${(p*100)|0}%"></div></div>`; }
 
@@ -1150,7 +1465,7 @@ function renderEntityPanel(e){
       for(const it of ['iron-ore','copper-ore','stone','iron-plate']){
         const r = furnaceRecipeFor(it);
         if(!r) continue;
-        h += `<div class="slotrow">${icon(it)}<span class="lab">${ITEMS[it].name}</span><span class="n">${inv[it]||0}</span>${giveBtn(e,it,5)}</div>`;
+        h += `<div class="slotrow">${boxIcon(it)}<span class="lab">${ITEMS[it].name}</span><span class="n">${inv[it]||0}</span>${giveBtn(e,it,5)}</div>`;
       }
       break;
     }
@@ -1160,7 +1475,7 @@ function renderEntityPanel(e){
         h += `<p>Recipe: <b style="color:var(--yellow)">${ITEMS[e.recipe].name}</b></p>`;
         h += e.craft ? progBar(e.craft.p) : `<p class="muted">Waiting for ingredients.</p>`;
         for(const k in rc.in){
-          h += `<div class="slotrow">${icon(k)}<span class="lab">${ITEMS[k].name} <span class="muted">(needs ${rc.in[k]})</span></span><span class="n">${e.ins[k]||0}</span>${giveBtn(e,k,5)}</div>`;
+          h += `<div class="slotrow">${boxIcon(k)}<span class="lab">${ITEMS[k].name} <span class="muted">(needs ${rc.in[k]})</span></span><span class="n">${e.ins[k]||0}</span>${giveBtn(e,k,5)}</div>`;
         }
         if(e.outN) h += slotRow(e.recipe, e.outN, 'Output', takeBtn(takeAll(()=>{ invAdd(e.recipe,e.outN); e.outN=0; })));
       } else h += `<p class="muted">No recipe set.</p>`;
@@ -1196,7 +1511,7 @@ function renderEntityPanel(e){
       h += t ? `<p>Researching <b style="color:var(--yellow)">${t.name}</b> — ${research.prog}/${t.count}</p>`+progBar(e.p)
              : `<p class="muted">No research selected. Open the tech tree (T).</p>`;
       for(const pk of SCI_TYPES){
-        h += `<div class="slotrow">${icon(pk)}<span class="lab">${ITEMS[pk].name}</span><span class="n">${e.packs[pk]||0}</span>${giveBtn(e,pk,5)}</div>`;
+        h += `<div class="slotrow">${boxIcon(pk)}<span class="lab">${ITEMS[pk].name} <span class="muted">(have ${inv[pk]||0})</span></span><span class="n">${e.packs[pk]||0}</span>${giveBtn(e,pk,5)}</div>`;
       }
       h += `<button class="pbtn" ${act(()=>togglePanel('tech'))}>OPEN TECH TREE</button>`;
       break;
@@ -1204,7 +1519,7 @@ function renderEntityPanel(e){
     case 'silo': {
       h += `<p>Rocket parts: <b style="color:var(--good)">${e.parts}/${PARTS_NEEDED}</b></p>`;
       h += progBar(e.parts/PARTS_NEEDED);
-      h += `<div class="slotrow">${icon('rocket-part')}<span class="lab">Rocket Part</span><span class="n">${inv['rocket-part']||0}</span>${giveBtn(e,'rocket-part',5)}</div>`;
+      h += `<div class="slotrow">${boxIcon('rocket-part')}<span class="lab">Rocket Part <span class="muted">(in inventory)</span></span><span class="n">${inv['rocket-part']||0}</span>${giveBtn(e,'rocket-part',5)}</div>`;
       if(e.parts >= PARTS_NEEDED){
         h += `<button class="pbtn big" style="width:100%;margin-top:12px;border-color:var(--good);color:var(--good)" ${act(()=>launchRocket(e))}>▲ LAUNCH ▲</button>`;
       } else {
@@ -1222,23 +1537,25 @@ function renderEntityPanel(e){
 function renderCraftPanel(){
   resetActs();
   panelTitle.textContent = 'CRAFT & INVENTORY';
-  let h = `<div class="sechead">HAND CRAFTING</div>`;
+  let h = `<div class="sechead">INVENTORY</div>`;
+  let any=false;
+  h += `<div class="invgrid">`;
+  for(const k in inv){
+    if(inv[k]<1) continue; any=true;
+    h += `<span class="invcell" title="${ITEMS[k].name}">${icon(k)}<b>${inv[k]}</b></span>`;
+  }
+  h += `</div>`;
+  if(!any) h += `<p class="muted">Nothing yet. Go punch some rocks (hold click on an ore patch).</p>`;
+  h += `<div class="sechead">HAND CRAFTING</div>`;
   for(const id of HAND_ORDER){
     const r = RECIPES[id];
     if(!r.hand) continue;
     if(!techOk(r)) continue;
     const can = invHas(r.in);
-    h += `<div class="slotrow">${icon(id)}<span class="lab">${ITEMS[id].name}${r.n>1?' ×'+r.n:''}<br><span style="font-size:11px">${ingHtml(r.in)}</span></span>` +
+    h += `<div class="slotrow">${boxIcon(id)}<span class="lab">${ITEMS[id].name}${r.n>1?' ×'+r.n:''}<br><span style="font-size:11px">${ingHtml(r.in)}</span></span>` +
          `<button class="pbtn" ${can?'':'disabled'} ${act(()=>handCraft(id,1))}>×1</button>` +
          `<button class="pbtn" ${can?'':'disabled'} ${act(()=>handCraft(id,5))}>×5</button></div>`;
   }
-  h += `<div class="sechead">INVENTORY</div>`;
-  let any=false;
-  for(const k in inv){
-    if(inv[k]<1) continue; any=true;
-    h += `<span class="ing" style="margin:2px 8px 2px 0">${icon(k)}${ITEMS[k].name}: <b style="color:var(--good)">${inv[k]}</b></span> `;
-  }
-  if(!any) h += `<p class="muted">Nothing. Go punch some rocks.</p>`;
   panelBody.innerHTML = h;
 }
 
@@ -1254,9 +1571,10 @@ function renderTechPanel(){
     let cls = 'tech' + (done?' done':'') + (active?' active':'') + (locked&&!done?' locked':'');
     h += `<div class="${cls}"><div class="tname">${t.name} ${done?'✔':''}</div>`;
     h += `<div class="tdesc">${t.desc}${t.req&&!done?` <br>Requires: ${TECHS[t.req].name}`:''}</div>`;
-    h += `<div>${t.packs.map(p=>icon(p)).join('')} × ${t.count}`;
-    if(active) h += ` — <b style="color:var(--yellow)">${research.prog}/${t.count}</b>`;
+    h += `<div class="tcost">${t.packs.map(p=>icon(p)).join('')} <span class="muted">× ${t.count}</span>`;
+    if(active) h += ` <b style="color:var(--yellow);margin-left:auto">${research.prog}/${t.count}</b>`;
     h += `</div>`;
+    if(active) h += `<div class="bar" style="margin-bottom:2px"><div style="width:${(research.prog/t.count*100)|0}%"></div></div>`;
     if(!done && !locked && !active){
       h += `<button class="pbtn" style="margin-top:4px" ${act(()=>{
         if(research.tech && research.prog>0 && !confirm('Abandon current research progress?')) return;
@@ -1366,12 +1684,22 @@ let mine = {active:false, x:0, y:0, p:0};
 let dragMode = null; // 'place' | 'remove' | 'pan'
 let panStart = null;
 
+function setHoverFromEvent(ev){
+  const [wx,wy] = screenToWorld(ev.clientX, ev.clientY);
+  hover.x = Math.floor(wx); hover.y = Math.floor(wy);
+}
+function tryStartMining(x, y){
+  if(oreAt(x,y) && !ent(x,y)){ mine.active=true; mine.x=x; mine.y=y; mine.p=0; return true; }
+  mine.active=false;
+  return false;
+}
 cvs.addEventListener('mousemove', ev=>{
   const [wx,wy] = screenToWorld(ev.clientX, ev.clientY);
   const nx = Math.floor(wx), ny = Math.floor(wy);
   if(nx!==hover.x || ny!==hover.y){
     hover.x=nx; hover.y=ny;
-    if(mine.active && (mine.x!==nx || mine.y!==ny)) mine.active=false;
+    // mining follows the cursor while the button is held, rather than silently stopping
+    if(mine.active) tryStartMining(nx, ny);
     if(dragMode==='place' && selected) place(selected, nx, ny);
     if(dragMode==='remove') demolish(nx, ny);
   }
@@ -1382,18 +1710,23 @@ cvs.addEventListener('mousemove', ev=>{
   }
 });
 cvs.addEventListener('mousedown', ev=>{
+  setHoverFromEvent(ev); // don't trust stale hover on the first click
   if(ev.button===1){ dragMode='pan'; panStart={mx:ev.clientX,my:ev.clientY,cx:cam.x,cy:cam.y}; ev.preventDefault(); return; }
   if(ev.button===2){ dragMode='remove'; demolish(hover.x, hover.y); return; }
   if(ev.button!==0) return;
+  if(selected && (inv[selected]||0) < 1){
+    // out of the selected building: drop the selection so clicks mine/inspect again
+    toast('Out of '+ITEMS[selected].name+' — selection cleared');
+    selected = null;
+    renderHotbar();
+  }
   if(selected){
     dragMode='place';
     place(selected, hover.x, hover.y);
   } else {
     const e = ent(hover.x, hover.y);
     if(e){ openEntityPanel(e); }
-    else if(oreAt(hover.x, hover.y)){
-      mine.active=true; mine.x=hover.x; mine.y=hover.y; mine.p=0;
-    }
+    else tryStartMining(hover.x, hover.y);
   }
 });
 addEventListener('mouseup', ()=>{ dragMode=null; panStart=null; mine.active=false; });
@@ -1418,7 +1751,7 @@ addEventListener('keydown', ev=>{
     else if(panelEl.classList.contains('open')) closePanel();
     else { selected=null; renderHotbar(); }
   }
-  else if(k==='c'){ togglePanel('craft'); }
+  else if(k==='c' || k==='e'){ togglePanel('craft'); }
   else if(k==='t'){ togglePanel('tech'); }
   else if(k==='h'){ toggleHelp(); }
 });
@@ -1495,10 +1828,13 @@ function frame(now){
   let guard = 0;
   while(acc >= step && guard++ < 8){ tick(); acc -= step; }
   if(guard>=8) acc=0;
+  for(const f of floaters) f.age += dt;
+  floaters = floaters.filter(f=>f.age < 1.4);
   draw(now);
   renderStatus();
+  renderResources();
   panelClock += dt;
-  if(panelClock > 0.25){ panelClock=0; if(panelMode==='entity'||panelMode==='tech') renderPanel(); }
+  if(panelClock > 0.25){ panelClock=0; if(panelMode) renderPanel(); }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
