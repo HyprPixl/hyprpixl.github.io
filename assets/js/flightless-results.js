@@ -6,7 +6,7 @@
 // data tables and formatting/sound/save helpers it needs — no physics or
 // shop logic lives here.
 export function createResults(deps){
-  const { sim, state, input, SFX, save, fmtCash, fmtDist, MILESTONES, MEDALS } = deps;
+  const { sim, state, input, SFX, save, fmtCash, fmtDist, MILESTONES, MEDALS, econLog } = deps;
 
   const clamp = (v,a,b) => v<a?a : v>b?b : v;
 
@@ -163,6 +163,19 @@ export function createResults(deps){
       + sim.run.coinCash + sim.run.starCash + sim.run.gunCash + sim.run.ringCash
       + skimCash + fullPatienceBonus);
     state.money += total;
+
+    if(typeof econLog?.logFlight === 'function'){
+      econLog.logFlight({
+        dist, alt: sim.run.maxAlt, spd: sim.run.maxSpd, earned: total,
+        breakdown: {
+          distance: Math.round(cashDist*payMult), altitude: Math.round(cashAlt*payMult),
+          speed: Math.round(cashSpd*payMult), milestones: bonusTotal, contracts: contractTotal,
+          smash: sim.run.smashCash, coins: sim.run.coinCash, stars: sim.run.starCash,
+          gun: sim.run.gunCash, rings: sim.run.ringCash, skim: skimCash,
+          patienceBonus: fullPatienceBonus,
+        },
+      });
+    }
 
     const recD = dist > state.best.dist, recA = sim.run.maxAlt > state.best.alt, recS = sim.run.maxSpd > state.best.spd;
     state.best.dist = Math.max(state.best.dist, dist);

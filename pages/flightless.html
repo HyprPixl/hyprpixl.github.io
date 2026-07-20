@@ -506,6 +506,7 @@
 <script type="module">
 import { createStore } from '../assets/js/flightless-store.js';
 import { defaultState, loadState, saveState, exportSave, importSave } from '../assets/js/flightless-save.js';
+import { createEconLog } from '../assets/js/flightless-econlog.js';
 import { createSound } from '../assets/js/flightless-sound.js';
 import { createData } from '../assets/js/flightless-data.js';
 import { createPhysics } from '../assets/js/flightless-physics.js';
@@ -530,6 +531,7 @@ function hash01(n){ let x=Math.sin(n*127.1+311.7)*43758.5453; return x-Math.floo
 // Schema, load/sanitize, and persistence live in flightless-save.js.
 let state = loadState();
 function save(){ saveState(state); }
+const econLog = createEconLog(state);
 
 /* ════════════════ shared sim state ════════════════ */
 // `phase`/`run`/`ramp`/`st`/`particles`/`speedLines`/`timeSim`/`W`/`Hpx`/`DPR`
@@ -636,7 +638,7 @@ bridge.gliderName = renderer.gliderName;
 
 // End-of-flight scoring/results screen — needs nothing bridged.
 const results = createResults({
-  sim, state, input, SFX, save, fmtCash, fmtDist, MILESTONES, MEDALS,
+  sim, state, input, SFX, save, fmtCash, fmtDist, MILESTONES, MEDALS, econLog,
 });
 bridge.finishRun = results.finishRun;
 
@@ -672,7 +674,7 @@ function recompute(){ sim.st = physics.derive(); sim.ramp = physics.buildRamp(si
 const store = createStore({
   state, UPGRADES, GEAR, BONUS_SHOP, MEDALS, LANDMARKS, MILESTONES,
   contractsFor, upgCost, fmtCash, fmtDist, save, SFX, defaultState,
-  exportSave, importSave,
+  exportSave, importSave, econLog,
   getSt: () => sim.st, getRamp: () => sim.ramp, recompute,
   sampleShape: physics.sampleShape, clamp, RAD,
 });

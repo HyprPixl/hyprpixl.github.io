@@ -14,7 +14,7 @@ export function createStore(deps){
   const {
     state, UPGRADES, GEAR, BONUS_SHOP, MEDALS, LANDMARKS, MILESTONES,
     contractsFor, upgCost, fmtCash, fmtDist, save, SFX, defaultState,
-    getSt, getRamp, recompute, sampleShape, clamp, RAD,
+    getSt, getRamp, recompute, sampleShape, clamp, RAD, econLog,
   } = deps;
 
   // Defensive reads for optional deps that may arrive in a future save/data
@@ -315,6 +315,44 @@ export function createStore(deps){
     }
 
     if(row.childElementCount > 0) notesEl.appendChild(row);
+
+    // ── economy log (separate from the save file) ──
+    // Copies a plain-text ledger of every purchase and flight payout, so a
+    // player can play a stretch of days and hand the log to someone else for
+    // balance tuning. No-op if econLog wasn't provided.
+    if(econLog){
+      const econRow = document.createElement('div');
+      econRow.style.cssText = 'display:flex;gap:10px;margin-top:2px;';
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'reset-link';
+      copyBtn.textContent = '🧾 copy econ log';
+      copyBtn.title = 'Copy a day-by-day ledger of purchases and flight earnings';
+      copyBtn.addEventListener('click', async () => {
+        const txt = econLog.toText();
+        try {
+          await navigator.clipboard.writeText(txt);
+          copyBtn.textContent = '✅ copied!';
+          setTimeout(() => { copyBtn.textContent = '🧾 copy econ log'; }, 2000);
+        } catch(err) {
+          prompt('Copy this econ log:', txt);
+        }
+      });
+      econRow.appendChild(copyBtn);
+
+      const clearBtn = document.createElement('button');
+      clearBtn.className = 'reset-link';
+      clearBtn.textContent = '🗑 clear econ log';
+      clearBtn.title = 'Erase the recorded ledger (does not touch your save)';
+      clearBtn.addEventListener('click', () => {
+        if(!econLog.entries.length) return;
+        if(!confirm('Clear the recorded economy log? This does not affect your save.')) return;
+        econLog.clear();
+      });
+      econRow.appendChild(clearBtn);
+
+      notesEl.appendChild(econRow);
+    }
   })();
 
   function renderShop(){
@@ -428,6 +466,7 @@ export function createStore(deps){
         if(state.money < cost || locked) return;
         state.money -= cost;
         state.lvl[u.id]++;
+        econLog?.logBuy({ name: u.name, id: u.id, cost, lvl: state.lvl[u.id] });
         SFX.buy();
         save();
         renderShop();
@@ -481,6 +520,7 @@ export function createStore(deps){
         if(maxed || state.bp < cost) return;
         state.bp -= cost;
         state.bonus[b.id] = (state.bonus[b.id] ?? 0) + 1;
+        econLog?.logBuy({ name: b.name, id: b.id, cost, lvl: state.bonus[b.id], currency: 'BP' });
         SFX.buy();
         save();
         renderShop();
@@ -496,6 +536,7 @@ export function createStore(deps){
           const refund = curLvl * refundPerLevel;
           state.bp += refund;
           state.bonus[b.id] = 0;
+          econLog?.logRefund({ name: b.name, id: b.id, refund, currency: 'BP' });
           SFX.buy();
           save();
           renderShop();
@@ -526,6 +567,7 @@ export function createStore(deps){
         if(state.money < g.cost) return;
         state.money -= g.cost;
         state.perm[g.id] = true;
+        econLog?.logBuy({ name: g.name, id: g.id, cost: g.cost, lvl: 'owned' });
         SFX.buy();
         save();
         renderShop();
