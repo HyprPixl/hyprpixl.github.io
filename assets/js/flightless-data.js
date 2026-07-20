@@ -19,10 +19,15 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
   //   • Early gear (ramp/wings/aero/bounce) should be affordable in 1-3 days.
   //   • Mid-tier (struts/rocket/fuel/sling) takes a week of moderate flights.
   //   • Late-tier (sponsor/plating/gun) takes sustained good flights to max.
-  // mul raised from 1.55 on rocket/gun to slow their late-level cost climb.
+  // mul raised from 1.55 on ramp/rocket/gun to slow their late-level cost climb.
 
   const UPGRADES = [
-    { id:'ramp',    icon:'\u{1F6DD}', name:'Ramp Track',   base:15,  mul:1.55, max:12, unlock:0,
+    // mul raised 1.55→1.65: the ramp-length rework made a maxed ramp ~2.4x
+    // more powerful (exit speed ~45→~109 m/s) without touching cost, and a
+    // logged playtest showed exactly the predictable result — an entire
+    // day's earnings dumped into ramp alone, level after level, while every
+    // other upgrade sat untouched. Same fix already applied to rocket/gun.
+    { id:'ramp',    icon:'\u{1F6DD}', name:'Ramp Track',   base:15,  mul:1.65, max:12, unlock:0,
       desc:'More track to build speed on. Reshape it in the designer below.',
       val:l=>{ const d=derive({ramp:l}); const r=buildRamp(d.rampLen);
                return `${Math.round(d.rampLen)} m · ${Math.round(r.H)} m tall · ~${Math.round(rampExitEst(d, r))} m/s exit`; } },
