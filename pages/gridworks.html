@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gridworks — Tiny Factory</title>
+<meta name="description" content="A Factorio-inspired automation game where every sprite is 5×5 pixels. Mine ore, smelt plates, build belts and assemblers, research technology, launch a rocket.">
+<style>
+  :root{
+    --navy:#000080;
+    --yellow:#FFFF00;
+    --panel:#0d1030;
+    --panel2:#141850;
+    --text:#eef1ff;
+    --muted:#9aa3d8;
+    --border:#3a41a8;
+    --good:#7CFC00;
+    --bad:#ff5e5e;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    font-family:"Courier New", Courier, monospace;
+    background:#05060f; color:var(--text);
+    overflow:hidden; user-select:none; -webkit-user-select:none;
+  }
+  #game{ position:absolute; inset:0; width:100%; height:100%; display:block; image-rendering:pixelated; cursor:crosshair; }
+
+  .overlay-link{
+    position:absolute; top:10px; left:12px; z-index:30;
+    color:var(--yellow); background:rgba(0,0,128,0.85);
+    border:2px solid var(--yellow); padding:4px 10px;
+    text-decoration:none; font-weight:bold; font-size:13px;
+  }
+  .overlay-link:hover{ background:var(--yellow); color:var(--navy); }
+
+  .topbtn{
+    position:absolute; top:10px; z-index:30;
+    background:rgba(0,0,128,0.85); color:var(--yellow);
+    border:2px solid var(--yellow); padding:4px 10px;
+    font-family:inherit; font-weight:bold; font-size:13px; cursor:pointer;
+  }
+  .topbtn:hover{ background:var(--yellow); color:var(--navy); }
+  #mute-btn{ right:12px; }
+  #help-btn{ right:72px; }
+  #save-btn{ right:150px; }
+
+  /* status strip under the top-left link */
+  #status{
+    position:absolute; top:46px; left:12px; z-index:20;
+    font-size:12px; color:var(--muted);
+    background:rgba(5,8,30,0.7); border:1px solid var(--border);
+    padding:4px 8px; pointer-events:none; max-width:340px; line-height:1.5;
+  }
+  #status b{ color:var(--yellow); }
+
+  /* ── hotbar ── */
+  #hotbar{
+    position:absolute; left:50%; bottom:12px; transform:translateX(-50%);
+    z-index:20; display:flex; gap:4px;
+    background:rgba(5,8,30,0.85); border:2px solid var(--border); padding:6px;
+  }
+  .hslot{
+    width:52px; height:58px; border:2px solid var(--border); background:var(--panel);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    cursor:pointer; position:relative; gap:1px;
+  }
+  .hslot:hover{ border-color:var(--yellow); }
+  .hslot.sel{ border-color:var(--yellow); background:var(--panel2); }
+  .hslot.locked{ opacity:0.32; }
+  .hslot img{ width:30px; height:30px; image-rendering:pixelated; }
+  .hslot .cnt{ font-size:11px; color:var(--good); }
+  .hslot .cnt.zero{ color:var(--bad); }
+  .hslot .key{ position:absolute; top:1px; left:3px; font-size:10px; color:var(--muted); }
+
+  /* ── side panel ── */
+  #panel{
+    position:absolute; top:46px; right:12px; bottom:90px; width:340px; z-index:25;
+    background:rgba(8,10,38,0.94); border:2px solid var(--border);
+    display:none; flex-direction:column; font-size:13px;
+  }
+  #panel.open{ display:flex; }
+  #panel-head{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--navy); padding:6px 10px; border-bottom:2px solid var(--border);
+  }
+  #panel-title{ color:var(--yellow); font-weight:bold; }
+  #panel-close{ background:none; border:none; color:var(--yellow); font-family:inherit; font-size:15px; font-weight:bold; cursor:pointer; }
+  #panel-body{ overflow-y:auto; padding:10px; flex:1; }
+  #panel-body::-webkit-scrollbar{ width:8px; }
+  #panel-body::-webkit-scrollbar-thumb{ background:var(--border); }
+
+  .slotrow{
+    display:flex; align-items:center; gap:8px; margin:6px 0;
+    background:var(--panel); border:1px solid var(--border); padding:5px 8px;
+  }
+  .slotrow img{ width:24px; height:24px; image-rendering:pixelated; }
+  .slotrow .lab{ flex:1; }
+  .slotrow .n{ color:var(--good); min-width:38px; text-align:right; }
+  .pbtn{
+    background:var(--panel2); color:var(--yellow); border:1px solid var(--border);
+    font-family:inherit; font-size:11px; padding:2px 7px; cursor:pointer;
+  }
+  .pbtn:hover:not(:disabled){ background:var(--yellow); color:var(--navy); }
+  .pbtn:disabled{ opacity:0.35; cursor:default; }
+  .pbtn.big{ font-size:14px; padding:6px 14px; font-weight:bold; }
+
+  .bar{ height:8px; background:#060818; border:1px solid var(--border); margin:4px 0 8px; }
+  .bar > div{ height:100%; background:var(--yellow); width:0%; }
+  .bar.fuel > div{ background:linear-gradient(90deg,#ff5e00,#ffd000); }
+
+  .recipe-opt{
+    display:flex; align-items:center; gap:6px; padding:4px 6px; margin:3px 0;
+    border:1px solid var(--border); background:var(--panel); cursor:pointer;
+  }
+  .recipe-opt:hover{ border-color:var(--yellow); }
+  .recipe-opt.sel{ border-color:var(--good); }
+  .recipe-opt img{ width:20px; height:20px; image-rendering:pixelated; }
+  .ing{ display:inline-flex; align-items:center; gap:2px; margin-right:6px; font-size:11px; }
+  .ing img{ width:14px; height:14px; image-rendering:pixelated; vertical-align:middle; }
+  .ing.short{ color:var(--bad); }
+  .muted{ color:var(--muted); }
+  .sechead{ color:var(--yellow); font-weight:bold; margin:12px 0 4px; border-bottom:1px solid var(--border); }
+
+  .tech{
+    border:1px solid var(--border); background:var(--panel); padding:6px 8px; margin:5px 0;
+  }
+  .tech.done{ border-color:var(--good); }
+  .tech.active{ border-color:var(--yellow); }
+  .tech.locked{ opacity:0.45; }
+  .tech .tname{ color:var(--yellow); font-weight:bold; }
+  .tech .tdesc{ font-size:11px; color:var(--muted); margin:2px 0; }
+
+  /* ── toasts ── */
+  #toasts{
+    position:absolute; bottom:96px; left:50%; transform:translateX(-50%);
+    z-index:40; display:flex; flex-direction:column; align-items:center; gap:4px; pointer-events:none;
+  }
+  .toast{
+    background:rgba(0,0,128,0.92); border:1px solid var(--yellow); color:var(--text);
+    padding:4px 14px; font-size:13px; animation:tfade 3.5s forwards;
+  }
+  @keyframes tfade{ 0%{opacity:0; transform:translateY(8px);} 8%{opacity:1; transform:none;} 80%{opacity:1;} 100%{opacity:0;} }
+
+  /* ── modal overlays (help / launch) ── */
+  .modal{
+    position:absolute; inset:0; z-index:50; display:none;
+    background:rgba(3,4,14,0.88); overflow-y:auto;
+  }
+  .modal.open{ display:block; }
+  .modal-inner{
+    max-width:640px; margin:6vh auto; background:var(--panel);
+    border:3px solid var(--yellow); padding:22px 26px 26px;
+  }
+  .modal-inner h1{ color:var(--yellow); margin:0 0 4px; font-size:26px; letter-spacing:2px; }
+  .modal-inner h2{ color:var(--yellow); font-size:15px; margin:16px 0 4px; }
+  .modal-inner p, .modal-inner li{ font-size:13px; line-height:1.55; color:var(--text); }
+  .modal-inner kbd{
+    background:var(--navy); border:1px solid var(--border); padding:0 5px; font-family:inherit; color:var(--yellow);
+  }
+  .modal-inner .row{ display:flex; gap:10px; margin-top:18px; flex-wrap:wrap; }
+
+  #launch-overlay{ background:#02030c; }
+  #launch-stage{ position:absolute; inset:0; }
+  #launch-stats{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    background:var(--panel); border:3px solid var(--yellow); padding:24px 34px;
+    text-align:center; display:none;
+  }
+  #launch-stats h1{ color:var(--yellow); letter-spacing:3px; margin:0 0 10px; }
+  #launch-stats td{ padding:2px 10px; font-size:14px; text-align:left; }
+  #launch-stats td:last-child{ color:var(--good); text-align:right; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<a class="overlay-link" href="../index.html">&larr; hyprpixl</a>
+<button id="save-btn" class="topbtn">SAVE</button>
+<button id="help-btn" class="topbtn">HELP</button>
+<button id="mute-btn" class="topbtn">MUTE</button>
+
+<div id="status"></div>
+
+<div id="hotbar"></div>
+
+<div id="panel">
+  <div id="panel-head">
+    <span id="panel-title"></span>
+    <button id="panel-close">✕</button>
+  </div>
+  <div id="panel-body"></div>
+</div>
+
+<div id="toasts"></div>
+
+<div id="help-overlay" class="modal">
+  <div class="modal-inner">
+    <h1>GRIDWORKS</h1>
+    <p class="muted">A tiny factory. Every sprite is 5×5 pixels. Mine ore, automate everything, launch a rocket.</p>
+    <h2>THE LOOP</h2>
+    <ul>
+      <li><b>Hand-mine</b>: hold <b>left-click</b> on an ore patch to mine it yourself.</li>
+      <li><b>Craft</b> (<kbd>C</kbd>): turn plates into gears, circuits, and machines by hand.</li>
+      <li><b>Automate</b>: Miners dig ore and spit it forward. Belts carry items. Inserters move items between belts and machines. Furnaces and Miners burn <b>coal</b> as fuel.</li>
+      <li><b>Research</b> (<kbd>T</kbd>): build Labs, feed them science packs, unlock better toys.</li>
+      <li><b>Win</b>: research Rocketry, build a Silo, feed it 10 Rocket Parts, hit LAUNCH.</li>
+    </ul>
+    <h2>CONTROLS</h2>
+    <ul>
+      <li><kbd>WASD</kbd>/<kbd>arrows</kbd> pan · <kbd>scroll</kbd> zoom · <kbd>middle-drag</kbd> pan</li>
+      <li><kbd>1</kbd>–<kbd>9</kbd> pick a building · <kbd>R</kbd> rotate · <kbd>Q</kbd>/<kbd>Esc</kbd> cancel</li>
+      <li><b>Left-click / drag</b> place · <b>Right-click / drag</b> demolish (refunds everything)</li>
+      <li>Click any machine to open it. Click its slots to take items out; use the buttons to put fuel/ingredients in.</li>
+      <li><kbd>C</kbd> crafting &amp; inventory · <kbd>T</kbd> research · <kbd>H</kbd> this screen</li>
+    </ul>
+    <h2>TIPS</h2>
+    <ul>
+      <li>Miners output to the tile they face — point them at a belt, chest, or straight into a furnace.</li>
+      <li>Furnaces and assemblers only load/unload through <b>inserters</b> (or your own two hands).</li>
+      <li>Inserters grab from the tile <b>behind</b> them and drop to the tile in <b>front</b>.</li>
+      <li>Inserters can feed coal into miners and furnaces. Automate fuel early — hand-feeding gets old.</li>
+      <li>Ore patches are finite. The map is infinite. Expand.</li>
+    </ul>
+    <div class="row">
+      <button class="pbtn big" id="help-close-btn">PLAY</button>
+      <button class="pbtn big" id="reset-btn">RESET SAVE</button>
+    </div>
+  </div>
+</div>
+
+<div id="launch-overlay" class="modal">
+  <div id="launch-stage"></div>
+  <div id="launch-stats">
+    <h1>ORBIT ACHIEVED</h1>
+    <table id="launch-table"></table>
+    <p class="muted" style="margin-top:14px">The factory keeps running. It always does.</p>
+    <button class="pbtn big" id="launch-continue">KEEP PLAYING</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   GRIDWORKS — a Factorio-like where every sprite is 5×5 px.
+   One file. No dependencies.
+   ============================================================ */
+
+const TPS = 20;              // simulation ticks per second
+const SPX = 5;               // sprite size in pixels
+const CHUNK = 32;            // tiles per chunk side
+const GAP = 0.25;            // min spacing between belt items (tiles)
+const BELT_SPEED = 1.5;      // tiles/second
+const FUEL_PER_COAL = 8;     // operations per coal
+const MINE_TIME = 1.5;       // seconds per ore (machine)
+const HAND_MINE_TIME = 0.4;  // seconds per ore (by hand)
+const PARTS_NEEDED = 10;     // rocket parts to launch
+const SAVE_KEY = 'gridworks-save-v1';
+
+const DX = [0,1,0,-1], DY = [-1,0,1,0]; // 0=N 1=E 2=S 3=W
+
+/* ── Items ─────────────────────────────────────────────── */
+// Each sprite: 5 strings of 5 chars, plus a palette map. '.' = transparent.
+const ITEMS = {
+  'iron-ore':    {name:'Iron Ore',      spr:[['.a.a.','ab.ba','.a.a.','a.ab.','.a.a.'],{a:'#8fa6b8',b:'#c3d3de'}]},
+  'copper-ore':  {name:'Copper Ore',    spr:[['.a.a.','ab.ba','.a.a.','a.ab.','.a.a.'],{a:'#c96f2e',b:'#eda05c'}]},
+  'coal':        {name:'Coal',          spr:[['.a.a.','ab.aa','.a.b.','a.aa.','.a.a.'],{a:'#3a3f4a',b:'#5b6270'}]},
+  'stone':       {name:'Stone',         spr:[['.a.a.','ab.ba','.a.a.','a.ab.','.a.a.'],{a:'#9a8f78',b:'#c2b89f'}]},
+  'iron-plate':  {name:'Iron Plate',    spr:[['.....','aaaa.','abbba','.aaaa','.....'],{a:'#aebfd0',b:'#d8e4ee'}]},
+  'copper-plate':{name:'Copper Plate',  spr:[['.....','aaaa.','abbba','.aaaa','.....'],{a:'#d07b36',b:'#f0aa66'}]},
+  'stone-brick': {name:'Stone Brick',   spr:[['.....','aabaa','bbbbb','aabaa','.....'],{a:'#8d8271',b:'#6b6152'}]},
+  'steel':       {name:'Steel',         spr:[['.....','aaaa.','abbba','.aaaa','.....'],{a:'#e8eef4',b:'#b8c8d8'}]},
+  'gear':        {name:'Gear',          spr:[['a.a.a','.aaa.','aa.aa','.aaa.','a.a.a'],{a:'#c8cdd6'}]},
+  'wire':        {name:'Copper Wire',   spr:[['.aaa.','a...a','a.a.a','a...a','.aaa.'],{a:'#e8964a'}]},
+  'circuit':     {name:'Circuit',       spr:[['.b.b.','aaaaa','abbba','aaaaa','.b.b.'],{a:'#2e8b3e',b:'#e8d44a'}]},
+  'adv-circuit': {name:'Adv. Circuit',  spr:[['.b.b.','aaaaa','abbba','aaaaa','.b.b.'],{a:'#b23a3a',b:'#e8d44a'}]},
+  'red-sci':     {name:'Red Science',   spr:[['..a..','..a..','.aca.','accca','.aaa.'],{a:'#cfd6e6',c:'#ff4a4a'}]},
+  'green-sci':   {name:'Green Science', spr:[['..a..','..a..','.aca.','accca','.aaa.'],{a:'#cfd6e6',c:'#4ade4a'}]},
+  'blue-sci':    {name:'Blue Science',  spr:[['..a..','..a..','.aca.','accca','.aaa.'],{a:'#cfd6e6',c:'#4a9aff'}]},
+  'rocket-part': {name:'Rocket Part',   spr:[['..a..','.aba.','.aba.','abbba','a.a.a'],{a:'#d0d8e4',b:'#ff8c3a'}]},
+  // buildings (as inventory items; world sprites assigned below)
+  'belt':        {name:'Belt',          spr:null},
+  'miner':       {name:'Miner',         spr:null},
+  'furnace':     {name:'Furnace',       spr:null},
+  'inserter':    {name:'Inserter',      spr:null},
+  'chest':       {name:'Chest',         spr:null},
+  'splitter':    {name:'Splitter',      spr:null},
+  'assembler':   {name:'Assembler',     spr:null},
+  'lab':         {name:'Lab',           spr:null},
+  'silo':        {name:'Rocket Silo',   spr:null},
+};
+
+/* World sprites for buildings (all drawn facing NORTH, rotated as needed) */
+const BSPR = {
+  'belt0':   [['e.b.e','eb..e','e...e','e.b.e','eb..e'],{e:'#3a3f55',b:'#e8d44a'}], // frames built procedurally below
+  'miner':   [['a.c.a','a.b.a','abbba','a.b.a','aaaaa'],{a:'#7a8494',b:'#e8d44a',c:'#2c3140'}],
+  'furnace': [['.aaa.','aaaaa','aafaa','aafaa','.aaa.'],{a:'#8d8271',f:'#402c1e'}],
+  'furnace-on':[['.aaa.','aaaaa','aafaa','aagaa','.aaa.'],{a:'#8d8271',f:'#ffd000',g:'#ff5e00'}],
+  'inserter':[['.....','.aaa.','.aba.','.aaa.','.....'],{a:'#6a5a2a',b:'#e8d44a'}],
+  'chest':   [['.....','aaaaa','ab..a','aaaaa','.....'],{a:'#b08a4a',b:'#e8d44a'}],
+  'splitter':[['a.a.a','ababa','aaaaa','a...a','aaaaa'],{a:'#7a8494',b:'#e8d44a'}],
+  'assembler':[['aaaaa','a.b.a','abgba','a.b.a','aaaaa'],{a:'#4a5a8a',b:'#8a97b8',g:'#2c3140'}],
+  'assembler-on':[['aaaaa','a.b.a','abgba','a.b.a','aaaaa'],{a:'#4a5a8a',b:'#8a97b8',g:'#e8d44a'}],
+  'lab':     [['.aaa.','ab.ba','a.b.a','ab.ba','.aaa.'],{a:'#c8cdd6',b:'#4a9aff'}],
+  'lab-on':  [['.aaa.','ab.ba','a.b.a','ab.ba','.aaa.'],{a:'#c8cdd6',b:'#e8d44a'}],
+  'silo':    [['aaaaa','arrra','arbra','arrra','aaaaa'],{a:'#5a6274',r:'#8a97b8',b:'#ff5e00'}],
+  'rocket':  [['..a..','.aaa.','.aba.','.aaa.','a.f.a'],{a:'#e8eef4',b:'#4a9aff',f:'#ff8c3a'}],
+};
+// Item-icon sprites for buildings mirror the world sprite.
+ITEMS['belt'].spr      = [['e.b.e','eb.be','e...e','e.b.e','eb.be'],{e:'#3a3f55',b:'#e8d44a'}];
+ITEMS['miner'].spr     = BSPR['miner'];
+ITEMS['furnace'].spr   = BSPR['furnace'];
+ITEMS['inserter'].spr  = BSPR['inserter'];
+ITEMS['chest'].spr     = BSPR['chest'];
+ITEMS['splitter'].spr  = BSPR['splitter'];
+ITEMS['assembler'].spr = BSPR['assembler'];
+ITEMS['lab'].spr       = BSPR['lab'];
+ITEMS['silo'].spr      = BSPR['silo'];
+
+const ORE_TYPES = ['iron-ore','copper-ore','coal','stone'];
+const SCI_TYPES = ['red-sci','green-sci','blue-sci'];
+
+/* ── Recipes ───────────────────────────────────────────── */
+// kind:'furnace' recipes run in furnaces (auto-selected by input item).
+// kind:'asm' recipes run in assemblers; hand:true can also be crafted by hand.
+const RECIPES = {
+  'iron-plate':  {in:{'iron-ore':1},   n:1, time:2,   kind:'furnace', fuel:1},
+  'copper-plate':{in:{'copper-ore':1}, n:1, time:2,   kind:'furnace', fuel:1},
+  'stone-brick': {in:{'stone':2},      n:1, time:2.4, kind:'furnace', fuel:1},
+  'steel':       {in:{'iron-plate':5}, n:1, time:8,   kind:'furnace', fuel:3, tech:'steel'},
+
+  'gear':        {in:{'iron-plate':2},              n:1, time:1,   kind:'asm', hand:true},
+  'wire':        {in:{'copper-plate':1},            n:2, time:1,   kind:'asm', hand:true},
+  'circuit':     {in:{'iron-plate':1,'wire':3},     n:1, time:1.5, kind:'asm', hand:true},
+  'adv-circuit': {in:{'circuit':2,'wire':4},        n:1, time:3,   kind:'asm', hand:true, tech:'adv-elec'},
+
+  'red-sci':     {in:{'gear':1,'copper-plate':1},   n:1, time:3, kind:'asm', hand:true},
+  'green-sci':   {in:{'belt':1,'inserter':1},       n:1, time:4, kind:'asm', hand:true, tech:'automation'},
+  'blue-sci':    {in:{'steel':2,'adv-circuit':1},   n:1, time:6, kind:'asm', hand:true, tech:'adv-elec'},
+  'rocket-part': {in:{'steel':5,'adv-circuit':5,'circuit':10}, n:1, time:8, kind:'asm', tech:'rocketry'},
+
+  'belt':        {in:{'iron-plate':1,'gear':1},     n:2, time:0.5, kind:'asm', hand:true},
+  'miner':       {in:{'iron-plate':5,'gear':3},     n:1, time:2,   kind:'asm', hand:true},
+  'furnace':     {in:{'stone':5},                   n:1, time:1,   kind:'asm', hand:true},
+  'inserter':    {in:{'iron-plate':1,'gear':1},     n:1, time:0.5, kind:'asm', hand:true},
+  'chest':       {in:{'iron-plate':2},              n:1, time:0.5, kind:'asm', hand:true},
+  'splitter':    {in:{'iron-plate':4,'gear':4,'circuit':2}, n:1, time:2, kind:'asm', hand:true, tech:'logistics'},
+  'assembler':   {in:{'iron-plate':9,'gear':5,'circuit':3}, n:1, time:3, kind:'asm', hand:true, tech:'automation'},
+  'lab':         {in:{'iron-plate':10,'gear':5,'circuit':5},n:1, time:3, kind:'asm', hand:true},
+  'silo':        {in:{'steel':50,'stone-brick':50,'adv-circuit':20}, n:1, time:10, kind:'asm', hand:true, tech:'rocketry'},
+};
+const HAND_ORDER = ['gear','wire','circuit','adv-circuit','red-sci','green-sci','blue-sci',
+                    'belt','inserter','chest','furnace','miner','splitter','assembler','lab','silo'];
+
+/* ── Technologies ──────────────────────────────────────── */
+const TECHS = {
+  'automation': {name:'Automation',            count:10, packs:['red-sci'],
+                 desc:'Unlocks the Assembler and Green Science.'},
+  'logistics':  {name:'Logistics',             count:15, packs:['red-sci'],
+                 desc:'Unlocks the Splitter (alternates output between the tiles it faces).'},
+  'steel':      {name:'Steel Smelting',        count:25, packs:['red-sci','green-sci'], req:'automation',
+                 desc:'Furnaces can smelt 5 iron plates into Steel.'},
+  'mining-1':   {name:'Mining Productivity I', count:20, packs:['red-sci','green-sci'], req:'automation',
+                 desc:'Miners and hand-mining are 50% faster.'},
+  'smelting-1': {name:'Efficient Smelting',    count:20, packs:['red-sci','green-sci'], req:'automation',
+                 desc:'Furnaces smelt 50% faster.'},
+  'inserter-1': {name:'Fast Inserters',        count:25, packs:['red-sci','green-sci'], req:'automation',
+                 desc:'Inserters swing 60% faster.'},
+  'adv-elec':   {name:'Advanced Electronics',  count:40, packs:['red-sci','green-sci'], req:'steel',
+                 desc:'Unlocks Advanced Circuits and Blue Science.'},
+  'assembly-2': {name:'Assembly Line Theory',  count:40, packs:['red-sci','green-sci','blue-sci'], req:'adv-elec',
+                 desc:'Assemblers craft 50% faster.'},
+  'mining-2':   {name:'Mining Productivity II',count:45, packs:['red-sci','green-sci','blue-sci'], req:'mining-1',
+                 desc:'Mining is another 50% faster.'},
+  'rocketry':   {name:'Rocketry',              count:60, packs:['red-sci','green-sci','blue-sci'], req:'adv-elec',
+                 desc:'Unlocks the Rocket Silo and Rocket Parts. Feed a silo '+PARTS_NEEDED+' parts. Launch. Win.'},
+};
+const TECH_ORDER = Object.keys(TECHS);
+
+const BUILDABLE = ['belt','inserter','miner','furnace','chest','splitter','assembler','lab','silo'];
+
+/* ── Game state ────────────────────────────────────────── */
+let SEED = (Math.random()*1e9)|0;
+let inv = {};                 // item -> count (player inventory)
+let entities = new Map();     // "x,y" -> entity
+let oreDelta = {};            // "x,y" -> remaining amount (persisted world changes)
+let researched = {};          // tech -> true
+let research = {tech:null, prog:0};
+let stats = {ticks:0, mined:0, smelted:0, crafted:0, sciences:0, launched:false};
+let mult = {mine:1, smelt:1, craft:1, ins:1};
+let cam = {x:0.5, y:0.5, scale:6};
+let selected = null;          // hotbar item id
+let buildDir = 0;
+let openEnt = null;           // entity whose panel is open
+let panelMode = null;         // 'entity' | 'craft' | 'tech'
+let muted = localStorage.getItem('gridworks-muted') === '1';
+
+function recomputeMult(){
+  mult.mine  = (researched['mining-1']?1.5:1) * (researched['mining-2']?1.5:1);
+  mult.smelt = researched['smelting-1']?1.5:1;
+  mult.ins   = researched['inserter-1']?1.6:1;
+  mult.craft = researched['assembly-2']?1.5:1;
+}
+function techOk(r){ return !r.tech || researched[r.tech]; }
+function invAdd(it,n){ inv[it]=(inv[it]||0)+n; }
+function invHas(ins,mul=1){ for(const k in ins) if((inv[k]||0) < ins[k]*mul) return false; return true; }
+function invTake(ins,mul=1){ for(const k in ins) inv[k]-=ins[k]*mul; }
+
+/* ── Sprites → canvases ────────────────────────────────── */
+function makeSprite(rows, pal){
+  const c = document.createElement('canvas'); c.width=SPX; c.height=SPX;
+  const g = c.getContext('2d');
+  for(let y=0;y<SPX;y++) for(let x=0;x<SPX;x++){
+    const ch = rows[y][x];
+    if(ch==='.') continue;
+    g.fillStyle = pal[ch] || '#f0f';
+    g.fillRect(x,y,1,1);
+  }
+  return c;
+}
+function rotSprite(src, times){
+  let c = src;
+  for(let i=0;i<times;i++){
+    const n = document.createElement('canvas'); n.width=SPX; n.height=SPX;
+    const g = n.getContext('2d');
+    g.translate(SPX/2, SPX/2); g.rotate(Math.PI/2); g.drawImage(c,-SPX/2,-SPX/2);
+    c = n;
+  }
+  return c;
+}
+const SPRITES = {};   // key -> canvas (or [4 dirs] arrays)
+const ICON_URL = {};  // item -> dataURL at 4x
+
+function buildSprites(){
+  for(const id in ITEMS){
+    const s = ITEMS[id].spr;
+    SPRITES['item:'+id] = makeSprite(s[0], s[1]);
+    const c = document.createElement('canvas'); c.width=SPX*4; c.height=SPX*4;
+    const g = c.getContext('2d'); g.imageSmoothingEnabled=false;
+    g.drawImage(SPRITES['item:'+id],0,0,SPX*4,SPX*4);
+    ICON_URL[id] = c.toDataURL();
+  }
+  for(const id in BSPR){
+    if(id==='belt0') continue;
+    const base = makeSprite(BSPR[id][0], BSPR[id][1]);
+    SPRITES[id] = [0,1,2,3].map(d=>rotSprite(base,d));
+  }
+  // belt animation: 3 frames, chevrons crawling in travel direction (north base = upward)
+  const railPal = {e:'#3a3f55', b:'#c8b93a', d:'#23263a'};
+  for(let f=0; f<3; f++){
+    const rows = [];
+    for(let y=0;y<5;y++){
+      // pattern period 3 down the belt; shift by frame so chevrons move up (against y)
+      const ph = ((y + f) % 3 + 3) % 3;
+      const mid = ph===0 ? '.b.' : ph===1 ? 'b.b' : '...';
+      rows.push('e'+mid+'e');
+    }
+    const base = makeSprite(rows, railPal);
+    SPRITES['belt'+f] = [0,1,2,3].map(d=>rotSprite(base,d));
+  }
+}
+
+/* ── World generation ──────────────────────────────────── */
+function h2(x,y){
+  let n = (x|0)*374761393 + (y|0)*668265263 + SEED*974711;
+  n = Math.imul(n ^ (n>>>13), 1274126177);
+  n = n ^ (n>>>16);
+  return (n>>>0)/4294967296;
+}
+function vnoise(x,y){
+  const x0=Math.floor(x), y0=Math.floor(y), fx=x-x0, fy=y-y0;
+  const sx=fx*fx*(3-2*fx), sy=fy*fy*(3-2*fy);
+  const a=h2(x0,y0), b=h2(x0+1,y0), c=h2(x0,y0+1), d=h2(x0+1,y0+1);
+  return a+(b-a)*sx+(c-a)*sy+(a-b-c+d)*sx*sy;
+}
+const STARTERS = [
+  {it:'iron-ore',  x:6,  y:-4, r:3.4},
+  {it:'copper-ore',x:-8, y:5,  r:3.2},
+  {it:'coal',      x:4,  y:8,  r:3.2},
+  {it:'stone',     x:-6, y:-8, r:3.0},
+];
+function genOre(x,y){
+  for(const p of STARTERS){
+    const dx=x-p.x, dy=y-p.y;
+    if(dx*dx+dy*dy <= p.r*p.r) return {it:p.it, amt:500+((h2(x*3+1,y*3+7)*400)|0)};
+  }
+  const d = Math.hypot(x,y);
+  if(d < 14) return null; // keep the rest of the spawn area clean
+  for(let i=0;i<4;i++){
+    const v = vnoise(x/9 + i*137.7, y/9 - i*89.3);
+    if(v > 0.78){
+      const amt = (300 + (v-0.78)*12000*(1+d/150))|0;
+      return {it:ORE_TYPES[i], amt};
+    }
+  }
+  return null;
+}
+
+const chunks = new Map(); // "cx,cy" -> {ore:[CHUNK*CHUNK], canvas, dirty}
+function getChunk(cx,cy){
+  const key = cx+','+cy;
+  let ch = chunks.get(key);
+  if(ch) return ch;
+  ch = {cx, cy, ore:new Array(CHUNK*CHUNK).fill(null), canvas:null, dirty:true};
+  for(let ty=0;ty<CHUNK;ty++) for(let tx=0;tx<CHUNK;tx++){
+    const x=cx*CHUNK+tx, y=cy*CHUNK+ty;
+    let o = genOre(x,y);
+    const dk = x+','+y;
+    if(dk in oreDelta){
+      const amt = oreDelta[dk];
+      o = (amt>0 && o) ? {it:o.it, amt} : null;
+    }
+    ch.ore[ty*CHUNK+tx] = o;
+  }
+  chunks.set(key, ch);
+  return ch;
+}
+function oreAt(x,y){
+  const cx=Math.floor(x/CHUNK), cy=Math.floor(y/CHUNK);
+  const ch=getChunk(cx,cy);
+  return ch.ore[(y-cy*CHUNK)*CHUNK + (x-cx*CHUNK)];
+}
+function mineOre(x,y){
+  const cx=Math.floor(x/CHUNK), cy=Math.floor(y/CHUNK);
+  const ch=getChunk(cx,cy);
+  const idx=(y-cy*CHUNK)*CHUNK + (x-cx*CHUNK);
+  const o=ch.ore[idx];
+  if(!o) return null;
+  o.amt--;
+  oreDelta[x+','+y]=o.amt;
+  if(o.amt<=0){ ch.ore[idx]=null; }
+  ch.dirty=true;
+  stats.mined++;
+  return o.it;
+}
+function renderChunk(ch){
+  if(!ch.canvas){ ch.canvas=document.createElement('canvas'); ch.canvas.width=CHUNK*SPX; ch.canvas.height=CHUNK*SPX; }
+  const g = ch.canvas.getContext('2d');
+  for(let ty=0;ty<CHUNK;ty++) for(let tx=0;tx<CHUNK;tx++){
+    const x=ch.cx*CHUNK+tx, y=ch.cy*CHUNK+ty;
+    const r = h2(x*7+3, y*7+11);
+    g.fillStyle = r<0.5 ? '#17301c' : (r<0.85 ? '#1a3620' : '#153019');
+    g.fillRect(tx*SPX, ty*SPX, SPX, SPX);
+    // speckle
+    if(r>0.93){ g.fillStyle='#214427'; g.fillRect(tx*SPX+((r*31)|0)%4, ty*SPX+((r*57)|0)%4, 1,1); }
+    const o = ch.ore[ty*CHUNK+tx];
+    if(o) g.drawImage(SPRITES['item:'+o.it], tx*SPX, ty*SPX);
+  }
+  ch.dirty=false;
+}
+
+/* ── Entities ──────────────────────────────────────────── */
+function ent(x,y){ return entities.get(x+','+y); }
+function chestTotal(e){ let n=0; for(const k in e.inv) n+=e.inv[k]; return n; }
+
+function newEntity(it,x,y,dir){
+  const base = {t:it, x, y, dir};
+  switch(it){
+    case 'belt':      return {...base, items:[]};
+    case 'miner':     return {...base, fuel:0, p:0, bufIt:null, bufN:0};
+    case 'furnace':   return {...base, fuel:0, inIt:null, inN:0, outIt:null, outN:0, craft:null};
+    case 'inserter':  return {...base, hold:null, sw:0};
+    case 'chest':     return {...base, inv:{}};
+    case 'splitter':  return {...base, buf:[], rot:0};
+    case 'assembler': return {...base, recipe:null, ins:{}, outN:0, craft:null};
+    case 'lab':       return {...base, packs:{}, p:0, brewing:false};
+    case 'silo':      return {...base, parts:0};
+  }
+}
+
+/* What can be dropped into a machine (by inserters, belts, miners, or the player)? */
+function machineAccepts(e, item){
+  switch(e.t){
+    case 'furnace':
+      if(item==='coal') return e.fuel <= FUEL_PER_COAL;
+      { const r = furnaceRecipeFor(item);
+        return !!r && (!e.inIt || e.inIt===item) && e.inN < 10; }
+    case 'miner': return item==='coal' && e.fuel <= FUEL_PER_COAL;
+    case 'assembler': {
+      const rc = e.recipe && RECIPES[e.recipe];
+      return !!rc && (item in rc.in) && (e.ins[item]||0) < rc.in[item]*3;
+    }
+    case 'chest': return chestTotal(e) < 400;
+    case 'lab': return SCI_TYPES.includes(item) && (e.packs[item]||0) < 10;
+    case 'silo': return item==='rocket-part' && e.parts < PARTS_NEEDED;
+  }
+  return false;
+}
+function machineInsert(e, item){
+  switch(e.t){
+    case 'furnace':
+      if(item==='coal'){ e.fuel += FUEL_PER_COAL; } else { e.inIt=item; e.inN++; }
+      break;
+    case 'miner': e.fuel += FUEL_PER_COAL; break;
+    case 'assembler': e.ins[item]=(e.ins[item]||0)+1; break;
+    case 'chest': e.inv[item]=(e.inv[item]||0)+1; break;
+    case 'lab': e.packs[item]=(e.packs[item]||0)+1; break;
+    case 'silo': e.parts++; break;
+  }
+}
+function furnaceRecipeFor(item){
+  for(const id in RECIPES){
+    const r=RECIPES[id];
+    if(r.kind==='furnace' && (item in r.in) && techOk(r)) return r;
+  }
+  return null;
+}
+function recipeId(r){ for(const id in RECIPES) if(RECIPES[id]===r) return id; return null; }
+
+/* Belt helpers */
+function beltCanEnter(e, fromDir){
+  if(e.t==='splitter') return e.buf.length < 2;
+  if(e.dir === (fromDir+2)%4) return false;       // head-on collision
+  for(const it of e.items) if(it.p < GAP) return false;
+  return true;
+}
+function beltEnter(e, item, fromDir){
+  if(e.t==='splitter'){ e.buf.push(item); return; }
+  e.items.push({i:item, p:0});
+}
+function beltPlaceAt(e, item, pos){ // inserter drop at mid-belt
+  for(const it of e.items) if(Math.abs(it.p-pos) < GAP) return false;
+  e.items.push({i:item, p:pos});
+  e.items.sort((a,b)=>b.p-a.p);
+  return true;
+}
+/* Try to move `item` into whatever occupies (x,y). Returns true on success. */
+function pushItemTo(x, y, item, fromDir){
+  const te = ent(x,y);
+  if(!te) return false;
+  if(te.t==='belt' || te.t==='splitter'){
+    if(beltCanEnter(te, fromDir)){ beltEnter(te, item, fromDir); return true; }
+    return false;
+  }
+  if(machineAccepts(te, item)){ machineInsert(te, item); return true; }
+  return false;
+}
+
+/* ── Simulation ────────────────────────────────────────── */
+function tickMiner(e){
+  const o = oreAt(e.x, e.y);
+  if(o && e.bufN < 5 && e.fuel >= 1){
+    e.p += mult.mine/(MINE_TIME*TPS);
+    if(e.p >= 1){
+      e.p = 0; e.fuel -= 1;
+      const it = mineOre(e.x, e.y);
+      if(it){ e.bufIt = it; e.bufN++; }
+    }
+  } else if(!o){ e.p = 0; }
+  if(e.bufN > 0){
+    if(pushItemTo(e.x+DX[e.dir], e.y+DY[e.dir], e.bufIt, e.dir)){
+      e.bufN--;
+      if(e.bufN===0) e.bufIt=null;
+    }
+  }
+}
+function tickFurnace(e){
+  if(!e.craft && e.inN > 0){
+    const r = furnaceRecipeFor(e.inIt);
+    const need = r ? r.in[e.inIt] : 0;
+    if(r && e.inN >= need && e.fuel >= r.fuel && e.outN < 10 && (!e.outIt || e.outIt===recipeId(r) || e.outN===0)){
+      const out = recipeId(r);
+      if(!e.outN || e.outIt===out){
+        e.inN -= need; if(e.inN===0) e.inIt=null;
+        e.fuel -= r.fuel;
+        e.craft = {out, n:r.n, time:r.time, p:0};
+      }
+    }
+  }
+  if(e.craft){
+    e.craft.p += mult.smelt/(e.craft.time*TPS);
+    if(e.craft.p >= 1){
+      e.outIt = e.craft.out; e.outN += e.craft.n;
+      stats.smelted += e.craft.n;
+      e.craft = null;
+    }
+  }
+}
+function tickAssembler(e){
+  const rc = e.recipe && RECIPES[e.recipe];
+  if(!rc) return;
+  if(!e.craft && e.outN < 10){
+    let ok = true;
+    for(const k in rc.in) if((e.ins[k]||0) < rc.in[k]){ ok=false; break; }
+    if(ok){
+      for(const k in rc.in) e.ins[k] -= rc.in[k];
+      e.craft = {p:0};
+    }
+  }
+  if(e.craft){
+    e.craft.p += mult.craft/(rc.time*TPS);
+    if(e.craft.p >= 1){
+      e.outN += rc.n;
+      stats.crafted += rc.n;
+      e.craft = null;
+    }
+  }
+}
+function tickLab(e){
+  const t = research.tech && TECHS[research.tech];
+  if(!t){ e.brewing=false; e.p=0; return; }
+  if(!e.brewing){
+    let ok = true;
+    for(const pk of t.packs) if((e.packs[pk]||0) < 1){ ok=false; break; }
+    if(ok){
+      for(const pk of t.packs){ e.packs[pk]--; stats.sciences++; }
+      e.brewing = true; e.p = 0;
+    }
+  }
+  if(e.brewing){
+    e.p += 1/(3*TPS);
+    if(e.p >= 1){
+      e.brewing = false; e.p = 0;
+      research.prog++;
+      const tt = TECHS[research.tech];
+      if(research.prog >= tt.count){
+        researched[research.tech] = true;
+        toast('Research complete: '+tt.name);
+        sfx('research');
+        research.tech = null; research.prog = 0;
+        recomputeMult();
+        renderHotbar();
+      }
+    }
+  }
+}
+function tickBelt(e){
+  const sp = BELT_SPEED/TPS;
+  const arr = e.items;
+  arr.sort((a,b)=>b.p-a.p);
+  for(let k=0;k<arr.length;k++){
+    const it = arr[k];
+    let np = it.p + sp;
+    const limit = k===0 ? Infinity : arr[k-1].p - GAP;
+    if(np > limit) np = limit;
+    if(np >= 1){
+      if(pushItemTo(e.x+DX[e.dir], e.y+DY[e.dir], it.i, e.dir)){
+        arr.splice(k,1); k--; continue;
+      }
+      np = 1;
+    }
+    it.p = np;
+  }
+}
+function tickSplitter(e){
+  if(e.buf.length===0) return;
+  // candidate outputs: front, right, left (relative to facing), dealt round-robin
+  const dirs = [e.dir, (e.dir+1)%4, (e.dir+3)%4];
+  for(let i=0;i<3;i++){
+    const dd = dirs[(e.rot+i)%3];
+    if(pushItemTo(e.x+DX[dd], e.y+DY[dd], e.buf[0], dd)){
+      e.buf.shift();
+      e.rot = (e.rot+i+1)%3;
+      break;
+    }
+  }
+}
+function grabFrom(se, filter){
+  if(!se) return null;
+  switch(se.t){
+    case 'belt': {
+      // frontmost matching item
+      se.items.sort((a,b)=>b.p-a.p);
+      for(let k=0;k<se.items.length;k++){
+        if(filter(se.items[k].i)) return se.items.splice(k,1)[0].i;
+      }
+      return null;
+    }
+    case 'splitter':
+      for(let k=0;k<se.buf.length;k++) if(filter(se.buf[k])) return se.buf.splice(k,1)[0];
+      return null;
+    case 'chest':
+      for(const k in se.inv) if(se.inv[k]>0 && filter(k)){ se.inv[k]--; if(se.inv[k]===0) delete se.inv[k]; return k; }
+      return null;
+    case 'furnace':
+      if(se.outN>0 && filter(se.outIt)){ se.outN--; const it=se.outIt; if(se.outN===0) se.outIt=null; return it; }
+      return null;
+    case 'assembler': {
+      const rc = se.recipe && RECIPES[se.recipe];
+      if(rc && se.outN>0 && filter(se.recipe)){ se.outN--; return se.recipe; }
+      return null;
+    }
+    case 'miner':
+      if(se.bufN>0 && filter(se.bufIt)){ se.bufN--; const it=se.bufIt; if(se.bufN===0) se.bufIt=null; return it; }
+      return null;
+  }
+  return null;
+}
+function tickInserter(e){
+  const sp = 2.2*mult.ins/TPS;
+  const dst = ent(e.x+DX[e.dir], e.y+DY[e.dir]);
+  if(e.hold){
+    e.sw = Math.min(1, e.sw+sp);
+    if(e.sw >= 1 && dst){
+      let ok = false;
+      if(dst.t==='belt') ok = beltPlaceAt(dst, e.hold, 0.5);
+      else if(dst.t==='splitter'){ if(dst.buf.length<2){ dst.buf.push(e.hold); ok=true; } }
+      else if(machineAccepts(dst, e.hold)){ machineInsert(dst, e.hold); ok=true; }
+      if(ok) e.hold = null;
+    }
+  } else {
+    e.sw = Math.max(0, e.sw-sp);
+    if(e.sw <= 0 && dst){
+      const src = ent(e.x+DX[(e.dir+2)%4], e.y+DY[(e.dir+2)%4]);
+      const filter = (dst.t==='belt'||dst.t==='splitter')
+        ? (it)=>true
+        : (it)=>machineAccepts(dst, it);
+      const got = grabFrom(src, filter);
+      if(got) e.hold = got;
+    }
+  }
+}
+function tick(){
+  stats.ticks++;
+  // order matters a little: producers → belts → movers
+  for(const e of entities.values()){
+    if(e.t==='miner') tickMiner(e);
+    else if(e.t==='furnace') tickFurnace(e);
+    else if(e.t==='assembler') tickAssembler(e);
+    else if(e.t==='lab') tickLab(e);
+  }
+  for(const e of entities.values()) if(e.t==='belt') tickBelt(e);
+  for(const e of entities.values()) if(e.t==='splitter') tickSplitter(e);
+  for(const e of entities.values()) if(e.t==='inserter') tickInserter(e);
+  // hand mining
+  if(mine.active){
+    mine.p += mult.mine/(HAND_MINE_TIME*TPS);
+    if(mine.p >= 1){
+      mine.p = 0;
+      const o = oreAt(mine.x, mine.y);
+      if(o){ const it = mineOre(mine.x, mine.y); if(it){ invAdd(it,1); sfx('mine'); renderHotbar(); } }
+      if(!oreAt(mine.x, mine.y)) mine.active = false;
+    }
+  }
+}
+
+/* ── Placement / demolition ────────────────────────────── */
+function canPlace(it, x, y){
+  if(ent(x,y)) return false;
+  if(it==='miner' && !oreAt(x,y)) return false;
+  return true;
+}
+function place(it, x, y){
+  if(!canPlace(it,x,y)) return false;
+  if((inv[it]||0) < 1){ toast('Out of '+ITEMS[it].name+' — craft more (C)'); return false; }
+  inv[it]--;
+  entities.set(x+','+y, newEntity(it,x,y,buildDir));
+  sfx('place');
+  renderHotbar();
+  return true;
+}
+function demolish(x, y){
+  const e = ent(x,y);
+  if(!e) return false;
+  invAdd(e.t, 1);
+  // return contents
+  if(e.t==='belt') for(const it of e.items) invAdd(it.i,1);
+  if(e.t==='splitter') for(const it of e.buf) invAdd(it,1);
+  if(e.t==='miner'){ if(e.bufN) invAdd(e.bufIt,e.bufN); invAdd('coal', Math.floor(e.fuel/FUEL_PER_COAL)); }
+  if(e.t==='furnace'){ if(e.inN) invAdd(e.inIt,e.inN); if(e.outN) invAdd(e.outIt,e.outN); invAdd('coal', Math.floor(e.fuel/FUEL_PER_COAL)); }
+  if(e.t==='assembler'){ for(const k in e.ins) invAdd(k,e.ins[k]); if(e.outN) invAdd(e.recipe,e.outN); }
+  if(e.t==='chest') for(const k in e.inv) invAdd(k,e.inv[k]);
+  if(e.t==='lab') for(const k in e.packs) invAdd(k,e.packs[k]);
+  if(e.t==='inserter' && e.hold) invAdd(e.hold,1);
+  if(e.t==='silo' && e.parts) invAdd('rocket-part', e.parts);
+  entities.delete(x+','+y);
+  if(openEnt===e) closePanel();
+  sfx('remove');
+  renderHotbar();
+  return true;
+}
+
+/* ── Hand crafting ─────────────────────────────────────── */
+function handCraft(id, times){
+  const r = RECIPES[id];
+  if(!r || !r.hand || !techOk(r)) return;
+  let done = 0;
+  for(let i=0;i<times;i++){
+    if(!invHas(r.in)) break;
+    invTake(r.in);
+    invAdd(id, r.n);
+    done++;
+  }
+  if(done){ stats.crafted += done*r.n; sfx('craft'); renderHotbar(); renderPanel(); }
+  else toast('Missing ingredients');
+}
+
+/* ── Rendering ─────────────────────────────────────────── */
+const cvs = document.getElementById('game');
+const ctx = cvs.getContext('2d');
+let W=0, H=0;
+function resize(){ W=cvs.width=innerWidth; H=cvs.height=innerHeight; ctx.imageSmoothingEnabled=false; }
+addEventListener('resize', resize); resize();
+
+function tilePx(){ return SPX*cam.scale; }
+function worldToScreen(wx, wy){ const t=tilePx(); return [W/2+(wx-cam.x)*t, H/2+(wy-cam.y)*t]; }
+function screenToWorld(sx, sy){ const t=tilePx(); return [cam.x+(sx-W/2)/t, cam.y+(sy-H/2)/t]; }
+
+let hover = {x:0, y:0};
+let animT = 0;
+
+function draw(now){
+  animT = now/1000;
+  const t = tilePx();
+  ctx.fillStyle = '#0a1410';
+  ctx.fillRect(0,0,W,H);
+  const [wx0, wy0] = screenToWorld(0,0);
+  const [wx1, wy1] = screenToWorld(W,H);
+  // chunks (pre-rendered ground+ore)
+  const c0x = Math.floor(wx0/CHUNK), c0y = Math.floor(wy0/CHUNK);
+  const c1x = Math.floor(wx1/CHUNK), c1y = Math.floor(wy1/CHUNK);
+  for(let cy=c0y; cy<=c1y; cy++) for(let cx=c0x; cx<=c1x; cx++){
+    const ch = getChunk(cx,cy);
+    if(ch.dirty || !ch.canvas) renderChunk(ch);
+    const [sx,sy] = worldToScreen(cx*CHUNK, cy*CHUNK);
+    ctx.drawImage(ch.canvas, sx, sy, CHUNK*t, CHUNK*t);
+  }
+  // entities in the visible tile range
+  const x0=Math.floor(wx0)-1, x1=Math.ceil(wx1)+1, y0=Math.floor(wy0)-1, y1=Math.ceil(wy1)+1;
+  const beltFrame = Math.floor(animT*8)%3;
+  const inserters = [];
+  for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++){
+    const e = ent(x,y);
+    if(!e) continue;
+    const [sx,sy] = worldToScreen(x,y);
+    if(e.t==='belt'){
+      ctx.drawImage(SPRITES['belt'+beltFrame][e.dir], sx, sy, t, t);
+      // items riding the belt
+      const s = t*0.6, half=t/2;
+      for(const it of e.items){
+        const px = sx + half + DX[e.dir]*(it.p-0.5)*t - s/2;
+        const py = sy + half + DY[e.dir]*(it.p-0.5)*t - s/2;
+        ctx.drawImage(SPRITES['item:'+it.i], px, py, s, s);
+      }
+    } else if(e.t==='inserter'){
+      ctx.drawImage(SPRITES['inserter'][e.dir], sx, sy, t, t);
+      inserters.push([e,sx,sy]);
+    } else if(e.t==='furnace'){
+      ctx.drawImage(SPRITES[e.craft?'furnace-on':'furnace'][e.dir], sx, sy, t, t);
+    } else if(e.t==='assembler'){
+      ctx.drawImage(SPRITES[e.craft?'assembler-on':'assembler'][e.dir], sx, sy, t, t);
+    } else if(e.t==='lab'){
+      ctx.drawImage(SPRITES[e.brewing?'lab-on':'lab'][e.dir], sx, sy, t, t);
+    } else if(e.t==='silo'){
+      ctx.drawImage(SPRITES['silo'][e.dir], sx, sy, t, t);
+      if(e.parts>0){
+        ctx.fillStyle='#ffd000'; ctx.font=`bold ${Math.max(9,t*0.3)|0}px Courier New`;
+        ctx.fillText(e.parts+'/'+PARTS_NEEDED, sx+2, sy+t-3);
+      }
+    } else {
+      ctx.drawImage(SPRITES[e.t][e.dir], sx, sy, t, t);
+    }
+    // miner progress dot when starved of fuel
+    if(e.t==='miner' && e.fuel<1 && oreAt(x,y)){
+      if(Math.floor(animT*2)%2===0){ ctx.fillStyle='#ff5e5e'; ctx.fillRect(sx+t-4, sy+1, 3, 3); }
+    }
+  }
+  // inserter arms on top
+  for(const [e,sx,sy] of inserters){
+    const cx = sx+t/2, cy = sy+t/2;
+    const aSrc = Math.atan2(DY[(e.dir+2)%4], DX[(e.dir+2)%4]);
+    const aDst = Math.atan2(DY[e.dir], DX[e.dir]);
+    // rotate the short way
+    let da = aDst-aSrc; while(da>Math.PI) da-=2*Math.PI; while(da<-Math.PI) da+=2*Math.PI;
+    const a = aSrc + da*e.sw;
+    const len = t*0.42;
+    const hx = cx+Math.cos(a)*len, hy = cy+Math.sin(a)*len;
+    ctx.strokeStyle = '#e8d44a'; ctx.lineWidth = Math.max(2, t*0.1);
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(hx,hy); ctx.stroke();
+    if(e.hold){
+      const s=t*0.5;
+      ctx.drawImage(SPRITES['item:'+e.hold], hx-s/2, hy-s/2, s, s);
+    } else {
+      ctx.fillStyle='#e8d44a'; ctx.fillRect(hx-2, hy-2, 4, 4);
+    }
+  }
+  // hover highlight + build ghost
+  const hx=hover.x, hy=hover.y;
+  const [gx,gy] = worldToScreen(hx,hy);
+  if(selected){
+    const ok = canPlace(selected,hx,hy) && (inv[selected]||0)>0;
+    ctx.globalAlpha = 0.55;
+    const spr = SPRITES[selected==='belt'?'belt0':selected];
+    ctx.drawImage(Array.isArray(spr)?spr[buildDir]:spr, gx, gy, t, t);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = ok ? '#7CFC00' : '#ff5e5e';
+    ctx.lineWidth = 2; ctx.strokeRect(gx+0.5, gy+0.5, t-1, t-1);
+    // direction arrow
+    if(selected!=='chest' && selected!=='furnace' && selected!=='lab' && selected!=='silo' && selected!=='assembler'){
+      ctx.fillStyle = '#ffffffcc';
+      const mx=gx+t/2, my=gy+t/2, al=t*0.32;
+      ctx.beginPath();
+      ctx.moveTo(mx+DX[buildDir]*al, my+DY[buildDir]*al);
+      ctx.lineTo(mx+DX[(buildDir+1)%4]*al*0.4, my+DY[(buildDir+1)%4]*al*0.4);
+      ctx.lineTo(mx+DX[(buildDir+3)%4]*al*0.4, my+DY[(buildDir+3)%4]*al*0.4);
+      ctx.fill();
+    }
+  } else {
+    ctx.strokeStyle = '#ffffff44'; ctx.lineWidth=1;
+    ctx.strokeRect(gx+0.5, gy+0.5, t-1, t-1);
+  }
+  // hand mining progress
+  if(mine.active){
+    const [mx,my] = worldToScreen(mine.x, mine.y);
+    ctx.fillStyle='#000000aa'; ctx.fillRect(mx, my+t-5, t, 4);
+    ctx.fillStyle='#ffd000'; ctx.fillRect(mx, my+t-5, t*mine.p, 4);
+  }
+}
+
+/* ── Status strip ──────────────────────────────────────── */
+const statusEl = document.getElementById('status');
+function renderStatus(){
+  const o = oreAt(hover.x, hover.y);
+  const e = ent(hover.x, hover.y);
+  let s = '';
+  if(research.tech){
+    const t = TECHS[research.tech];
+    s += `<b>Researching:</b> ${t.name} ${research.prog}/${t.count}<br>`;
+  }
+  if(e) s += `<b>${ITEMS[e.t].name}</b>`;
+  else if(o) s += `<b>${ITEMS[o.it].name}</b> · ${o.amt} left · hold click to mine`;
+  else s += `<span class="muted">(${hover.x}, ${hover.y})</span>`;
+  statusEl.innerHTML = s;
+}
+
+/* ── Hotbar ────────────────────────────────────────────── */
+const hotbarEl = document.getElementById('hotbar');
+function renderHotbar(){
+  hotbarEl.innerHTML='';
+  BUILDABLE.forEach((it,i)=>{
+    const r = RECIPES[it];
+    const locked = r && r.tech && !researched[r.tech];
+    const d = document.createElement('div');
+    d.className = 'hslot' + (selected===it?' sel':'') + (locked?' locked':'');
+    const n = inv[it]||0;
+    d.innerHTML = `<span class="key">${i+1}</span><img src="${ICON_URL[it]}" alt=""><span class="cnt${n?'':' zero'}">${n}</span>`;
+    d.title = ITEMS[it].name + (locked ? ' (locked — research it)' : '');
+    d.onclick = ()=>selectBuild(it);
+    hotbarEl.appendChild(d);
+  });
+  // craft + tech buttons at the end
+  const cb=document.createElement('div'); cb.className='hslot';
+  cb.innerHTML='<span class="key">C</span><div style="font-size:20px">⚒</div><span class="cnt">craft</span>';
+  cb.onclick=()=>togglePanel('craft');
+  hotbarEl.appendChild(cb);
+  const tb=document.createElement('div'); tb.className='hslot';
+  tb.innerHTML='<span class="key">T</span><div style="font-size:20px">⚗</div><span class="cnt">tech</span>';
+  tb.onclick=()=>togglePanel('tech');
+  hotbarEl.appendChild(tb);
+}
+function selectBuild(it){
+  const r = RECIPES[it];
+  if(r && r.tech && !researched[r.tech]){ toast('Locked — research '+TECHS[r.tech].name); return; }
+  selected = (selected===it) ? null : it;
+  renderHotbar();
+}
+
+/* ── Side panel ────────────────────────────────────────── */
+const panelEl = document.getElementById('panel');
+const panelTitle = document.getElementById('panel-title');
+const panelBody = document.getElementById('panel-body');
+document.getElementById('panel-close').onclick = closePanel;
+
+function closePanel(){ panelEl.classList.remove('open'); openEnt=null; panelMode=null; }
+function togglePanel(mode){
+  if(panelMode===mode){ closePanel(); return; }
+  panelMode = mode; openEnt = null;
+  panelEl.classList.add('open');
+  renderPanel();
+}
+function openEntityPanel(e){
+  openEnt = e; panelMode = 'entity';
+  panelEl.classList.add('open');
+  renderPanel();
+}
+function icon(it){ return `<img src="${ICON_URL[it]}" alt="">`; }
+function ingHtml(ins, mul=1){
+  let s='';
+  for(const k in ins){
+    const need=ins[k]*mul, have=inv[k]||0;
+    s += `<span class="ing${have<need?' short':''}">${icon(k)}${need}<span class="muted">/${have}</span></span>`;
+  }
+  return s;
+}
+function slotRow(it, n, label, buttons){
+  return `<div class="slotrow">${it?icon(it):''}<span class="lab">${label}</span><span class="n">${n}</span>${buttons||''}</div>`;
+}
+
+function renderPanel(){
+  if(!panelEl.classList.contains('open')) return;
+  if(panelMode==='entity'){
+    if(!openEnt || ent(openEnt.x,openEnt.y)!==openEnt){ closePanel(); return; }
+    renderEntityPanel(openEnt);
+  }
+  else if(panelMode==='craft') renderCraftPanel();
+  else if(panelMode==='tech') renderTechPanel();
+}
+
+// panel actions are registered fresh on each render
+let pActions = {};
+let pActionN = 0;
+function act(fn){ const id='a'+(pActionN++); pActions[id]=fn; return `data-act="${id}"`; }
+panelBody.addEventListener('click', ev=>{
+  const el = ev.target.closest('[data-act]');
+  if(el && pActions[el.dataset.act]) pActions[el.dataset.act]();
+});
+function resetActs(){ pActions={}; pActionN=0; }
+
+function takeBtn(fn, label='TAKE'){ return `<button class="pbtn" ${act(fn)}>${label}</button>`; }
+function giveBtn(e, it, n, label){
+  const have = inv[it]||0;
+  const dis = have<1 ? 'disabled' : '';
+  return `<button class="pbtn" ${dis} ${act(()=>{
+    let moved=0;
+    for(let i=0;i<n;i++){
+      if((inv[it]||0)<1 || !machineAccepts(e,it)) break;
+      inv[it]--; machineInsert(e,it); moved++;
+    }
+    if(moved){ sfx('craft'); renderHotbar(); renderPanel(); }
+  })}>${label||('+'+n)}</button>`;
+}
+function takeAll(fn){ return ()=>{ fn(); sfx('craft'); renderHotbar(); renderPanel(); }; }
+
+function fuelRow(e){
+  const coal = Math.floor(e.fuel/FUEL_PER_COAL*10)/10;
+  return `<div class="slotrow">${icon('coal')}<span class="lab">Fuel</span><span class="n">${e.fuel.toFixed(0)} ops</span>${giveBtn(e,'coal',5,'+5 coal')}</div>`;
+}
+function progBar(p, cls=''){ return `<div class="bar ${cls}"><div style="width:${(p*100)|0}%"></div></div>`; }
+
+function renderEntityPanel(e){
+  resetActs();
+  panelTitle.textContent = ITEMS[e.t].name.toUpperCase();
+  let h = '';
+  switch(e.t){
+    case 'miner': {
+      const o = oreAt(e.x,e.y);
+      h += `<p class="muted">${o ? 'Mining '+ITEMS[o.it].name+' — '+o.amt+' left.' : 'Ore depleted. Move me.'}</p>`;
+      h += progBar(e.p);
+      h += fuelRow(e);
+      if(e.bufN) h += slotRow(e.bufIt, e.bufN, ITEMS[e.bufIt].name, takeBtn(takeAll(()=>{ invAdd(e.bufIt,e.bufN); e.bufN=0; e.bufIt=null; })));
+      h += `<p class="muted">Outputs to the tile it faces. Feed coal by hand, or point an inserter at it.</p>`;
+      break;
+    }
+    case 'furnace': {
+      h += e.craft ? `<p class="muted">Smelting ${ITEMS[e.craft.out].name}…</p>`+progBar(e.craft.p) : `<p class="muted">Idle. Needs fuel + something smeltable.</p>`;
+      h += fuelRow(e);
+      if(e.inN) h += slotRow(e.inIt, e.inN, 'In: '+ITEMS[e.inIt].name, takeBtn(takeAll(()=>{ invAdd(e.inIt,e.inN); e.inN=0; e.inIt=null; })));
+      if(e.outN) h += slotRow(e.outIt, e.outN, 'Out: '+ITEMS[e.outIt].name, takeBtn(takeAll(()=>{ invAdd(e.outIt,e.outN); e.outN=0; e.outIt=null; })));
+      h += `<div class="sechead">LOAD ORE</div>`;
+      for(const it of ['iron-ore','copper-ore','stone','iron-plate']){
+        const r = furnaceRecipeFor(it);
+        if(!r) continue;
+        h += `<div class="slotrow">${icon(it)}<span class="lab">${ITEMS[it].name}</span><span class="n">${inv[it]||0}</span>${giveBtn(e,it,5)}</div>`;
+      }
+      break;
+    }
+    case 'assembler': {
+      const rc = e.recipe && RECIPES[e.recipe];
+      if(rc){
+        h += `<p>Recipe: <b style="color:var(--yellow)">${ITEMS[e.recipe].name}</b></p>`;
+        h += e.craft ? progBar(e.craft.p) : `<p class="muted">Waiting for ingredients.</p>`;
+        for(const k in rc.in){
+          h += `<div class="slotrow">${icon(k)}<span class="lab">${ITEMS[k].name} <span class="muted">(needs ${rc.in[k]})</span></span><span class="n">${e.ins[k]||0}</span>${giveBtn(e,k,5)}</div>`;
+        }
+        if(e.outN) h += slotRow(e.recipe, e.outN, 'Output', takeBtn(takeAll(()=>{ invAdd(e.recipe,e.outN); e.outN=0; })));
+      } else h += `<p class="muted">No recipe set.</p>`;
+      h += `<div class="sechead">SET RECIPE</div>`;
+      for(const id in RECIPES){
+        const r = RECIPES[id];
+        if(r.kind!=='asm' || !techOk(r)) continue;
+        h += `<div class="recipe-opt${e.recipe===id?' sel':''}" ${act(()=>{
+          if(e.recipe!==id){
+            for(const k in e.ins) invAdd(k,e.ins[k]);
+            if(e.outN && e.recipe) invAdd(e.recipe,e.outN);
+            e.ins={}; e.outN=0; e.craft=null; e.recipe=id;
+            renderPanel();
+          }
+        })}>${icon(id)}<span>${ITEMS[id].name}${r.n>1?' ×'+r.n:''}</span></div>`;
+      }
+      break;
+    }
+    case 'chest': {
+      const tot = chestTotal(e);
+      h += `<p class="muted">${tot}/400 stored.</p>`;
+      let any=false;
+      for(const k in e.inv){
+        if(e.inv[k]<1) continue; any=true;
+        h += slotRow(k, e.inv[k], ITEMS[k].name, takeBtn(takeAll(()=>{ invAdd(k,e.inv[k]); delete e.inv[k]; })));
+      }
+      if(!any) h += `<p class="muted">Empty.</p>`;
+      if(tot>0) h += `<button class="pbtn big" ${act(takeAll(()=>{ for(const k in e.inv) invAdd(k,e.inv[k]); e.inv={}; }))}>TAKE ALL</button>`;
+      break;
+    }
+    case 'lab': {
+      const t = research.tech && TECHS[research.tech];
+      h += t ? `<p>Researching <b style="color:var(--yellow)">${t.name}</b> — ${research.prog}/${t.count}</p>`+progBar(e.p)
+             : `<p class="muted">No research selected. Open the tech tree (T).</p>`;
+      for(const pk of SCI_TYPES){
+        h += `<div class="slotrow">${icon(pk)}<span class="lab">${ITEMS[pk].name}</span><span class="n">${e.packs[pk]||0}</span>${giveBtn(e,pk,5)}</div>`;
+      }
+      h += `<button class="pbtn" ${act(()=>togglePanel('tech'))}>OPEN TECH TREE</button>`;
+      break;
+    }
+    case 'silo': {
+      h += `<p>Rocket parts: <b style="color:var(--good)">${e.parts}/${PARTS_NEEDED}</b></p>`;
+      h += progBar(e.parts/PARTS_NEEDED);
+      h += `<div class="slotrow">${icon('rocket-part')}<span class="lab">Rocket Part</span><span class="n">${inv['rocket-part']||0}</span>${giveBtn(e,'rocket-part',5)}</div>`;
+      if(e.parts >= PARTS_NEEDED){
+        h += `<button class="pbtn big" style="width:100%;margin-top:12px;border-color:var(--good);color:var(--good)" ${act(()=>launchRocket(e))}>▲ LAUNCH ▲</button>`;
+      } else {
+        h += `<p class="muted">Feed it Rocket Parts by hand or with inserters.</p>`;
+      }
+      break;
+    }
+    case 'belt': h += `<p class="muted">Carries items. ${e.items.length} on board.</p>`; break;
+    case 'splitter': h += `<p class="muted">Takes items in, deals them out to front/right/left in turn. Buffer: ${e.buf.length}/2</p>`; break;
+    case 'inserter': h += `<p class="muted">Grabs from the tile behind, drops to the tile in front.${e.hold ? ' Holding: '+ITEMS[e.hold].name : ''}</p>`; break;
+  }
+  panelBody.innerHTML = h;
+}
+
+function renderCraftPanel(){
+  resetActs();
+  panelTitle.textContent = 'CRAFT & INVENTORY';
+  let h = `<div class="sechead">HAND CRAFTING</div>`;
+  for(const id of HAND_ORDER){
+    const r = RECIPES[id];
+    if(!r.hand) continue;
+    if(!techOk(r)) continue;
+    const can = invHas(r.in);
+    h += `<div class="slotrow">${icon(id)}<span class="lab">${ITEMS[id].name}${r.n>1?' ×'+r.n:''}<br><span style="font-size:11px">${ingHtml(r.in)}</span></span>` +
+         `<button class="pbtn" ${can?'':'disabled'} ${act(()=>handCraft(id,1))}>×1</button>` +
+         `<button class="pbtn" ${can?'':'disabled'} ${act(()=>handCraft(id,5))}>×5</button></div>`;
+  }
+  h += `<div class="sechead">INVENTORY</div>`;
+  let any=false;
+  for(const k in inv){
+    if(inv[k]<1) continue; any=true;
+    h += `<span class="ing" style="margin:2px 8px 2px 0">${icon(k)}${ITEMS[k].name}: <b style="color:var(--good)">${inv[k]}</b></span> `;
+  }
+  if(!any) h += `<p class="muted">Nothing. Go punch some rocks.</p>`;
+  panelBody.innerHTML = h;
+}
+
+function renderTechPanel(){
+  resetActs();
+  panelTitle.textContent = 'RESEARCH';
+  let h = `<p class="muted">Build a Lab, pick a tech, feed the lab the right science packs.</p>`;
+  for(const id of TECH_ORDER){
+    const t = TECHS[id];
+    const done = !!researched[id];
+    const locked = t.req && !researched[t.req];
+    const active = research.tech===id;
+    let cls = 'tech' + (done?' done':'') + (active?' active':'') + (locked&&!done?' locked':'');
+    h += `<div class="${cls}"><div class="tname">${t.name} ${done?'✔':''}</div>`;
+    h += `<div class="tdesc">${t.desc}${t.req&&!done?` <br>Requires: ${TECHS[t.req].name}`:''}</div>`;
+    h += `<div>${t.packs.map(p=>icon(p)).join('')} × ${t.count}`;
+    if(active) h += ` — <b style="color:var(--yellow)">${research.prog}/${t.count}</b>`;
+    h += `</div>`;
+    if(!done && !locked && !active){
+      h += `<button class="pbtn" style="margin-top:4px" ${act(()=>{
+        if(research.tech && research.prog>0 && !confirm('Abandon current research progress?')) return;
+        research.tech = id; research.prog = 0;
+        toast('Researching: '+t.name);
+        renderPanel();
+      })}>RESEARCH</button>`;
+    }
+    h += `</div>`;
+  }
+  panelBody.innerHTML = h;
+}
+
+/* ── Toasts / sfx ──────────────────────────────────────── */
+const toastsEl = document.getElementById('toasts');
+function toast(msg){
+  const d = document.createElement('div');
+  d.className='toast'; d.textContent=msg;
+  toastsEl.appendChild(d);
+  setTimeout(()=>d.remove(), 3600);
+}
+let AC = null;
+function sfx(kind){
+  if(muted) return;
+  try{
+    AC = AC || new (window.AudioContext||window.webkitAudioContext)();
+    if(AC.state==='suspended') AC.resume();
+    const t0 = AC.currentTime;
+    const mk = (freq, dur, type='square', vol=0.04, delay=0)=>{
+      const o=AC.createOscillator(), g=AC.createGain();
+      o.type=type; o.frequency.value=freq;
+      g.gain.setValueAtTime(vol, t0+delay);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0+delay+dur);
+      o.connect(g).connect(AC.destination);
+      o.start(t0+delay); o.stop(t0+delay+dur);
+    };
+    switch(kind){
+      case 'place': mk(220,0.06); mk(330,0.05,'square',0.03,0.03); break;
+      case 'remove': mk(150,0.08,'sawtooth',0.03); break;
+      case 'mine': mk(90+Math.random()*40,0.04,'triangle',0.05); break;
+      case 'craft': mk(440,0.05,'square',0.03); break;
+      case 'research': [523,659,784,1047].forEach((f,i)=>mk(f,0.12,'square',0.04,i*0.09)); break;
+      case 'launch': [130,180,240,320].forEach((f,i)=>mk(f,0.5,'sawtooth',0.05,i*0.12)); break;
+    }
+  }catch(err){}
+}
+const muteBtn = document.getElementById('mute-btn');
+function renderMute(){ muteBtn.textContent = muted?'UNMUTE':'MUTE'; }
+muteBtn.onclick = ()=>{ muted=!muted; localStorage.setItem('gridworks-muted', muted?'1':'0'); renderMute(); };
+renderMute();
+
+/* ── Launch sequence ───────────────────────────────────── */
+function launchRocket(silo){
+  silo.parts = 0;
+  stats.launched = true;
+  sfx('launch');
+  closePanel();
+  const ov = document.getElementById('launch-overlay');
+  const stage = document.getElementById('launch-stage');
+  const statsBox = document.getElementById('launch-stats');
+  ov.classList.add('open');
+  statsBox.style.display='none';
+  stage.innerHTML='';
+  const c = document.createElement('canvas');
+  c.width=innerWidth; c.height=innerHeight;
+  c.style.cssText='position:absolute;inset:0;width:100%;height:100%';
+  stage.appendChild(c);
+  const g = c.getContext('2d'); g.imageSmoothingEnabled=false;
+  const stars = Array.from({length:120},()=>[Math.random()*c.width, Math.random()*c.height, Math.random()*1.6+0.4]);
+  const rocketSpr = makeSprite(BSPR['rocket'][0], BSPR['rocket'][1]);
+  const t0 = performance.now();
+  function anim(now){
+    if(!ov.classList.contains('open')) return;
+    const dt = (now-t0)/1000;
+    g.fillStyle='#02030c'; g.fillRect(0,0,c.width,c.height);
+    g.fillStyle='#cfd6e6';
+    for(const [x,y,s] of stars) g.fillRect(x, (y+dt*20*s)%c.height, s, s);
+    const scale=16, sz=SPX*scale;
+    const ry = c.height*0.85 - dt*dt*60;
+    g.drawImage(rocketSpr, c.width/2-sz/2, ry, sz, sz);
+    // exhaust flicker
+    g.fillStyle = Math.random()<0.5?'#ff8c3a':'#ffd000';
+    const fx = c.width/2-sz/6;
+    g.fillRect(fx, ry+sz, sz/3, Math.random()*sz*0.5+sz*0.2);
+    if(ry+sz > -50) requestAnimationFrame(anim);
+    else {
+      const mins = Math.floor(stats.ticks/TPS/60);
+      document.getElementById('launch-table').innerHTML =
+        `<tr><td>Time to orbit</td><td>${Math.floor(mins/60)}h ${mins%60}m</td></tr>`+
+        `<tr><td>Ore mined</td><td>${stats.mined}</td></tr>`+
+        `<tr><td>Items smelted</td><td>${stats.smelted}</td></tr>`+
+        `<tr><td>Items assembled</td><td>${stats.crafted}</td></tr>`+
+        `<tr><td>Science consumed</td><td>${stats.sciences}</td></tr>`;
+      statsBox.style.display='block';
+    }
+  }
+  requestAnimationFrame(anim);
+  saveGame();
+}
+document.getElementById('launch-continue').onclick = ()=>{
+  document.getElementById('launch-overlay').classList.remove('open');
+};
+
+/* ── Input ─────────────────────────────────────────────── */
+const keys = {};
+let mine = {active:false, x:0, y:0, p:0};
+let dragMode = null; // 'place' | 'remove' | 'pan'
+let panStart = null;
+
+cvs.addEventListener('mousemove', ev=>{
+  const [wx,wy] = screenToWorld(ev.clientX, ev.clientY);
+  const nx = Math.floor(wx), ny = Math.floor(wy);
+  if(nx!==hover.x || ny!==hover.y){
+    hover.x=nx; hover.y=ny;
+    if(mine.active && (mine.x!==nx || mine.y!==ny)) mine.active=false;
+    if(dragMode==='place' && selected) place(selected, nx, ny);
+    if(dragMode==='remove') demolish(nx, ny);
+  }
+  if(dragMode==='pan' && panStart){
+    const t=tilePx();
+    cam.x = panStart.cx - (ev.clientX-panStart.mx)/t;
+    cam.y = panStart.cy - (ev.clientY-panStart.my)/t;
+  }
+});
+cvs.addEventListener('mousedown', ev=>{
+  if(ev.button===1){ dragMode='pan'; panStart={mx:ev.clientX,my:ev.clientY,cx:cam.x,cy:cam.y}; ev.preventDefault(); return; }
+  if(ev.button===2){ dragMode='remove'; demolish(hover.x, hover.y); return; }
+  if(ev.button!==0) return;
+  if(selected){
+    dragMode='place';
+    place(selected, hover.x, hover.y);
+  } else {
+    const e = ent(hover.x, hover.y);
+    if(e){ openEntityPanel(e); }
+    else if(oreAt(hover.x, hover.y)){
+      mine.active=true; mine.x=hover.x; mine.y=hover.y; mine.p=0;
+    }
+  }
+});
+addEventListener('mouseup', ()=>{ dragMode=null; panStart=null; mine.active=false; });
+cvs.addEventListener('contextmenu', ev=>ev.preventDefault());
+cvs.addEventListener('wheel', ev=>{
+  ev.preventDefault();
+  const [bx,by] = screenToWorld(ev.clientX, ev.clientY);
+  cam.scale = Math.max(3, Math.min(14, cam.scale + (ev.deltaY<0?1:-1)));
+  const [ax,ay] = screenToWorld(ev.clientX, ev.clientY);
+  cam.x += bx-ax; cam.y += by-ay;
+},{passive:false});
+
+addEventListener('keydown', ev=>{
+  if(ev.target.tagName==='INPUT') return;
+  const k = ev.key.toLowerCase();
+  keys[k]=true;
+  if(k>='1' && k<='9'){ const it=BUILDABLE[+k-1]; if(it) selectBuild(it); }
+  else if(k==='r'){ buildDir=(buildDir+1)%4; }
+  else if(k==='q'){ selected=null; renderHotbar(); }
+  else if(k==='escape'){
+    if(document.getElementById('help-overlay').classList.contains('open')) hideHelp();
+    else if(panelEl.classList.contains('open')) closePanel();
+    else { selected=null; renderHotbar(); }
+  }
+  else if(k==='c'){ togglePanel('craft'); }
+  else if(k==='t'){ togglePanel('tech'); }
+  else if(k==='h'){ toggleHelp(); }
+});
+addEventListener('keyup', ev=>{ keys[ev.key.toLowerCase()]=false; });
+
+function panTick(dt){
+  const sp = 14*dt; // tiles/sec
+  if(keys['w']||keys['arrowup']) cam.y-=sp;
+  if(keys['s']||keys['arrowdown']) cam.y+=sp;
+  if(keys['a']||keys['arrowleft']) cam.x-=sp;
+  if(keys['d']||keys['arrowright']) cam.x+=sp;
+}
+
+/* ── Help overlay ──────────────────────────────────────── */
+const helpOv = document.getElementById('help-overlay');
+function toggleHelp(){ helpOv.classList.toggle('open'); }
+function hideHelp(){ helpOv.classList.remove('open'); }
+document.getElementById('help-btn').onclick = toggleHelp;
+document.getElementById('help-close-btn').onclick = hideHelp;
+document.getElementById('reset-btn').onclick = ()=>{
+  if(confirm('Wipe the save and start over?')){
+    localStorage.removeItem(SAVE_KEY);
+    location.reload();
+  }
+};
+
+/* ── Save / load ───────────────────────────────────────── */
+function saveGame(){
+  try{
+    const ents = [];
+    for(const e of entities.values()) ents.push(e);
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      v:1, seed:SEED, inv, ents, oreDelta, researched, research, stats,
+      cam:{x:cam.x,y:cam.y,scale:cam.scale},
+    }));
+  }catch(err){ toast('Save failed: '+err.message); }
+}
+function loadGame(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return false;
+    const s = JSON.parse(raw);
+    SEED = s.seed; inv = s.inv||{}; oreDelta = s.oreDelta||{};
+    researched = s.researched||{}; research = s.research||{tech:null,prog:0};
+    stats = Object.assign({ticks:0,mined:0,smelted:0,crafted:0,sciences:0,launched:false}, s.stats);
+    if(s.cam) cam = {x:s.cam.x, y:s.cam.y, scale:s.cam.scale||6};
+    entities = new Map();
+    for(const e of (s.ents||[])) entities.set(e.x+','+e.y, e);
+    recomputeMult();
+    return true;
+  }catch(err){ console.error(err); return false; }
+}
+document.getElementById('save-btn').onclick = ()=>{ saveGame(); toast('Saved'); };
+setInterval(saveGame, 30000);
+addEventListener('beforeunload', saveGame);
+
+/* ── Boot & main loop ──────────────────────────────────── */
+buildSprites();
+if(!loadGame()){
+  inv = {'miner':1, 'furnace':1, 'iron-plate':8, 'gear':4, 'coal':12};
+  helpOv.classList.add('open'); // first-run help
+}
+renderHotbar();
+
+let last = performance.now();
+let acc = 0;
+let panelClock = 0;
+function frame(now){
+  const dt = Math.min(0.25, (now-last)/1000);
+  last = now;
+  panTick(dt);
+  acc += dt;
+  const step = 1/TPS;
+  let guard = 0;
+  while(acc >= step && guard++ < 8){ tick(); acc -= step; }
+  if(guard>=8) acc=0;
+  draw(now);
+  renderStatus();
+  panelClock += dt;
+  if(panelClock > 0.25){ panelClock=0; if(panelMode==='entity'||panelMode==='tech') renderPanel(); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
