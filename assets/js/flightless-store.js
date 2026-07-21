@@ -2,8 +2,9 @@
 //
 // Owns everything about the in-between-flights shop screen: the single
 // unified upgrade tree (upgrades + one-time gear, all one grid now — no
-// more tabs), the goals list (milestones + daily contracts + landmarks +
-// the medal wall), and the ramp-shape designer pop-over. It has no physics
+// more tabs), the achievements grid (milestones + daily contracts +
+// landmarks + medals, all one icon grid — no text goals list), and the
+// ramp-shape designer pop-over. It has no physics
 // or rendering of its own — it's handed the save state, the upgrade/medal
 // data tables, and a handful of pure helper functions from the host page,
 // and it owns the DOM inside #shop from there.
@@ -14,7 +15,7 @@
 export function createStore(deps){
   const {
     state, UPGRADES, MEDALS, LANDMARKS, MILESTONES,
-    contractsFor, upgCost, fmtCash, fmtDist, save, SFX, defaultState,
+    contractsFor, fmtCash, fmtDist, save, SFX, defaultState,
     getSt, getRamp, recompute, sampleShape, clamp, RAD, econLog,
   } = deps;
   const DAILY_CAP_BASE = typeof deps.DAILY_CAP_BASE === 'number' ? deps.DAILY_CAP_BASE : 3;
@@ -53,8 +54,7 @@ export function createStore(deps){
   }
 
   const shopGrid = document.getElementById('shop-grid');
-  const medalRow = document.getElementById('medal-row');
-  const goalList = document.getElementById('goal-list');
+  const achGrid = document.getElementById('ach-grid');
 
   // ── upgrade icons (inline SVG, Arctic Dusk palette) ──
   // Purely presentational, so they live here in the store module rather
@@ -173,20 +173,44 @@ export function createStore(deps){
       `<line x1="33" y1="32" x2="33" y2="38" stroke="${IC.G}" stroke-width="2.2"/>`),
   };
 
-  // ── tree depth ──
-  // Tier = longest prerequisite chain below a node, computed over the FULL
-  // upgrade table (not just visible cards) so a node never jumps rows as
-  // parents max out and drop off the grid.
-  const upgById = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
-  const depthMemo = {};
-  function upgDepth(id){
-    if(id in depthMemo) return depthMemo[id];
-    const req = upgById[id]?.requires || [];
-    return depthMemo[id] = req.length ? 1 + Math.max(...req.map(upgDepth)) : 0;
-  }
+  // ── tree layout ──
+  // One node per upgrade, hand-placed on a grid with the Ramp dead centre
+  // and every branch radiating outward from it — up is the flight tech
+  // spine (wings → aero → {struts→plating→gun, rocket→{burner, fuel→regen→
+  // tank}}), down is the ground game (bounce→sling, sponsor), left is the
+  // instrument branch (speedo→alti), right is the economy branch (cargo).
+  // These are pure presentation; the real gates are `requires`/`unlock` in
+  // flightless-data.js. Coordinates were chosen so a prerequisite always
+  // sits adjacent to (or at least inward of) its dependents, so the SVG
+  // connector lines read as a tree rather than a hairball. A node missing
+  // from this table falls back to the centre cell rather than crashing.
+  const CENTER = { col:3, row:7 };
+  const TREE_LAYOUT = {
+    ramp:    { col:3, row:7 },   // ── centre / root ──
+    // ◀ instruments
+    speedo:  { col:2, row:7 },
+    alti:    { col:1, row:7 },
+    // ▶ economy
+    cargo:   { col:4, row:7 },
+    // ▼ ground game
+    bounce:  { col:3, row:8 },
+    sling:   { col:3, row:9 },
+    sponsor: { col:4, row:8 },
+    // ▲ flight spine
+    wings:   { col:3, row:6 },
+    aero:    { col:3, row:5 },
+    struts:  { col:2, row:4 },
+    rocket:  { col:4, row:4 },
+    plating: { col:1, row:3 },
+    gun:     { col:1, row:2 },
+    burner:  { col:4, row:3 },
+    fuel:    { col:5, row:3 },
+    regen:   { col:6, row:2 },
+    tank:    { col:6, row:1 },
+  };
 
   // Connector redraw hook — renderShop() swaps in a closure over the
-  // current card set. renderShop() runs while #shop is still display:none
+  // current node set. renderShop() runs while #shop is still display:none
   // (the host page adds .show right after), so rects are all zero at build
   // time; the ResizeObserver fires when the grid actually gets laid out
   // (0 → real size), and again on any wrap/resize.
@@ -194,6 +218,25 @@ export function createStore(deps){
   window.addEventListener('resize', () => redrawConnectors && redrawConnectors());
   if(typeof ResizeObserver === 'function'){
     new ResizeObserver(() => redrawConnectors && redrawConnectors()).observe(shopGrid);
+  }
+
+  // Center the scroll viewport on the Ramp (the tree's root) the first time
+  // the shop is laid out — the tree is bigger than the viewport and radiates
+  // from the middle, so the player should open onto the centre and pan out,
+  // not onto the top of the flight branch. Once done we leave scroll alone
+  // so buying (which re-renders but never moves a node) doesn't yank the
+  // view around.
+  const shopScroll = document.querySelector('#shop .shop-scroll');
+  let didCenterTree = false;
+  function centerOnRoot(rootEl){
+    if(didCenterTree || !rootEl || !shopScroll) return;
+    const sr = shopScroll.getBoundingClientRect();
+    if(sr.height < 2) return;                 // still hidden — try again later
+    const rr = rootEl.getBoundingClientRect();
+    shopScroll.scrollTop  += (rr.top  + rr.height/2) - (sr.top  + sr.height/2);
+    const gr = shopGrid.getBoundingClientRect();
+    shopGrid.scrollLeft   += (rr.left + rr.width/2)  - (gr.left + gr.width/2);
+    didCenterTree = true;
   }
 
   // ── ramp designer (collapsible pop-over) ──
@@ -210,75 +253,6 @@ export function createStore(deps){
   const edX = p => ED_PAD + p.x*(ED_W-2*ED_PAD);
   const edY = p => ED_GROUND - p.y*(ED_GROUND-ED_TOP);
   let edDrag = -1;
-
-  // ── ramp designer presets ──
-  // Preset control-point arrays: each entry is a full rampShape replacement.
-  // Points are in normalised [0,1]×[0,1] coordinates matching the editor's
-  // convention: x increases left→right along the ramp base, y=0 is ground
-  // level and y=1 is the top of the editor canvas.
-  const RAMP_PRESETS = [
-    {
-      label: '🚀 Steep Launch',
-      // Gate high, kicker near the end, lip shoots near-vertical.
-      shape: [
-        { x: 0.08, y: 0.82 },
-        { x: 0.38, y: 0.65 },
-        { x: 0.68, y: 0.38 },
-        { x: 0.92, y: 0.14 },
-      ],
-    },
-    {
-      label: '🪂 Long Glide',
-      // Gentle ramp for maximum horizontal carry rather than altitude.
-      shape: [
-        { x: 0.06, y: 0.55 },
-        { x: 0.32, y: 0.42 },
-        { x: 0.62, y: 0.28 },
-        { x: 0.94, y: 0.18 },
-      ],
-    },
-    {
-      label: '🛹 Trick Ramp',
-      // Mid-height kicker with a sharp upswing at the lip for combos/style.
-      shape: [
-        { x: 0.07, y: 0.45 },
-        { x: 0.28, y: 0.35 },
-        { x: 0.60, y: 0.50 },
-        { x: 0.90, y: 0.22 },
-      ],
-    },
-  ];
-
-  // Build the preset button row and append it into #ramp-pop (above the
-  // canvas) so the DOM order is: presets → canvas → footer.
-  const presetRow = document.createElement('div');
-  presetRow.style.cssText = 'display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-bottom:2px;';
-  for(const preset of RAMP_PRESETS){
-    const btn = document.createElement('button');
-    btn.textContent = preset.label;
-    btn.style.cssText = [
-      'font-family:inherit',
-      'font-size:10px',
-      'cursor:pointer',
-      'background:var(--panel)',
-      'color:var(--text)',
-      'border:1px solid var(--border)',
-      'padding:3px 7px',
-      'border-radius:3px',
-    ].join(';');
-    btn.addEventListener('mouseenter', () => { btn.style.borderColor = 'var(--yellow)'; });
-    btn.addEventListener('mouseleave', () => { btn.style.borderColor = 'var(--border)'; });
-    btn.addEventListener('click', () => {
-      // Deep-copy the preset so later drags don't mutate our constant.
-      state.rampShape = preset.shape.map(p => ({ ...p }));
-      recompute();
-      save();
-      drawEditor();
-    });
-    presetRow.appendChild(btn);
-  }
-  // Insert before the canvas (first child of ramp-pop).
-  rampPop.insertBefore(presetRow, rampPop.firstChild);
 
   function drawEditor(){
     const ramp = getRamp();
@@ -508,47 +482,51 @@ export function createStore(deps){
       controlsHintEl.textContent = segs.join(' · ');
     }
 
-    // goals
-    goalList.innerHTML = '';
+    // achievements — milestones, landmark bosses, daily contracts, and
+    // medals all render as one flat icon grid: no text list, ever. Each
+    // badge is on/off (plus a transitional next/partial/contract state);
+    // name, reward, and progress detail live in the hover tooltip only.
+    achGrid.innerHTML = '';
+    function addBadge(icon, title, cls, pct){
+      const b = document.createElement('div');
+      b.className = 'ach ' + cls;
+      b.title = title;
+      b.textContent = icon;
+      if(pct != null){
+        const p = document.createElement('span');
+        p.className = 'ach-pct';
+        p.textContent = pct + '%';
+        b.appendChild(p);
+      }
+      achGrid.appendChild(b);
+    }
+    // distance milestones — the next unclaimed one gets a "next" highlight
     let nextMarked = false;
     for(const [dist, cash] of MILESTONES){
-      const li = document.createElement('li');
       const done = state.claimed.includes(dist);
-      li.textContent = `${fmtDist(dist)} (${fmtCash(cash)})`;
-      if(done) li.className = 'done';
-      else if(!nextMarked){ li.className = 'next'; li.textContent = '▶ '+li.textContent; nextMarked = true; }
-      goalList.appendChild(li);
+      let cls = done ? 'on' : 'off';
+      let title = `${fmtDist(dist)} — ${fmtCash(cash)}${done ? ' (claimed)' : ''}`;
+      if(!done && !nextMarked){ cls = 'next'; title = '▶ Next: ' + title; nextMarked = true; }
+      addBadge('\u{1F6A9}', title, cls);
     }
-    // today's contracts
+    // today's contracts — previewed, not tracked (judged at flight's end)
     for(const c of contractsFor(state.day)){
-      const li = document.createElement('li');
-      li.textContent = `\u{1F4CB} ${c.text} (+${fmtCash(c.reward)})`;
-      li.style.color = 'var(--text)';
-      goalList.appendChild(li);
+      addBadge('\u{1F4CB}', `${c.text} — +${fmtCash(c.reward)}`, 'contract');
     }
-    // landmark status
+    // landmark bosses — pct shown is damage dealt so far, 0–100%
     for(const lm of LANDMARKS){
       const hp = state.lmHP[lm.id];
-      const li = document.createElement('li');
-      if(hp <= 0){
-        li.textContent = `\u{1F4A5} ${lm.name} destroyed`;
-        li.className = 'done';
-      } else {
-        li.textContent = `\u{1F3AF} ${lm.name} @ ${fmtDist(lm.x)} — ${Math.ceil(hp/lm.hp*100)}%`;
-      }
-      goalList.appendChild(li);
+      const down = hp <= 0;
+      const dmgPct = Math.min(100, Math.max(0, 100 - Math.ceil(hp/lm.hp*100)));
+      addBadge('\u{1F3AF}',
+        down ? `${lm.name} — destroyed (+${fmtCash(lm.reward)})` : `${lm.name} @ ${fmtDist(lm.x)} — ${dmgPct}% damaged`,
+        down ? 'on' : (dmgPct > 0 ? 'partial' : 'off'),
+        down || dmgPct === 0 ? null : dmgPct);
     }
-
-    // medal wall — unified into Goals (no separate tab): earned bright,
-    // unearned greyed, cash value (if any) shown in the tooltip
-    medalRow.innerHTML = '';
+    // permanent medals — earned bright, unearned greyed
     for(const m of MEDALS){
       const got = state.medals.includes(m.id);
-      const chip = document.createElement('div');
-      chip.className = 'medal ' + (got ? 'on' : 'off');
-      chip.textContent = m.icon;
-      chip.title = `${m.name}${m.cash > 0 ? ' (+'+fmtCash(m.cash)+')' : ''} — ${m.desc}`;
-      medalRow.appendChild(chip);
+      addBadge(m.icon, `${m.name}${m.cash > 0 ? ' (+'+fmtCash(m.cash)+')' : ''} — ${m.desc}`, got ? 'on' : 'off');
     }
 
     // ── daily deal resolution (defensive: dailyDealFor may be absent) ──
@@ -557,152 +535,184 @@ export function createStore(deps){
     })() : null;
     // todaysDeal is expected to be { id, discount } — e.g. { id: 'engine', discount: 0.25 }
 
-    // upgrade tree — unlocked at distance milestones AND tree prerequisites.
-    // A maxed-out node drops off the list entirely (its slot is free for a
-    // later tier), and a locked one (missing a prerequisite) doesn't show
-    // at all — no "requires X + Y" clutter for nodes you can't work toward
-    // yet. Everything whose prerequisites ARE met stays visible regardless
-    // of affordability — a real tree has real branches, hiding options
-    // behind "only show the cheapest" fights against letting the player see
-    // and choose between them. `oneTime` nodes (formerly the separate GEAR
-    // list — Speedometer, Altimeter, Afterburner, Reserve Tank) are bought
-    // once ever: ownership lives in state.perm[id] instead of state.lvl[id],
-    // so physics/hud/results (which already read state.perm.speedo etc.)
-    // needed no changes.
+    // ── upgrade tree ──
+    // A bog-standard branching upgrade tree: one node per upgrade, the Ramp
+    // dead centre, every branch radiating outward (see TREE_LAYOUT). EVERY
+    // node is always on screen — a locked one (prerequisites not yet met)
+    // renders greyed with a lock so the player can see the whole tree and
+    // plan a route outward; a maxed one stays put showing ✓ MAX. Each node
+    // shows its icon, the price of its NEXT level underneath, and a row of
+    // pips for level progress; the name, current effect and any unmet
+    // requirement only ever appear in the hover tooltip. `oneTime` nodes
+    // (Speedometer, Altimeter, Afterburner, Reserve Tank) are bought once
+    // ever — ownership lives in state.perm[id], everything else in
+    // state.lvl[id].
     //
-    // Layout: cards are grouped into tier rows by upgDepth() so the grid
-    // reads as an actual tree, and an absolutely-positioned SVG underlay
-    // draws a connector from each card up to every visible prerequisite
-    // card (two-parent nodes get two lines). Geometry comes from real DOM
-    // rects, recomputed by the ResizeObserver/resize hooks above.
-    shopGrid.innerHTML = '';
-    function isOwned(id){
+    // `requires` entries are either 'id' (needs level ≥1 / owned) or
+    // { id, lvl } (needs level ≥ lvl) — see flightless-data.js. reqId/
+    // reqLvl/reqMet normalise both forms.
+    const reqId  = r => typeof r === 'string' ? r : r.id;
+    const reqLvl = r => typeof r === 'string' ? 1 : (r.lvl || 1);
+    function levelOf(id){
       const u = UPGRADES.find(x => x.id === id);
-      if(!u) return false;
-      return u.oneTime ? !!state.perm[id] : (state.lvl[id] ?? 0) > 0;
+      if(!u) return 0;
+      return u.oneTime ? (state.perm[id] ? 1 : 0) : (state.lvl[id] ?? 0);
     }
+    const reqMet = r => levelOf(reqId(r)) >= reqLvl(r);
     function ownedLevel(u){ return u.oneTime ? (state.perm[u.id] ? 1 : 0) : (state.lvl[u.id] ?? 0); }
-    const missingRequires = u => (u.requires || []).filter(id => !isOwned(id));
-    const upgAvail = UPGRADES.filter(u =>
-      state.best.dist >= (u.unlock||0) && ownedLevel(u) < u.max && missingRequires(u).length === 0);
+    const upgById = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
+    const capOut = capRemaining() <= 0;
 
+    shopGrid.innerHTML = '';
     const svgNS = 'http://www.w3.org/2000/svg';
     const treeSvg = document.createElementNS(svgNS, 'svg');
     treeSvg.setAttribute('class', 'tree-svg');
     treeSvg.setAttribute('preserveAspectRatio', 'none');
     shopGrid.appendChild(treeSvg);
 
-    const cardEls = {};
-    const tiers = new Map();
-    for(const u of upgAvail){
-      const d = upgDepth(u.id);
-      if(!tiers.has(d)) tiers.set(d, []);
-      tiers.get(d).push(u);
-    }
+    const nodeEls = {};          // id → node element (for connector geometry)
+    const nodeState = {};        // id → 'locked' | 'buyable' | 'maxed'
 
-    for(const depth of [...tiers.keys()].sort((a,b)=>a-b)){
-      const row = document.createElement('div');
-      row.className = 'tree-tier';
-      for(const u of tiers.get(depth)){
+    for(const u of UPGRADES){
+      const pos = TREE_LAYOUT[u.id] || CENTER;
       const lvl = ownedLevel(u);
-      const baseCost = upgCost(u);
+      const max = u.oneTime ? 1 : u.max;
+      const maxed = lvl >= max;
 
-      // Apply daily deal discount if this upgrade matches today's deal.
-      const isDailyDeal = todaysDeal && todaysDeal.id === u.id;
+      const unmet = (u.requires || []).filter(r => !reqMet(r));
+      const distLocked = state.best.dist < (u.unlock || 0);
+      const locked = unmet.length > 0 || distLocked;
+
+      // next-level pricing (+ daily deal, only when actually buyable)
+      const rawCost = u.oneTime ? u.base : Math.round(u.base * Math.pow(u.mul, lvl));
+      const isDailyDeal = !locked && !maxed && todaysDeal && todaysDeal.id === u.id;
       const dealDiscount = isDailyDeal && typeof todaysDeal.discount === 'number'
-        ? clamp(todaysDeal.discount, 0, 0.9)
-        : 0;
-      const cost = isDailyDeal ? Math.max(1, Math.round(baseCost * (1 - dealDiscount))) : baseCost;
-      const capOut = capRemaining() <= 0;
+        ? clamp(todaysDeal.discount, 0, 0.9) : 0;
+      const cost = isDailyDeal ? Math.max(1, Math.round(rawCost * (1 - dealDiscount))) : rawCost;
+      const affordable = !locked && !maxed && !capOut && state.money >= cost;
 
-      const affordable = !capOut && state.money >= cost;
-      const card = document.createElement('div');
-      card.className = 'upg' + (affordable ? ' affordable' : '') + (isDailyDeal ? ' daily-deal' : '');
+      const status = maxed ? 'maxed' : locked ? 'locked' : 'buyable';
+      nodeState[u.id] = status;
 
-      const pips = Array.from({length:u.max}, (_,i)=>`<div class="pip${i<lvl?' on':''}"></div>`).join('');
+      const node = document.createElement('div');
+      node.className = 'upg-node ' + status +
+        (affordable ? ' affordable' : '') + (isDailyDeal ? ' daily-deal' : '');
+      node.style.gridColumn = pos.col;
+      node.style.gridRow = pos.row;
 
-      // Daily deal badge styling injected inline so it works without a CSS edit.
-      const dealBadgeHTML = isDailyDeal
-        ? `<div style="font-size:9px;font-weight:bold;color:#ff0;background:#500;padding:1px 5px;border-radius:2px;display:inline-block;">
-             ⚡ DAILY DEAL −${Math.round(dealDiscount*100)}%
-           </div>`
-        : '';
-      const capBadgeHTML = capOut
-        ? `<div style="font-size:9px;font-weight:bold;color:#ff8a8a;background:#3a1010;padding:1px 5px;border-radius:2px;display:inline-block;" title="Fish Co. is out of deliveries for today — fly again, or buy Cargo Crate for a bigger allowance.">
-             \u{1F4E6} OUT OF DELIVERIES
-           </div>`
-        : '';
+      // pips: one per level, filled up to current level
+      const pips = Array.from({length:max}, (_,i) =>
+        `<span class="pip${i < lvl ? ' on' : ''}"></span>`).join('');
 
-      // Hover/focus reveal — the card itself stays minimal (icon, name,
-      // pips, buy button); the single next-step payoff only shows in this
-      // overlay. Leveled nodes preview the NEXT level's stat; one-time
-      // nodes have no ladder (val() is just installed/not), so their
-      // overlay explains what the gear does instead.
-      const nextHTML = u.oneTime
-        ? `<b>one-time gear</b>${u.desc}`
-        : `<b>next level</b>${u.val(lvl + 1)}`;
+      // price line under the icon
+      const priceHTML = maxed ? '<span class="pmax">✓ MAX</span>'
+        : locked ? '<span class="plock">🔒</span>'
+        : isDailyDeal
+          ? `<span class="pdeal">${fmtCash(cost)}</span> <s>${fmtCash(rawCost)}</s>`
+          : `<span class="pnow">${fmtCash(cost)}</span>`;
 
-      card.innerHTML = `
-        <div class="upg-art">${UPG_ICONS[u.id] || `<span style="font-size:40px">${u.icon}</span>`}</div>
-        <div class="upg-name">${u.name}</div>
-        ${dealBadgeHTML}${capBadgeHTML}
-        <div class="pips">${pips}</div>
-        <button ${(capOut || state.money<cost)?'disabled':''}>${isDailyDeal ? `Deal — ${fmtCash(cost)}` : `Buy — ${fmtCash(cost)}`}${isDailyDeal && baseCost !== cost ? ` <s style="color:var(--muted);font-size:9px">${fmtCash(baseCost)}</s>` : ''}</button>
-        <div class="upg-next">${nextHTML}</div>`;
-      card.querySelector('button').addEventListener('click', () => {
-        if(state.money < cost || capRemaining() <= 0) return;
-        state.money -= cost;
-        if(u.oneTime) state.perm[u.id] = true;
-        else state.lvl[u.id]++;
-        registerPurchase();
-        econLog?.logBuy({ name: u.name, id: u.id, cost, lvl: u.oneTime ? 'owned' : state.lvl[u.id] });
-        SFX.buy();
-        save();
-        renderShop();
-        recompute();   // live-preview taller ramp behind the shop
-      });
-      row.appendChild(card);
-      cardEls[u.id] = card;
+      // hover tooltip — name, current/next effect, and any unmet requirement
+      const effect = u.oneTime ? u.desc
+        : maxed ? u.val(lvl) : u.val(lvl + 1);
+      const reqNote = unmet.length
+        ? `<span class="need">Needs ${unmet.map(r => {
+            const ru = upgById[reqId(r)];
+            const nm = ru ? ru.name : reqId(r);
+            return reqLvl(r) > 1 ? `${nm} Lv.${reqLvl(r)}` : nm;
+          }).join(' + ')}</span>`
+        : distLocked ? `<span class="need">Reach ${fmtDist(u.unlock)} first</span>` : '';
+      const lvlNote = maxed ? 'maxed' : `Lv.${lvl}/${max}`;
+      const tipStatus = maxed ? '' : locked ? '' : `<div class="tip-buy">Buy Lv.${lvl+1} — ${fmtCash(cost)}${isDailyDeal ? ' ⚡deal' : ''}</div>`;
+
+      node.innerHTML = `
+        <div class="node-art">${UPG_ICONS[u.id] || `<span style="font-size:30px">${u.icon}</span>`}</div>
+        <div class="node-price">${priceHTML}</div>
+        <div class="node-pips">${pips}</div>
+        <div class="node-tip">
+          <b>${u.name}</b>
+          <span class="tip-lvl">${lvlNote}</span>
+          <span class="tip-effect">${effect}</span>
+          ${reqNote}${tipStatus}
+        </div>`;
+
+      if(status === 'buyable'){
+        node.tabIndex = 0;
+        const buy = () => {
+          if(locked || maxed) return;
+          if(state.money < cost || capRemaining() <= 0) return;
+          state.money -= cost;
+          if(u.oneTime) state.perm[u.id] = true;
+          else state.lvl[u.id]++;
+          registerPurchase();
+          econLog?.logBuy({ name: u.name, id: u.id, cost, lvl: u.oneTime ? 'owned' : state.lvl[u.id] });
+          SFX.buy();
+          save();
+          renderShop();
+          recompute();   // live-preview taller ramp behind the shop
+        };
+        node.addEventListener('click', buy);
+        node.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); buy(); } });
       }
-      shopGrid.appendChild(row);
+
+      shopGrid.appendChild(node);
+      nodeEls[u.id] = node;
     }
 
     // ── connector pass ──
-    // Bezier from the bottom-center of each visible prerequisite card to
-    // the top-center of its dependent. A parent that's maxed out (and thus
-    // no longer rendered) simply contributes no line. Lines to a currently
-    // affordable card glow dusk-gold; the rest stay glacial blue.
+    // One bezier per prerequisite edge, from the parent node's centre to
+    // the dependent's centre, drawn from real DOM rects so it's correct in
+    // any direction the branch happens to run. An edge whose requirement is
+    // already satisfied is drawn solid (the path you've walked / can walk);
+    // an edge into a still-locked node is drawn dim + dashed (a route not
+    // yet open). A level-threshold edge (e.g. regen needs wings Lv.3) is
+    // labelled with the level at its midpoint so cross-branch gates read.
     function drawConnectors(){
       while(treeSvg.firstChild) treeSvg.removeChild(treeSvg.firstChild);
       const g = shopGrid.getBoundingClientRect();
       if(g.width < 2 || g.height < 2) return;   // shop hidden — retry on observe
       treeSvg.setAttribute('viewBox', `0 0 ${g.width} ${g.height}`);
-      for(const u of upgAvail){
-        const card = cardEls[u.id];
-        for(const rid of (u.requires || [])){
-          const parent = cardEls[rid];
+
+      const cx = el => el.getBoundingClientRect().left + el.getBoundingClientRect().width/2 - g.left;
+      const cy = el => el.getBoundingClientRect().top + el.getBoundingClientRect().height/2 - g.top;
+
+      for(const u of UPGRADES){
+        const node = nodeEls[u.id];
+        if(!node) continue;
+        for(const r of (u.requires || [])){
+          const parent = nodeEls[reqId(r)];
           if(!parent) continue;
-          const cr = card.getBoundingClientRect();
-          const pr = parent.getBoundingClientRect();
-          const x1 = pr.left + pr.width/2 - g.left, y1 = pr.bottom - g.top - 1;
-          const x2 = cr.left + cr.width/2 - g.left, y2 = cr.top - g.top + 1;
-          const bend = Math.max(12, (y2 - y1) * 0.5);
-          const gold = card.classList.contains('affordable');
+          const met = reqMet(r);
+          const x1 = cx(parent), y1 = cy(parent), x2 = cx(node), y2 = cy(node);
+          // bend along the dominant axis so vertical & horizontal edges both curve gently
+          const horiz = Math.abs(x2 - x1) >= Math.abs(y2 - y1);
+          const bx = horiz ? Math.max(14, Math.abs(x2 - x1) * 0.4) : 0;
+          const by = horiz ? 0 : Math.max(14, Math.abs(y2 - y1) * 0.4);
+          const c1x = x1 + (horiz ? (x2>x1?bx:-bx) : 0), c1y = y1 + (horiz ? 0 : (y2>y1?by:-by));
+          const c2x = x2 - (horiz ? (x2>x1?bx:-bx) : 0), c2y = y2 - (horiz ? 0 : (y2>y1?by:-by));
           const path = document.createElementNS(svgNS, 'path');
-          path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${y1+bend}, ${x2} ${y2-bend}, ${x2} ${y2}`);
+          path.setAttribute('d', `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`);
           path.setAttribute('fill', 'none');
-          path.setAttribute('stroke', gold ? 'rgba(255,200,87,0.6)' : 'rgba(148,164,224,0.45)');
-          path.setAttribute('stroke-width', '2');
+          path.setAttribute('stroke', met ? 'rgba(255,200,87,0.5)' : 'rgba(120,134,190,0.35)');
+          path.setAttribute('stroke-width', met ? '2.4' : '2');
+          if(!met) path.setAttribute('stroke-dasharray', '5 5');
+          path.setAttribute('stroke-linecap', 'round');
           treeSvg.appendChild(path);
-          for(const [cx, cy] of [[x1, y1], [x2, y2]]){
-            const dot = document.createElementNS(svgNS, 'circle');
-            dot.setAttribute('cx', cx); dot.setAttribute('cy', cy);
-            dot.setAttribute('r', '2.6');
-            dot.setAttribute('fill', gold ? 'rgba(255,200,87,0.85)' : 'rgba(148,164,224,0.65)');
-            treeSvg.appendChild(dot);
+          // level-threshold badge at the edge midpoint
+          if(reqLvl(r) > 1){
+            const mx = (x1 + x2)/2, my = (y1 + y2)/2;
+            const badge = document.createElementNS(svgNS, 'text');
+            badge.setAttribute('x', mx); badge.setAttribute('y', my);
+            badge.setAttribute('text-anchor', 'middle');
+            badge.setAttribute('dominant-baseline', 'central');
+            badge.setAttribute('font-size', '9');
+            badge.setAttribute('font-weight', '700');
+            badge.setAttribute('fill', met ? 'rgba(255,216,138,0.95)' : 'rgba(160,172,214,0.8)');
+            badge.textContent = 'L' + reqLvl(r);
+            treeSvg.appendChild(badge);
           }
         }
       }
+      centerOnRoot(nodeEls['ramp']);
     }
     redrawConnectors = drawConnectors;
     requestAnimationFrame(drawConnectors);
