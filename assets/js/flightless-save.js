@@ -53,7 +53,9 @@ export function defaultState(){
     everDid: {},
     // ramp spline control points in unit shape space (gate → lip); the last
     // point IS the lip. Upgrades buy track length; this is the shape of it.
-    rampShape: [{x:0.03,y:0.95},{x:0.16,y:0.32},{x:0.72,y:0.02},{x:1,y:0.10}],
+    // Default shape: gate at the top-left, dropping to the ice, then curving
+    // back up to about a third height by the lip on the right.
+    rampShape: [{x:0.03,y:0.97},{x:0.30,y:0.05},{x:0.65,y:0.18},{x:1,y:0.33}],
   };
 }
 

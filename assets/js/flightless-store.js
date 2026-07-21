@@ -2,8 +2,9 @@
 //
 // Owns everything about the in-between-flights shop screen: the single
 // unified upgrade tree (upgrades + one-time gear, all one grid now — no
-// more tabs), the goals list (milestones + daily contracts + landmarks +
-// the medal wall), and the ramp-shape designer pop-over. It has no physics
+// more tabs), the achievements grid (milestones + daily contracts +
+// landmarks + medals, all one icon grid — no text goals list), and the
+// ramp-shape designer pop-over. It has no physics
 // or rendering of its own — it's handed the save state, the upgrade/medal
 // data tables, and a handful of pure helper functions from the host page,
 // and it owns the DOM inside #shop from there.
@@ -14,7 +15,7 @@
 export function createStore(deps){
   const {
     state, UPGRADES, MEDALS, LANDMARKS, MILESTONES,
-    contractsFor, upgCost, fmtCash, fmtDist, save, SFX, defaultState,
+    contractsFor, fmtCash, fmtDist, save, SFX, defaultState,
     getSt, getRamp, recompute, sampleShape, clamp, RAD, econLog,
   } = deps;
   const DAILY_CAP_BASE = typeof deps.DAILY_CAP_BASE === 'number' ? deps.DAILY_CAP_BASE : 3;
@@ -53,8 +54,7 @@ export function createStore(deps){
   }
 
   const shopGrid = document.getElementById('shop-grid');
-  const medalRow = document.getElementById('medal-row');
-  const goalList = document.getElementById('goal-list');
+  const achGrid = document.getElementById('ach-grid');
 
   // ── upgrade icons (inline SVG, Arctic Dusk palette) ──
   // Purely presentational, so they live here in the store module rather
@@ -173,29 +173,6 @@ export function createStore(deps){
       `<line x1="33" y1="32" x2="33" y2="38" stroke="${IC.G}" stroke-width="2.2"/>`),
   };
 
-  // ── tree depth ──
-  // Tier = longest prerequisite chain below a node, computed over the FULL
-  // upgrade table (not just visible cards) so a node never jumps rows as
-  // parents max out and drop off the grid.
-  const upgById = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
-  const depthMemo = {};
-  function upgDepth(id){
-    if(id in depthMemo) return depthMemo[id];
-    const req = upgById[id]?.requires || [];
-    return depthMemo[id] = req.length ? 1 + Math.max(...req.map(upgDepth)) : 0;
-  }
-
-  // Connector redraw hook — renderShop() swaps in a closure over the
-  // current card set. renderShop() runs while #shop is still display:none
-  // (the host page adds .show right after), so rects are all zero at build
-  // time; the ResizeObserver fires when the grid actually gets laid out
-  // (0 → real size), and again on any wrap/resize.
-  let redrawConnectors = null;
-  window.addEventListener('resize', () => redrawConnectors && redrawConnectors());
-  if(typeof ResizeObserver === 'function'){
-    new ResizeObserver(() => redrawConnectors && redrawConnectors()).observe(shopGrid);
-  }
-
   // ── ramp designer (collapsible pop-over) ──
   // A one-line summary button in the shop footer; the canvas appears above
   // it on demand. All four control points drag, including the lip, so the
@@ -210,75 +187,6 @@ export function createStore(deps){
   const edX = p => ED_PAD + p.x*(ED_W-2*ED_PAD);
   const edY = p => ED_GROUND - p.y*(ED_GROUND-ED_TOP);
   let edDrag = -1;
-
-  // ── ramp designer presets ──
-  // Preset control-point arrays: each entry is a full rampShape replacement.
-  // Points are in normalised [0,1]×[0,1] coordinates matching the editor's
-  // convention: x increases left→right along the ramp base, y=0 is ground
-  // level and y=1 is the top of the editor canvas.
-  const RAMP_PRESETS = [
-    {
-      label: '🚀 Steep Launch',
-      // Gate high, kicker near the end, lip shoots near-vertical.
-      shape: [
-        { x: 0.08, y: 0.82 },
-        { x: 0.38, y: 0.65 },
-        { x: 0.68, y: 0.38 },
-        { x: 0.92, y: 0.14 },
-      ],
-    },
-    {
-      label: '🪂 Long Glide',
-      // Gentle ramp for maximum horizontal carry rather than altitude.
-      shape: [
-        { x: 0.06, y: 0.55 },
-        { x: 0.32, y: 0.42 },
-        { x: 0.62, y: 0.28 },
-        { x: 0.94, y: 0.18 },
-      ],
-    },
-    {
-      label: '🛹 Trick Ramp',
-      // Mid-height kicker with a sharp upswing at the lip for combos/style.
-      shape: [
-        { x: 0.07, y: 0.45 },
-        { x: 0.28, y: 0.35 },
-        { x: 0.60, y: 0.50 },
-        { x: 0.90, y: 0.22 },
-      ],
-    },
-  ];
-
-  // Build the preset button row and append it into #ramp-pop (above the
-  // canvas) so the DOM order is: presets → canvas → footer.
-  const presetRow = document.createElement('div');
-  presetRow.style.cssText = 'display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-bottom:2px;';
-  for(const preset of RAMP_PRESETS){
-    const btn = document.createElement('button');
-    btn.textContent = preset.label;
-    btn.style.cssText = [
-      'font-family:inherit',
-      'font-size:10px',
-      'cursor:pointer',
-      'background:var(--panel)',
-      'color:var(--text)',
-      'border:1px solid var(--border)',
-      'padding:3px 7px',
-      'border-radius:3px',
-    ].join(';');
-    btn.addEventListener('mouseenter', () => { btn.style.borderColor = 'var(--yellow)'; });
-    btn.addEventListener('mouseleave', () => { btn.style.borderColor = 'var(--border)'; });
-    btn.addEventListener('click', () => {
-      // Deep-copy the preset so later drags don't mutate our constant.
-      state.rampShape = preset.shape.map(p => ({ ...p }));
-      recompute();
-      save();
-      drawEditor();
-    });
-    presetRow.appendChild(btn);
-  }
-  // Insert before the canvas (first child of ramp-pop).
-  rampPop.insertBefore(presetRow, rampPop.firstChild);
 
   function drawEditor(){
     const ramp = getRamp();
@@ -508,47 +416,51 @@ export function createStore(deps){
       controlsHintEl.textContent = segs.join(' · ');
     }
 
-    // goals
-    goalList.innerHTML = '';
+    // achievements — milestones, landmark bosses, daily contracts, and
+    // medals all render as one flat icon grid: no text list, ever. Each
+    // badge is on/off (plus a transitional next/partial/contract state);
+    // name, reward, and progress detail live in the hover tooltip only.
+    achGrid.innerHTML = '';
+    function addBadge(icon, title, cls, pct){
+      const b = document.createElement('div');
+      b.className = 'ach ' + cls;
+      b.title = title;
+      b.textContent = icon;
+      if(pct != null){
+        const p = document.createElement('span');
+        p.className = 'ach-pct';
+        p.textContent = pct + '%';
+        b.appendChild(p);
+      }
+      achGrid.appendChild(b);
+    }
+    // distance milestones — the next unclaimed one gets a "next" highlight
     let nextMarked = false;
     for(const [dist, cash] of MILESTONES){
-      const li = document.createElement('li');
       const done = state.claimed.includes(dist);
-      li.textContent = `${fmtDist(dist)} (${fmtCash(cash)})`;
-      if(done) li.className = 'done';
-      else if(!nextMarked){ li.className = 'next'; li.textContent = '▶ '+li.textContent; nextMarked = true; }
-      goalList.appendChild(li);
+      let cls = done ? 'on' : 'off';
+      let title = `${fmtDist(dist)} — ${fmtCash(cash)}${done ? ' (claimed)' : ''}`;
+      if(!done && !nextMarked){ cls = 'next'; title = '▶ Next: ' + title; nextMarked = true; }
+      addBadge('\u{1F6A9}', title, cls);
     }
-    // today's contracts
+    // today's contracts — previewed, not tracked (judged at flight's end)
     for(const c of contractsFor(state.day)){
-      const li = document.createElement('li');
-      li.textContent = `\u{1F4CB} ${c.text} (+${fmtCash(c.reward)})`;
-      li.style.color = 'var(--text)';
-      goalList.appendChild(li);
+      addBadge('\u{1F4CB}', `${c.text} — +${fmtCash(c.reward)}`, 'contract');
     }
-    // landmark status
+    // landmark bosses — pct shown is damage dealt so far, 0–100%
     for(const lm of LANDMARKS){
       const hp = state.lmHP[lm.id];
-      const li = document.createElement('li');
-      if(hp <= 0){
-        li.textContent = `\u{1F4A5} ${lm.name} destroyed`;
-        li.className = 'done';
-      } else {
-        li.textContent = `\u{1F3AF} ${lm.name} @ ${fmtDist(lm.x)} — ${Math.ceil(hp/lm.hp*100)}%`;
-      }
-      goalList.appendChild(li);
+      const down = hp <= 0;
+      const dmgPct = Math.min(100, Math.max(0, 100 - Math.ceil(hp/lm.hp*100)));
+      addBadge('\u{1F3AF}',
+        down ? `${lm.name} — destroyed (+${fmtCash(lm.reward)})` : `${lm.name} @ ${fmtDist(lm.x)} — ${dmgPct}% damaged`,
+        down ? 'on' : (dmgPct > 0 ? 'partial' : 'off'),
+        down || dmgPct === 0 ? null : dmgPct);
     }
-
-    // medal wall — unified into Goals (no separate tab): earned bright,
-    // unearned greyed, cash value (if any) shown in the tooltip
-    medalRow.innerHTML = '';
+    // permanent medals — earned bright, unearned greyed
     for(const m of MEDALS){
       const got = state.medals.includes(m.id);
-      const chip = document.createElement('div');
-      chip.className = 'medal ' + (got ? 'on' : 'off');
-      chip.textContent = m.icon;
-      chip.title = `${m.name}${m.cash > 0 ? ' (+'+fmtCash(m.cash)+')' : ''} — ${m.desc}`;
-      medalRow.appendChild(chip);
+      addBadge(m.icon, `${m.name}${m.cash > 0 ? ' (+'+fmtCash(m.cash)+')' : ''} — ${m.desc}`, got ? 'on' : 'off');
     }
 
     // ── daily deal resolution (defensive: dailyDealFor may be absent) ──
@@ -570,11 +482,12 @@ export function createStore(deps){
     // so physics/hud/results (which already read state.perm.speedo etc.)
     // needed no changes.
     //
-    // Layout: cards are grouped into tier rows by upgDepth() so the grid
-    // reads as an actual tree, and an absolutely-positioned SVG underlay
-    // draws a connector from each card up to every visible prerequisite
-    // card (two-parent nodes get two lines). Geometry comes from real DOM
-    // rects, recomputed by the ResizeObserver/resize hooks above.
+    // Layout: one flat grid, one icon cell per level of each visible
+    // upgrade, grouped so an upgrade's levels sit contiguously (in
+    // UPGRADES' own root→leaf order — no depth tiers, no connector lines).
+    // Only the level right after the owned count is buyable; later levels
+    // show their price greyed out so the player can plan ahead. Name,
+    // per-level effect, and price only ever show in the hover tooltip.
     shopGrid.innerHTML = '';
     function isOwned(id){
       const u = UPGRADES.find(x => x.id === id);
@@ -585,127 +498,62 @@ export function createStore(deps){
     const missingRequires = u => (u.requires || []).filter(id => !isOwned(id));
     const upgAvail = UPGRADES.filter(u =>
       state.best.dist >= (u.unlock||0) && ownedLevel(u) < u.max && missingRequires(u).length === 0);
+    const capOut = capRemaining() <= 0;
 
-    const svgNS = 'http://www.w3.org/2000/svg';
-    const treeSvg = document.createElementNS(svgNS, 'svg');
-    treeSvg.setAttribute('class', 'tree-svg');
-    treeSvg.setAttribute('preserveAspectRatio', 'none');
-    shopGrid.appendChild(treeSvg);
-
-    const cardEls = {};
-    const tiers = new Map();
     for(const u of upgAvail){
-      const d = upgDepth(u.id);
-      if(!tiers.has(d)) tiers.set(d, []);
-      tiers.get(d).push(u);
-    }
-
-    for(const depth of [...tiers.keys()].sort((a,b)=>a-b)){
-      const row = document.createElement('div');
-      row.className = 'tree-tier';
-      for(const u of tiers.get(depth)){
       const lvl = ownedLevel(u);
-      const baseCost = upgCost(u);
+      const levels = u.oneTime ? 1 : u.max;
+      const group = document.createElement('div');
+      group.className = 'upg-group';
 
-      // Apply daily deal discount if this upgrade matches today's deal.
-      const isDailyDeal = todaysDeal && todaysDeal.id === u.id;
-      const dealDiscount = isDailyDeal && typeof todaysDeal.discount === 'number'
-        ? clamp(todaysDeal.discount, 0, 0.9)
-        : 0;
-      const cost = isDailyDeal ? Math.max(1, Math.round(baseCost * (1 - dealDiscount))) : baseCost;
-      const capOut = capRemaining() <= 0;
+      for(let i=0; i<levels; i++){
+        const owned = i < lvl;
+        const isNext = i === lvl;
+        const rawCost = u.oneTime ? u.base : Math.round(u.base * Math.pow(u.mul, i));
 
-      const affordable = !capOut && state.money >= cost;
-      const card = document.createElement('div');
-      card.className = 'upg' + (affordable ? ' affordable' : '') + (isDailyDeal ? ' daily-deal' : '');
+        // Daily deal discount only ever applies to the next buyable level.
+        const isDailyDeal = isNext && todaysDeal && todaysDeal.id === u.id;
+        const dealDiscount = isDailyDeal && typeof todaysDeal.discount === 'number'
+          ? clamp(todaysDeal.discount, 0, 0.9) : 0;
+        const cost = isDailyDeal ? Math.max(1, Math.round(rawCost * (1 - dealDiscount))) : rawCost;
+        const affordable = isNext && !capOut && state.money >= cost;
 
-      const pips = Array.from({length:u.max}, (_,i)=>`<div class="pip${i<lvl?' on':''}"></div>`).join('');
+        const cell = document.createElement('div');
+        cell.className = 'lvl-icon' +
+          (owned ? ' owned' : isNext ? ' next' : ' locked') +
+          (affordable ? ' affordable' : '') + (isDailyDeal ? ' daily-deal' : '');
 
-      // Daily deal badge styling injected inline so it works without a CSS edit.
-      const dealBadgeHTML = isDailyDeal
-        ? `<div style="font-size:9px;font-weight:bold;color:#ff0;background:#500;padding:1px 5px;border-radius:2px;display:inline-block;">
-             ⚡ DAILY DEAL −${Math.round(dealDiscount*100)}%
-           </div>`
-        : '';
-      const capBadgeHTML = capOut
-        ? `<div style="font-size:9px;font-weight:bold;color:#ff8a8a;background:#3a1010;padding:1px 5px;border-radius:2px;display:inline-block;" title="Fish Co. is out of deliveries for today — fly again, or buy Cargo Crate for a bigger allowance.">
-             \u{1F4E6} OUT OF DELIVERIES
-           </div>`
-        : '';
+        const effect = u.oneTime ? u.desc : u.val(i + 1);
+        const statusLine = owned ? 'owned'
+          : isNext && capOut ? 'no deliveries left today'
+          : isDailyDeal ? `${fmtCash(cost)} (deal, was ${fmtCash(rawCost)})`
+          : fmtCash(cost);
+        const tipLabel = levels > 1 ? `${u.name} · Lv.${i+1}` : u.name;
 
-      // Hover/focus reveal — the card itself stays minimal (icon, name,
-      // pips, buy button); the single next-step payoff only shows in this
-      // overlay. Leveled nodes preview the NEXT level's stat; one-time
-      // nodes have no ladder (val() is just installed/not), so their
-      // overlay explains what the gear does instead.
-      const nextHTML = u.oneTime
-        ? `<b>one-time gear</b>${u.desc}`
-        : `<b>next level</b>${u.val(lvl + 1)}`;
+        cell.innerHTML = `
+          <div class="lvl-art">${UPG_ICONS[u.id] || `<span style="font-size:28px">${u.icon}</span>`}</div>
+          <div class="lvl-price">${owned ? '✓' : fmtCash(cost)}</div>
+          <div class="lvl-tip"><b>${tipLabel}</b>${effect}<br>${statusLine}</div>`;
 
-      card.innerHTML = `
-        <div class="upg-art">${UPG_ICONS[u.id] || `<span style="font-size:40px">${u.icon}</span>`}</div>
-        <div class="upg-name">${u.name}</div>
-        ${dealBadgeHTML}${capBadgeHTML}
-        <div class="pips">${pips}</div>
-        <button ${(capOut || state.money<cost)?'disabled':''}>${isDailyDeal ? `Deal — ${fmtCash(cost)}` : `Buy — ${fmtCash(cost)}`}${isDailyDeal && baseCost !== cost ? ` <s style="color:var(--muted);font-size:9px">${fmtCash(baseCost)}</s>` : ''}</button>
-        <div class="upg-next">${nextHTML}</div>`;
-      card.querySelector('button').addEventListener('click', () => {
-        if(state.money < cost || capRemaining() <= 0) return;
-        state.money -= cost;
-        if(u.oneTime) state.perm[u.id] = true;
-        else state.lvl[u.id]++;
-        registerPurchase();
-        econLog?.logBuy({ name: u.name, id: u.id, cost, lvl: u.oneTime ? 'owned' : state.lvl[u.id] });
-        SFX.buy();
-        save();
-        renderShop();
-        recompute();   // live-preview taller ramp behind the shop
-      });
-      row.appendChild(card);
-      cardEls[u.id] = card;
-      }
-      shopGrid.appendChild(row);
-    }
-
-    // ── connector pass ──
-    // Bezier from the bottom-center of each visible prerequisite card to
-    // the top-center of its dependent. A parent that's maxed out (and thus
-    // no longer rendered) simply contributes no line. Lines to a currently
-    // affordable card glow dusk-gold; the rest stay glacial blue.
-    function drawConnectors(){
-      while(treeSvg.firstChild) treeSvg.removeChild(treeSvg.firstChild);
-      const g = shopGrid.getBoundingClientRect();
-      if(g.width < 2 || g.height < 2) return;   // shop hidden — retry on observe
-      treeSvg.setAttribute('viewBox', `0 0 ${g.width} ${g.height}`);
-      for(const u of upgAvail){
-        const card = cardEls[u.id];
-        for(const rid of (u.requires || [])){
-          const parent = cardEls[rid];
-          if(!parent) continue;
-          const cr = card.getBoundingClientRect();
-          const pr = parent.getBoundingClientRect();
-          const x1 = pr.left + pr.width/2 - g.left, y1 = pr.bottom - g.top - 1;
-          const x2 = cr.left + cr.width/2 - g.left, y2 = cr.top - g.top + 1;
-          const bend = Math.max(12, (y2 - y1) * 0.5);
-          const gold = card.classList.contains('affordable');
-          const path = document.createElementNS(svgNS, 'path');
-          path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${y1+bend}, ${x2} ${y2-bend}, ${x2} ${y2}`);
-          path.setAttribute('fill', 'none');
-          path.setAttribute('stroke', gold ? 'rgba(255,200,87,0.6)' : 'rgba(148,164,224,0.45)');
-          path.setAttribute('stroke-width', '2');
-          treeSvg.appendChild(path);
-          for(const [cx, cy] of [[x1, y1], [x2, y2]]){
-            const dot = document.createElementNS(svgNS, 'circle');
-            dot.setAttribute('cx', cx); dot.setAttribute('cy', cy);
-            dot.setAttribute('r', '2.6');
-            dot.setAttribute('fill', gold ? 'rgba(255,200,87,0.85)' : 'rgba(148,164,224,0.65)');
-            treeSvg.appendChild(dot);
-          }
+        if(isNext){
+          cell.tabIndex = 0;
+          cell.addEventListener('click', () => {
+            if(state.money < cost || capRemaining() <= 0) return;
+            state.money -= cost;
+            if(u.oneTime) state.perm[u.id] = true;
+            else state.lvl[u.id]++;
+            registerPurchase();
+            econLog?.logBuy({ name: u.name, id: u.id, cost, lvl: u.oneTime ? 'owned' : state.lvl[u.id] });
+            SFX.buy();
+            save();
+            renderShop();
+            recompute();   // live-preview taller ramp behind the shop
+          });
         }
+        group.appendChild(cell);
       }
+      shopGrid.appendChild(group);
     }
-    redrawConnectors = drawConnectors;
-    requestAnimationFrame(drawConnectors);
   }
 
   return { renderShop, drawEditor };

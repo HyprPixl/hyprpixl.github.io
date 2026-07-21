@@ -197,9 +197,9 @@
   }
   @media (max-width:700px){
     .shop-top{ padding:38px 0 0; }
-    .shop-grid{ gap:26px; }
-    .tree-tier{ gap:10px; }
-    .upg{ width:134px; }
+    .shop-grid{ gap:14px 18px; }
+    .upg-group{ gap:4px; }
+    .lvl-icon{ width:48px; }
   }
   .shop-top .game-title{ margin:0; text-align:left; font-size:clamp(18px,2.6vw,28px); letter-spacing:2.5px; }
   .shop-top .subtitle{ margin:0; text-align:left; flex:1 1 auto; }
@@ -283,106 +283,90 @@
   .shop-panel[hidden]{ display:none; }
 
   /* ── upgrade tree ──
-     Cards render in tier rows (depth from the tree roots) with an SVG
-     underlay (.tree-svg, built by store.js) drawing prerequisite
-     connector lines between them. */
+     A single flat grid of level icons: one cell per level of each unlocked
+     upgrade, grouped so an upgrade's levels sit contiguously. Price sits
+     under the icon; name/description/effect only ever show on hover. */
   .shop-grid{
-    position:relative;
-    display:flex; flex-direction:column; gap:34px;
-    padding:8px 2px 14px; margin-bottom:8px;
+    display:flex; flex-wrap:wrap; align-content:flex-start;
+    gap:18px 22px; padding:8px 2px 14px; margin-bottom:8px;
   }
-  .tree-svg{
-    position:absolute; inset:0; width:100%; height:100%;
-    z-index:0; pointer-events:none;
+  .upg-group{
+    display:flex; gap:5px; flex-wrap:wrap; align-items:flex-start;
   }
-  .tree-tier{
-    position:relative; z-index:1;
-    display:flex; justify-content:center; gap:14px 16px; flex-wrap:wrap;
-  }
-  .upg{
-    position:relative; width:150px; flex:0 0 auto;
+  .lvl-icon{
+    position:relative; width:56px; flex:0 0 auto; cursor:help;
     background:linear-gradient(165deg,var(--panel2) 0%,var(--panel) 100%);
-    border:1px solid var(--border); border-radius:var(--radius);
-    padding:10px 10px 11px; display:flex; flex-direction:column; gap:6px;
+    border:1px solid var(--border); border-radius:10px;
+    padding:6px 4px 5px; display:flex; flex-direction:column; gap:3px;
     align-items:center; text-align:center;
-    box-shadow:0 4px 12px rgba(4,6,20,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
-    transition:transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    box-shadow:0 3px 8px rgba(4,6,20,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+    transition:transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
   }
-  .upg:hover{
+  .lvl-icon svg{ width:32px; height:32px; display:block; filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35)); }
+  .lvl-icon .lvl-price{ font-size:10px; font-weight:700; color:var(--muted); }
+  .lvl-icon.owned{ opacity:0.55; }
+  .lvl-icon.owned .lvl-price{ color:var(--cash); }
+  .lvl-icon.locked{ filter:grayscale(0.7); opacity:0.4; cursor:default; }
+  .lvl-icon.next{ cursor:pointer; }
+  .lvl-icon.next:hover{
     border-color:var(--border-strong); transform:translateY(-2px);
-    box-shadow:0 8px 20px rgba(4,6,20,0.4), inset 0 1px 0 rgba(255,255,255,0.07);
+    box-shadow:0 6px 14px rgba(4,6,20,0.4), inset 0 1px 0 rgba(255,255,255,0.07);
   }
-  .upg.affordable{ border-color:rgba(99,230,164,0.65); box-shadow:0 0 14px rgba(99,230,164,0.18), inset 0 1px 0 rgba(255,255,255,0.05); }
-  .upg.affordable:hover{ box-shadow:0 0 18px rgba(99,230,164,0.28), 0 8px 20px rgba(4,6,20,0.4); }
-  .upg.daily-deal{ border-color:rgba(255,200,87,0.7); box-shadow:0 0 16px rgba(255,180,60,0.22), inset 0 1px 0 rgba(255,255,255,0.05); }
-  .upg .upg-art{ display:flex; justify-content:center; align-items:center; }
-  .upg .upg-art svg{
-    width:58px; height:58px; display:block;
-    filter:drop-shadow(0 2px 4px rgba(0,0,0,0.35));
-  }
-  .upg .upg-name{ font-weight:800; color:#ffd88a; font-size:12px; letter-spacing:0.2px; }
-  /* next-level stat — hidden until the card is hovered or focused */
-  .upg .upg-next{
-    position:absolute; left:5px; right:5px; top:5px; z-index:3;
-    background:rgba(9,12,32,0.93); border:1px solid var(--border-strong);
+  .lvl-icon.next.affordable{ border-color:rgba(99,230,164,0.65); box-shadow:0 0 10px rgba(99,230,164,0.2), inset 0 1px 0 rgba(255,255,255,0.05); }
+  .lvl-icon.next.affordable .lvl-price{ color:#8ff0bb; }
+  .lvl-icon.next.daily-deal{ border-color:rgba(255,200,87,0.75); box-shadow:0 0 12px rgba(255,180,60,0.25), inset 0 1px 0 rgba(255,255,255,0.05); }
+  .lvl-icon.next.daily-deal .lvl-price{ color:#ffd88a; }
+  .lvl-icon.next:not(.affordable) .lvl-price{ color:var(--red); }
+  /* hover/focus tooltip — name + level effect + price, hidden by default */
+  .lvl-icon .lvl-tip{
+    position:absolute; left:50%; bottom:calc(100% + 6px); transform:translateX(-50%);
+    width:170px; z-index:5;
+    background:rgba(9,12,32,0.96); border:1px solid var(--border-strong);
     border-radius:10px; padding:8px 9px;
-    font-size:10.5px; line-height:1.45; color:var(--text);
-    opacity:0; pointer-events:none; transition:opacity .14s ease;
+    font-size:10.5px; line-height:1.45; color:var(--text); text-align:left;
+    opacity:0; pointer-events:none; transition:opacity .12s ease;
     box-shadow:0 8px 18px rgba(4,6,20,0.5);
   }
-  .upg .upg-next b{
-    display:block; font-size:8.5px; font-weight:800; letter-spacing:1.6px;
-    color:var(--teal); text-transform:uppercase; margin-bottom:2px;
+  .lvl-icon .lvl-tip b{
+    display:block; font-size:10.5px; font-weight:800; color:#ffd88a; margin-bottom:2px;
   }
-  .upg:hover .upg-next, .upg:focus-within .upg-next{ opacity:1; }
-  .upg .pips{ display:flex; gap:3px; flex-wrap:wrap; justify-content:center; }
-  .upg .pip{ width:10px; height:6px; border-radius:3px; background:rgba(10,14,38,0.8); border:1px solid var(--border); }
-  .upg .pip.on{ background:var(--yellow); border-color:var(--yellow); box-shadow:0 0 5px rgba(255,200,87,0.5); }
-  .upg button{
-    width:100%; margin-top:auto;
-    font-weight:800; font-size:12px; letter-spacing:0.3px;
-    background:var(--btn-grad); color:var(--btn-ink);
-    border:none; border-radius:10px; padding:6px 8px; cursor:pointer;
-    box-shadow:0 3px 0 var(--btn-lip);
-    transition:filter .12s ease, transform .06s ease, box-shadow .06s ease;
-  }
-  .upg button:hover:not(:disabled){ filter:brightness(1.08); }
-  .upg button:active:not(:disabled){ transform:translateY(2px); box-shadow:0 1px 0 var(--btn-lip); }
-  .upg button:disabled{
-    background:#2a3160; color:#7580b5; box-shadow:0 3px 0 #1b2150;
-    cursor:not-allowed;
-  }
-  /* the bonus-shop refund link (styled inline by JS as a text link) must not
-     inherit the chunky button treatment */
-  .upg .bonus-refund{ box-shadow:none !important; border-radius:0; }
-  .upg .locked-note{ font-size:10.5px; font-weight:700; color:var(--red); }
+  .lvl-icon:hover .lvl-tip, .lvl-icon:focus-within .lvl-tip{ opacity:1; }
 
-  .medal-row{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
-  .medal{
-    font-size:18px; line-height:1; padding:8px; cursor:help;
+  .goals{
+    background:var(--glass); border:1px solid var(--border); border-radius:12px;
+    padding:8px 14px; margin:0; font-size:12px;
+    display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap;
+  }
+  .goals h3{
+    margin:4px 0 0; color:var(--yellow); font-size:11px; font-weight:800;
+    text-transform:uppercase; letter-spacing:1.5px; white-space:nowrap;
+  }
+  /* ── achievements grid ──
+     Milestones, landmark bosses, daily contracts, and medals all render as
+     one flat icon grid — no text list. Completion state is on/off (plus a
+     transitional "next"/"partial" state); every detail (name, reward,
+     description, progress) lives in the hover tooltip only. */
+  .ach-grid{ display:flex; flex-wrap:wrap; gap:6px; flex:1 1 auto; }
+  .ach{
+    position:relative; font-size:18px; line-height:1; padding:8px; cursor:help;
     background:linear-gradient(165deg,var(--panel2),var(--panel));
     border:1px solid var(--border); border-radius:12px;
   }
-  .medal.on{
+  .ach.on{
     border-color:rgba(255,200,87,0.75);
     background:linear-gradient(165deg,#3a3564,var(--panel));
     box-shadow:0 0 10px rgba(255,190,80,0.28);
   }
-  .medal.off{ filter:grayscale(1); opacity:0.32; }
-
-  .goals{
-    background:var(--glass); border:1px solid var(--border); border-radius:12px;
-    padding:6px 14px; margin:0; font-size:12px;
-    display:flex; align-items:center; gap:12px;
+  .ach.off{ filter:grayscale(1); opacity:0.32; }
+  .ach.partial{ filter:grayscale(0.65); opacity:0.6; }
+  .ach.next{ opacity:0.9; border-color:rgba(255,216,138,0.55); }
+  .ach.contract{ border-style:dashed; opacity:0.75; }
+  .ach-pct{
+    position:absolute; right:-5px; bottom:-5px; min-width:18px; padding:1px 4px;
+    border-radius:999px; background:var(--cash); color:#053a1e;
+    font-size:9px; font-weight:800; text-align:center; line-height:14px;
+    border:1px solid var(--panel);
   }
-  .goals h3{
-    margin:0; color:var(--yellow); font-size:11px; font-weight:800;
-    text-transform:uppercase; letter-spacing:1.5px; white-space:nowrap;
-  }
-  .goals ul{ margin:0; padding:0; list-style:none; display:flex; flex-wrap:wrap; gap:3px 14px; }
-  .goals li{ color:var(--muted); white-space:nowrap; }
-  .goals li.done{ color:var(--cash); text-decoration:line-through; }
-  .goals li.next{ color:#ffd88a; font-weight:700; }
 
   .big-btn{
     display:block; margin:18px auto 0; padding:14px 60px;
@@ -562,7 +546,7 @@
 
   @media (prefers-reduced-motion:reduce){
     .big-btn{ animation:none; }
-    .upg, .upg:hover{ transform:none; transition:none; }
+    .lvl-icon, .lvl-icon:hover{ transform:none; transition:none; }
     .popup{ animation-duration:0.6s; }
   }
 </style>
@@ -625,9 +609,8 @@
       </div>
     </div>
     <div class="goals">
-      <h3>&#127937; Goals</h3>
-      <ul id="goal-list"></ul>
-      <div class="medal-row" id="medal-row"></div>
+      <h3>&#127942; Achievements</h3>
+      <div class="ach-grid" id="ach-grid"></div>
     </div>
     <div class="shop-scroll">
       <div class="shop-panel" id="panel-upgrades">
