@@ -56,6 +56,146 @@ export function createStore(deps){
   const medalRow = document.getElementById('medal-row');
   const goalList = document.getElementById('goal-list');
 
+  // ── upgrade icons (inline SVG, Arctic Dusk palette) ──
+  // Purely presentational, so they live here in the store module rather
+  // than in the data tables — data.js keeps its emoji `icon` field as a
+  // fallback for any node this map doesn't cover. No external image
+  // requests: every icon is a hand-drawn inline SVG sharing one 48×48
+  // grid, a faint glacial halo, and the theme's gold/teal/coral inks.
+  const IC = { G:'#ffc857', T:'#5fd4e8', R:'#ff6b57', W:'#eef2ff' };
+  const icon = inner =>
+    `<svg viewBox="0 0 48 48" aria-hidden="true">` +
+      `<circle cx="24" cy="24" r="21.5" fill="rgba(95,212,232,0.07)" stroke="rgba(148,164,224,0.3)" stroke-width="1"/>` +
+      `<g fill="none" stroke-linecap="round" stroke-linejoin="round">${inner}</g>` +
+    `</svg>`;
+  const UPG_ICONS = {
+    // Ramp Track — descending track with support posts on the ice
+    ramp: icon(
+      `<line x1="9" y1="38" x2="39" y2="38" stroke="rgba(238,242,255,0.4)" stroke-width="2"/>`+
+      `<line x1="17" y1="17" x2="17" y2="37" stroke="${IC.T}" stroke-width="2"/>`+
+      `<line x1="27" y1="24" x2="27" y2="37" stroke="${IC.T}" stroke-width="2"/>`+
+      `<path d="M8 13 C 17 15, 28 23, 39 36" stroke="${IC.G}" stroke-width="2.8"/>`),
+    // Speedometer — gauge arc, ticks, needle
+    speedo: icon(
+      `<path d="M10 31 A 14.5 14.5 0 1 1 38 31" stroke="${IC.T}" stroke-width="2.4"/>`+
+      `<line x1="24" y1="9" x2="24" y2="13" stroke="${IC.T}" stroke-width="2"/>`+
+      `<line x1="13" y1="17.5" x2="16" y2="20" stroke="${IC.T}" stroke-width="2"/>`+
+      `<line x1="35" y1="17.5" x2="32" y2="20" stroke="${IC.T}" stroke-width="2"/>`+
+      `<line x1="24" y1="31" x2="33" y2="20" stroke="${IC.G}" stroke-width="2.6"/>`+
+      `<circle cx="24" cy="31" r="2.6" fill="${IC.G}"/>`),
+    // Glider Wings — delta wing with hang strut
+    wings: icon(
+      `<path d="M6 22 Q 24 8, 42 22 L 24 30 Z" fill="rgba(95,212,232,0.16)" stroke="${IC.T}" stroke-width="2.2"/>`+
+      `<line x1="24" y1="16" x2="24" y2="35" stroke="${IC.G}" stroke-width="2.5"/>`+
+      `<circle cx="24" cy="36.5" r="2.5" fill="${IC.G}"/>`),
+    // Cargo Crate — strapped shipping box
+    cargo: icon(
+      `<rect x="11" y="15" width="26" height="22" rx="2.5" stroke="${IC.G}" stroke-width="2.5"/>`+
+      `<line x1="11" y1="22" x2="37" y2="22" stroke="${IC.G}" stroke-width="2"/>`+
+      `<line x1="24" y1="22" x2="24" y2="37" stroke="${IC.T}" stroke-width="2"/>`+
+      `<line x1="11" y1="29.5" x2="37" y2="29.5" stroke="${IC.T}" stroke-width="2"/>`),
+    // Altimeter — height scale beside a climbing arrow
+    alti: icon(
+      `<line x1="15" y1="10" x2="15" y2="38" stroke="${IC.T}" stroke-width="2.4"/>`+
+      `<line x1="15" y1="12" x2="19" y2="12" stroke="${IC.T}" stroke-width="2"/>`+
+      `<line x1="15" y1="19" x2="19" y2="19" stroke="${IC.T}" stroke-width="2"/>`+
+      `<line x1="15" y1="26" x2="19" y2="26" stroke="${IC.T}" stroke-width="2"/>`+
+      `<line x1="15" y1="33" x2="19" y2="33" stroke="${IC.T}" stroke-width="2"/>`+
+      `<line x1="31" y1="38" x2="31" y2="13" stroke="${IC.G}" stroke-width="2.6"/>`+
+      `<path d="M25 19 L 31 11 L 37 19" stroke="${IC.G}" stroke-width="2.6"/>`),
+    // Slick Suit — streamlined airfoil with speed lines
+    aero: icon(
+      `<line x1="4" y1="17" x2="10" y2="17" stroke="${IC.G}" stroke-width="2"/>`+
+      `<line x1="3" y1="24" x2="8" y2="24" stroke="${IC.G}" stroke-width="2"/>`+
+      `<line x1="4" y1="31" x2="10" y2="31" stroke="${IC.G}" stroke-width="2"/>`+
+      `<path d="M11 24 Q 14 15 23 14 Q 35 13 42 24 Q 35 35 23 34 Q 14 33 11 24 Z" fill="rgba(95,212,232,0.14)" stroke="${IC.T}" stroke-width="2.2"/>`),
+    // Rubber Belly — ball on a dashed bounce arc
+    bounce: icon(
+      `<line x1="8" y1="38" x2="40" y2="38" stroke="rgba(238,242,255,0.4)" stroke-width="2"/>`+
+      `<path d="M8 37 Q 16 16 24 37" stroke="${IC.T}" stroke-width="2" stroke-dasharray="3 3.5"/>`+
+      `<path d="M24 37 Q 30 24 36 37" stroke="${IC.T}" stroke-width="2" stroke-dasharray="3 3.5"/>`+
+      `<circle cx="16" cy="26.5" r="5" fill="rgba(255,200,87,0.25)" stroke="${IC.G}" stroke-width="2.4"/>`),
+    // Wing Struts — spar rails with X trusses
+    struts: icon(
+      `<line x1="8" y1="15" x2="40" y2="15" stroke="${IC.G}" stroke-width="2.6"/>`+
+      `<line x1="11" y1="33" x2="37" y2="33" stroke="${IC.G}" stroke-width="2.6"/>`+
+      `<path d="M13 15 L 21 33 M21 15 L 13 33 M27 15 L 35 33 M35 15 L 27 33" stroke="${IC.T}" stroke-width="2"/>`),
+    // Catapult — slingshot frame with drawn band
+    sling: icon(
+      `<path d="M24 41 L 24 27 M24 27 L 13 13 M24 27 L 35 13" stroke="${IC.G}" stroke-width="2.6"/>`+
+      `<path d="M13 13 Q 24 22 35 13" stroke="${IC.T}" stroke-width="2.2"/>`+
+      `<circle cx="24" cy="17.5" r="2.8" fill="${IC.T}"/>`),
+    // Rocket — booster with fins, porthole, flame
+    rocket: icon(
+      `<path d="M19.5 22 L 13 30 L 19.5 30 Z M28.5 22 L 35 30 L 28.5 30 Z" fill="rgba(95,212,232,0.2)" stroke="${IC.T}" stroke-width="2"/>`+
+      `<path d="M24 5.5 C 29 10.5, 30.5 19, 28.5 28.5 L 19.5 28.5 C 17.5 19, 19 10.5, 24 5.5 Z" fill="rgba(238,242,255,0.1)" stroke="${IC.G}" stroke-width="2.3"/>`+
+      `<circle cx="24" cy="16.5" r="3" stroke="${IC.T}" stroke-width="2"/>`+
+      `<path d="M20.5 31.5 C 21.5 36, 22.5 38, 24 41.5 C 25.5 38, 26.5 36, 27.5 31.5" fill="rgba(255,107,87,0.25)" stroke="${IC.R}" stroke-width="2"/>`),
+    // Sponsor Deal — fish-company coin
+    sponsor: icon(
+      `<circle cx="24" cy="24" r="14" stroke="${IC.G}" stroke-width="2.5"/>`+
+      `<circle cx="24" cy="24" r="10.5" stroke="rgba(95,212,232,0.55)" stroke-width="1.6" stroke-dasharray="3 3"/>`+
+      `<text x="24" y="30" text-anchor="middle" font-size="17" font-weight="800" fill="${IC.G}" stroke="none">$</text>`),
+    // Fuel Tank — jerry can with a teal drop
+    fuel: icon(
+      `<path d="M18 15 V 9 H 30 V 15" stroke="${IC.G}" stroke-width="2.2"/>`+
+      `<rect x="14" y="15" width="20" height="25" rx="3" stroke="${IC.G}" stroke-width="2.5"/>`+
+      `<path d="M24 21 C 21.5 25.5, 20 27.5, 20 30 A 4 4 0 0 0 28 30 C 28 27.5, 26.5 25.5, 24 21 Z" fill="${IC.T}" stroke="none"/>`),
+    // Afterburner — double flame burst
+    burner: icon(
+      `<path d="M24 7 C 29 14, 35 19, 35 28 A 11 11 0 0 1 13 28 C 13 19, 19 14, 24 7 Z" fill="rgba(255,200,87,0.12)" stroke="${IC.G}" stroke-width="2.3"/>`+
+      `<path d="M24 21 C 26.5 25, 29 27, 29 31 A 5 5 0 0 1 19 31 C 19 27, 21.5 25, 24 21 Z" fill="rgba(255,107,87,0.85)" stroke="none"/>`),
+    // Ram Plating — riveted shield with chevrons
+    plating: icon(
+      `<path d="M24 6 L 39 12 V 24 C 39 33, 32.5 39, 24 42 C 15.5 39, 9 33, 9 24 V 12 Z" fill="rgba(255,200,87,0.07)" stroke="${IC.G}" stroke-width="2.5"/>`+
+      `<path d="M16 17 L 24 23 L 32 17" stroke="${IC.T}" stroke-width="2.2"/>`+
+      `<path d="M16 25 L 24 31 L 32 25" stroke="${IC.T}" stroke-width="2.2"/>`),
+    // Sky Cannon — angled barrel, mount, muzzle flash
+    gun: icon(
+      `<path d="M12 30 L 28 12 L 34 17.5 L 18 35 Z" fill="rgba(255,200,87,0.1)" stroke="${IC.G}" stroke-width="2.2"/>`+
+      `<circle cx="15" cy="35" r="5.5" stroke="${IC.T}" stroke-width="2.2"/>`+
+      `<path d="M33.5 9.5 L 37 6 M37.5 14 L 42 12 M35.5 11.5 L 39.5 8.5" stroke="${IC.R}" stroke-width="2"/>`),
+    // Fuel Regen — circular arrows around a fuel drop
+    regen: icon(
+      `<path d="M12.7 17.5 A 13 13 0 0 1 35.3 17.5" stroke="${IC.T}" stroke-width="2.4"/>`+
+      `<path d="M35.3 13.5 L 38.8 19 L 31.6 19.7 Z" fill="${IC.T}" stroke="none"/>`+
+      `<path d="M35.3 30.5 A 13 13 0 0 1 12.7 30.5" stroke="${IC.T}" stroke-width="2.4"/>`+
+      `<path d="M12.7 34.5 L 9.2 29 L 16.4 28.3 Z" fill="${IC.T}" stroke="none"/>`+
+      `<path d="M24 18 C 22 21.5, 20.8 23.2, 20.8 25.2 A 3.2 3.2 0 0 0 27.2 25.2 C 27.2 23.2, 26 21.5, 24 18 Z" fill="${IC.G}" stroke="none"/>`),
+    // Reserve Tank — horizontal cylinder with seams and valve
+    tank: icon(
+      `<line x1="24" y1="17" x2="24" y2="12" stroke="${IC.T}" stroke-width="2"/>`+
+      `<circle cx="24" cy="10.5" r="2" stroke="${IC.T}" stroke-width="1.8"/>`+
+      `<rect x="9" y="17" width="30" height="15" rx="7.5" fill="rgba(255,200,87,0.06)" stroke="${IC.G}" stroke-width="2.5"/>`+
+      `<line x1="18" y1="17.5" x2="18" y2="31.5" stroke="${IC.T}" stroke-width="1.8"/>`+
+      `<line x1="30" y1="17.5" x2="30" y2="31.5" stroke="${IC.T}" stroke-width="1.8"/>`+
+      `<line x1="15" y1="32" x2="15" y2="38" stroke="${IC.G}" stroke-width="2.2"/>`+
+      `<line x1="33" y1="32" x2="33" y2="38" stroke="${IC.G}" stroke-width="2.2"/>`),
+  };
+
+  // ── tree depth ──
+  // Tier = longest prerequisite chain below a node, computed over the FULL
+  // upgrade table (not just visible cards) so a node never jumps rows as
+  // parents max out and drop off the grid.
+  const upgById = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
+  const depthMemo = {};
+  function upgDepth(id){
+    if(id in depthMemo) return depthMemo[id];
+    const req = upgById[id]?.requires || [];
+    return depthMemo[id] = req.length ? 1 + Math.max(...req.map(upgDepth)) : 0;
+  }
+
+  // Connector redraw hook — renderShop() swaps in a closure over the
+  // current card set. renderShop() runs while #shop is still display:none
+  // (the host page adds .show right after), so rects are all zero at build
+  // time; the ResizeObserver fires when the grid actually gets laid out
+  // (0 → real size), and again on any wrap/resize.
+  let redrawConnectors = null;
+  window.addEventListener('resize', () => redrawConnectors && redrawConnectors());
+  if(typeof ResizeObserver === 'function'){
+    new ResizeObserver(() => redrawConnectors && redrawConnectors()).observe(shopGrid);
+  }
+
   // ── ramp designer (collapsible pop-over) ──
   // A one-line summary button in the shop footer; the canvas appears above
   // it on demand. All four control points drag, including the lip, so the
@@ -429,6 +569,12 @@ export function createStore(deps){
     // once ever: ownership lives in state.perm[id] instead of state.lvl[id],
     // so physics/hud/results (which already read state.perm.speedo etc.)
     // needed no changes.
+    //
+    // Layout: cards are grouped into tier rows by upgDepth() so the grid
+    // reads as an actual tree, and an absolutely-positioned SVG underlay
+    // draws a connector from each card up to every visible prerequisite
+    // card (two-parent nodes get two lines). Geometry comes from real DOM
+    // rects, recomputed by the ResizeObserver/resize hooks above.
     shopGrid.innerHTML = '';
     function isOwned(id){
       const u = UPGRADES.find(x => x.id === id);
@@ -439,7 +585,25 @@ export function createStore(deps){
     const missingRequires = u => (u.requires || []).filter(id => !isOwned(id));
     const upgAvail = UPGRADES.filter(u =>
       state.best.dist >= (u.unlock||0) && ownedLevel(u) < u.max && missingRequires(u).length === 0);
+
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const treeSvg = document.createElementNS(svgNS, 'svg');
+    treeSvg.setAttribute('class', 'tree-svg');
+    treeSvg.setAttribute('preserveAspectRatio', 'none');
+    shopGrid.appendChild(treeSvg);
+
+    const cardEls = {};
+    const tiers = new Map();
     for(const u of upgAvail){
+      const d = upgDepth(u.id);
+      if(!tiers.has(d)) tiers.set(d, []);
+      tiers.get(d).push(u);
+    }
+
+    for(const depth of [...tiers.keys()].sort((a,b)=>a-b)){
+      const row = document.createElement('div');
+      row.className = 'tree-tier';
+      for(const u of tiers.get(depth)){
       const lvl = ownedLevel(u);
       const baseCost = upgCost(u);
 
@@ -455,45 +619,36 @@ export function createStore(deps){
       const card = document.createElement('div');
       card.className = 'upg' + (affordable ? ' affordable' : '') + (isDailyDeal ? ' daily-deal' : '');
 
-      // ── stat projection ladder ──
-      // Show current value plus up to 3 preview levels so the player can see
-      // the full trajectory, not just the immediate next step.
-      const projSteps = [];
-      for(let step = 1; step <= 3; step++){
-        const previewLvl = lvl + step;
-        if(previewLvl > u.max) break;
-        projSteps.push({ lvl: previewLvl, val: u.val(previewLvl) });
-      }
-      // Build a small "ladder" string: "→ v1 → v2 → v3"
-      const ladderHTML = projSteps
-        .map((s, i) => {
-          const isNext = i === 0;
-          const color  = isNext ? 'var(--yellow)' : '#8891d8';
-          return `<span style="color:${color};font-weight:${isNext?'bold':'normal'}">${s.val}</span>`;
-        })
-        .join('<span style="color:var(--muted)"> → </span>');
-
       const pips = Array.from({length:u.max}, (_,i)=>`<div class="pip${i<lvl?' on':''}"></div>`).join('');
 
       // Daily deal badge styling injected inline so it works without a CSS edit.
       const dealBadgeHTML = isDailyDeal
-        ? `<div style="font-size:9px;font-weight:bold;color:#ff0;background:#500;padding:1px 5px;border-radius:2px;margin-bottom:3px;display:inline-block;">
+        ? `<div style="font-size:9px;font-weight:bold;color:#ff0;background:#500;padding:1px 5px;border-radius:2px;display:inline-block;">
              ⚡ DAILY DEAL −${Math.round(dealDiscount*100)}%
-           </div><br>`
+           </div>`
         : '';
       const capBadgeHTML = capOut
-        ? `<div style="font-size:9px;font-weight:bold;color:#ff8a8a;background:#3a1010;padding:1px 5px;border-radius:2px;margin-bottom:3px;display:inline-block;" title="Fish Co. is out of deliveries for today — fly again, or buy Cargo Crate for a bigger allowance.">
-             \u{1F4E6} NO DELIVERIES LEFT TODAY
-           </div><br>`
+        ? `<div style="font-size:9px;font-weight:bold;color:#ff8a8a;background:#3a1010;padding:1px 5px;border-radius:2px;display:inline-block;" title="Fish Co. is out of deliveries for today — fly again, or buy Cargo Crate for a bigger allowance.">
+             \u{1F4E6} OUT OF DELIVERIES
+           </div>`
         : '';
 
+      // Hover/focus reveal — the card itself stays minimal (icon, name,
+      // pips, buy button); the single next-step payoff only shows in this
+      // overlay. Leveled nodes preview the NEXT level's stat; one-time
+      // nodes have no ladder (val() is just installed/not), so their
+      // overlay explains what the gear does instead.
+      const nextHTML = u.oneTime
+        ? `<b>one-time gear</b>${u.desc}`
+        : `<b>next level</b>${u.val(lvl + 1)}`;
+
       card.innerHTML = `
-        <div class="upg-head"><span class="upg-icon">${u.icon}</span><span class="upg-name">${u.name}</span></div>
+        <div class="upg-art">${UPG_ICONS[u.id] || `<span style="font-size:40px">${u.icon}</span>`}</div>
+        <div class="upg-name">${u.name}</div>
         ${dealBadgeHTML}${capBadgeHTML}
-        <div class="upg-desc">${u.desc}</div>
-        <div class="upg-stat">${u.val(lvl)}${ladderHTML ? `<span style="color:var(--muted)"> → </span>${ladderHTML}` : ''}</div>
         <div class="pips">${pips}</div>
-        <button ${(capOut || state.money<cost)?'disabled':''}>${isDailyDeal ? `Deal — ${fmtCash(cost)}` : `Buy — ${fmtCash(cost)}`}${isDailyDeal && baseCost !== cost ? ` <s style="color:var(--muted);font-size:9px">${fmtCash(baseCost)}</s>` : ''}</button>`;
+        <button ${(capOut || state.money<cost)?'disabled':''}>${isDailyDeal ? `Deal — ${fmtCash(cost)}` : `Buy — ${fmtCash(cost)}`}${isDailyDeal && baseCost !== cost ? ` <s style="color:var(--muted);font-size:9px">${fmtCash(baseCost)}</s>` : ''}</button>
+        <div class="upg-next">${nextHTML}</div>`;
       card.querySelector('button').addEventListener('click', () => {
         if(state.money < cost || capRemaining() <= 0) return;
         state.money -= cost;
@@ -506,8 +661,51 @@ export function createStore(deps){
         renderShop();
         recompute();   // live-preview taller ramp behind the shop
       });
-      shopGrid.appendChild(card);
+      row.appendChild(card);
+      cardEls[u.id] = card;
+      }
+      shopGrid.appendChild(row);
     }
+
+    // ── connector pass ──
+    // Bezier from the bottom-center of each visible prerequisite card to
+    // the top-center of its dependent. A parent that's maxed out (and thus
+    // no longer rendered) simply contributes no line. Lines to a currently
+    // affordable card glow dusk-gold; the rest stay glacial blue.
+    function drawConnectors(){
+      while(treeSvg.firstChild) treeSvg.removeChild(treeSvg.firstChild);
+      const g = shopGrid.getBoundingClientRect();
+      if(g.width < 2 || g.height < 2) return;   // shop hidden — retry on observe
+      treeSvg.setAttribute('viewBox', `0 0 ${g.width} ${g.height}`);
+      for(const u of upgAvail){
+        const card = cardEls[u.id];
+        for(const rid of (u.requires || [])){
+          const parent = cardEls[rid];
+          if(!parent) continue;
+          const cr = card.getBoundingClientRect();
+          const pr = parent.getBoundingClientRect();
+          const x1 = pr.left + pr.width/2 - g.left, y1 = pr.bottom - g.top - 1;
+          const x2 = cr.left + cr.width/2 - g.left, y2 = cr.top - g.top + 1;
+          const bend = Math.max(12, (y2 - y1) * 0.5);
+          const gold = card.classList.contains('affordable');
+          const path = document.createElementNS(svgNS, 'path');
+          path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${y1+bend}, ${x2} ${y2-bend}, ${x2} ${y2}`);
+          path.setAttribute('fill', 'none');
+          path.setAttribute('stroke', gold ? 'rgba(255,200,87,0.6)' : 'rgba(148,164,224,0.45)');
+          path.setAttribute('stroke-width', '2');
+          treeSvg.appendChild(path);
+          for(const [cx, cy] of [[x1, y1], [x2, y2]]){
+            const dot = document.createElementNS(svgNS, 'circle');
+            dot.setAttribute('cx', cx); dot.setAttribute('cy', cy);
+            dot.setAttribute('r', '2.6');
+            dot.setAttribute('fill', gold ? 'rgba(255,200,87,0.85)' : 'rgba(148,164,224,0.65)');
+            treeSvg.appendChild(dot);
+          }
+        }
+      }
+    }
+    redrawConnectors = drawConnectors;
+    requestAnimationFrame(drawConnectors);
   }
 
   return { renderShop, drawEditor };
