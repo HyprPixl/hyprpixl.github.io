@@ -389,6 +389,17 @@ export function createStore(deps){
       document.getElementById('shop-cap-chip')?.classList.toggle('cap-out', remaining <= 0);
     }
 
+    // controls hint — only mention controls for gear the player actually owns
+    const controlsHintEl = document.getElementById('controls-hint');
+    if(controlsHintEl){
+      const segs = ['⬆/⬇ or W/S steer'];
+      if(state.lvl.rocket > 0) segs.push('SPACE rocket');
+      if(state.perm.burner) segs.push('X afterburner');
+      if(state.lvl.gun > 0) segs.push('C fire cannon');
+      segs.push('F fast-forward', 'ENTER launch');
+      controlsHintEl.textContent = segs.join(' · ');
+    }
+
     // goals
     goalList.innerHTML = '';
     let nextMarked = false;

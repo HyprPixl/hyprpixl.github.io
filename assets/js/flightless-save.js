@@ -40,7 +40,6 @@ export function defaultState(){
     musicMuted: false,
     settings: { reduceMotion:false, sfxVol:1, musicVol:1 },
     ngPlus: 0,
-    sponsorPatience: 100,
     // landmark hit points (persist between days), medals earned, bonus points,
     // and permanent bonus-shop levels (these three survive a progress reset)
     // NOTE: these MUST match the `hp` values in flightless-data.js's LANDMARKS
@@ -66,7 +65,6 @@ const MIGRATIONS = [
     if(typeof s.settings.sfxVol   !== 'number') s.settings.sfxVol   = 1;
     if(typeof s.settings.musicVol !== 'number') s.settings.musicVol = 1;
     if(typeof s.ngPlus !== 'number') s.ngPlus = 0;
-    if(typeof s.sponsorPatience !== 'number') s.sponsorPatience = 100;
     s.version = 1;
     return s;
   },
@@ -97,7 +95,7 @@ const KNOWN_SETTINGS_KEYS = new Set(['reduceMotion','sfxVol','musicVol']);
 // Top-level keys that belong in a saved state.
 const KNOWN_TOP_KEYS = new Set([
   'version','money','day','lvl','perm','best','claimed','won','muted',
-  'started','musicMuted','settings','ngPlus','sponsorPatience',
+  'started','musicMuted','settings','ngPlus',
   'lmHP','medals','bp','bonus','rampShape',
 ]);
 
@@ -115,7 +113,6 @@ function sanitize(state){
   state.day            = clamp(finite(state.day,            1), 1, 1e6);
   state.bp             = clamp(finite(state.bp,             0), 0, 1e9);
   state.ngPlus         = clamp(finite(state.ngPlus,         0), 0, 999);
-  state.sponsorPatience= clamp(finite(state.sponsorPatience,100), 0, 100);
   state.won            = bool(state.won,     false);
   state.muted          = bool(state.muted,   false);
   state.musicMuted     = bool(state.musicMuted, false);

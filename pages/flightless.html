@@ -417,7 +417,7 @@
       </div>
       <button class="big-btn" id="launch-btn">&#128640; Launch</button>
       <div class="notes">
-        <p class="small-note">&#8679;/&#8681; or W/S steer &middot; SPACE rocket &middot; X afterburner &middot; C fire cannon &middot; F fast-forward &middot; ENTER launch</p>
+        <p class="small-note" id="controls-hint">&#8679;/&#8681; or W/S steer &middot; SPACE rocket &middot; X afterburner &middot; C fire cannon &middot; F fast-forward &middot; ENTER launch</p>
         <p class="small-note">&#128230; Fish Co. only delivers so many upgrades before your next flight &mdash; buy Cargo Crate for a bigger allowance</p>
         <button class="reset-link" id="reset-btn">reset all progress</button>
       </div>
@@ -432,8 +432,8 @@
     <div class="results-box">
       <h2 id="res-headline">FLIGHT REPORT</h2>
       <div class="res-row"><span class="val">Distance: <span id="res-dist">0</span><span class="rec" id="rec-dist"></span></span><span class="cash" id="cash-dist">$0</span></div>
-      <div class="res-row"><span class="val">Max altitude: <span id="res-alt">0</span><span class="rec" id="rec-alt"></span></span><span class="cash" id="cash-alt">$0</span></div>
-      <div class="res-row"><span class="val">Top speed: <span id="res-spd">0</span><span class="rec" id="rec-spd"></span></span><span class="cash" id="cash-spd">$0</span></div>
+      <div class="res-row" id="res-alt-row"><span class="val">Max altitude: <span id="res-alt">0</span><span class="rec" id="rec-alt"></span></span><span class="cash" id="cash-alt">$0</span></div>
+      <div class="res-row" id="res-spd-row"><span class="val">Top speed: <span id="res-spd">0</span><span class="rec" id="rec-spd"></span></span><span class="cash" id="cash-spd">$0</span></div>
       <div class="res-row"><span class="val">Airtime: <span id="res-air">0</span> s</span><span class="cash" id="cash-air">×1.00</span></div>
       <div class="res-row" id="res-coins-row" style="display:none;"><span class="val">&#128031; Fish collected: <span id="res-coins-count">0</span></span><span class="cash" id="cash-coins">$0</span></div>
       <div class="res-row" id="res-stars-row" style="display:none;"><span class="val">&starf; Stars passed: <span id="res-stars-count">0</span></span><span class="cash" id="cash-stars">$0</span></div>

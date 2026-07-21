@@ -56,50 +56,6 @@ export function createResults(deps){
     return tier.lines[day % tier.lines.length];
   }
 
-  // ── Sponsor-patience meter ──────────────────────────────────────────────
-  // state.sponsorPatience is a 0–100 integer (read defensively; save.js will
-  // seed it eventually, but we default to 100 until then).
-  //
-  // Design goals:
-  //   • Weak flights (< 100 m) bleed patience noticeably.
-  //   • Mid flights (100–1 000 m) are roughly neutral with a slight drain.
-  //   • Strong flights (1 000+ m) recover patience.
-  //   • Each unmet contract drops an extra 5; each met contract restores 3.
-  //   • Full patience (100) awards a bonus cash row worth 10 % of subtotal.
-  //   • Meter never goes below 0 or above 100.
-  //   • Even a string of flops takes ~7–8 bad runs to empty (forgiving early).
-
-  function calcPatienceDelta(dist, contractResults){
-    let delta = 0;
-    if(dist < 30)         delta = -15;
-    else if(dist < 100)   delta = -10;
-    else if(dist < 300)   delta =  -5;
-    else if(dist < 1000)  delta =  -2;
-    else if(dist < 5000)  delta =   4;
-    else if(dist < 15000) delta =   8;
-    else                  delta =  12;
-
-    for(const c of contractResults){
-      delta += c.met ? 3 : -5;
-    }
-    return delta;
-  }
-
-  function patienceLabel(p){
-    if(p >= 90) return '★ ECSTATIC';
-    if(p >= 70) return 'ENTHUSIASTIC';
-    if(p >= 50) return 'SATISFIED';
-    if(p >= 30) return 'IMPATIENT';
-    if(p >= 10) return 'LOSING FAITH';
-    return '⚠ FURIOUS';
-  }
-
-  function patienceColor(p){
-    if(p >= 70) return 'var(--yellow)';
-    if(p >= 40) return 'var(--cash)';
-    return 'var(--red, #e05)';
-  }
-
   // ── Count-up animation ──────────────────────────────────────────────────
   let countUpTimers = [];
   function animateCash(el, target, delay, dur){
@@ -148,20 +104,9 @@ export function createResults(deps){
     const contractTotal = contractResults.reduce((sum,c) => sum + (c.met ? c.reward : 0), 0);
     const skimCash = Math.round(sim.run.skimCash);
 
-    // ── Sponsor-patience scoring ──────────────────────────────────────────
-    const prevPatience = state.sponsorPatience ?? 100;
-    const delta = calcPatienceDelta(dist, contractResults);
-    const newPatience = clamp(prevPatience + delta, 0, 100);
-    state.sponsorPatience = newPatience;
-
-    // Full-patience bonus: 10 % of subtotal when meter is at 100 heading in
-    const fullPatienceBonus = prevPatience >= 100
-      ? Math.round(subtotal * 0.10)
-      : 0;
-
     const total = Math.round(subtotal + bonusTotal + contractTotal + sim.run.smashCash
       + sim.run.coinCash + sim.run.starCash + sim.run.gunCash + sim.run.ringCash
-      + skimCash + fullPatienceBonus);
+      + skimCash);
     state.money += total;
 
     if(typeof econLog?.logFlight === 'function'){
@@ -172,7 +117,6 @@ export function createResults(deps){
           speed: Math.round(cashSpd*payMult), milestones: bonusTotal, contracts: contractTotal,
           smash: sim.run.smashCash, coins: sim.run.coinCash, stars: sim.run.starCash,
           gun: sim.run.gunCash, rings: sim.run.ringCash, skim: skimCash,
-          patienceBonus: fullPatienceBonus,
         },
       });
     }
@@ -263,44 +207,21 @@ export function createResults(deps){
       }
     });
 
-    // Sponsor patience row — always shown so players can track the meter
-    {
-      const arrow  = delta >= 0 ? '▲' : '▼';
-      const label  = patienceLabel(newPatience);
-      const color  = patienceColor(newPatience);
-      const bar    = '█'.repeat(Math.round(newPatience / 10)) + '░'.repeat(10 - Math.round(newPatience / 10));
-      const row = document.createElement('div');
-      row.className = 'res-row';
-      row.innerHTML =
-        `<span class="val" style="color:${color}">` +
-          `📣 Sponsor mood: ${label} ${arrow}${Math.abs(delta)}` +
-        `</span>` +
-        `<span class="cash" style="color:${color};letter-spacing:1px;font-size:11px">${bar}</span>`;
-      bonusBox.appendChild(row);
-    }
-
-    // Full-patience bonus row
-    if(fullPatienceBonus > 0){
-      const row = document.createElement('div');
-      row.className = 'res-row bonus';
-      row.innerHTML = `<span class="val">🎉 Perfect sponsor rating!</span><span class="cash"></span>`;
-      bonusBox.appendChild(row);
-      const delay = 1400 + contractResults.length * 250;
-      animateCash(row.querySelector('.cash'), fullPatienceBonus, delay, 500);
-      setTimeout(()=>SFX.ding(), delay);
-    }
-
     animateCash(document.getElementById('cash-dist'), Math.round(cashDist*payMult), 200, 700);
+    const altRow = document.getElementById('res-alt-row');
+    const spdRow = document.getElementById('res-spd-row');
     const altCashEl = document.getElementById('cash-alt');
     const spdCashEl = document.getElementById('cash-spd');
     if(state.perm.alti){
+      altRow.style.display = 'flex';
       altCashEl.className = 'cash';
       animateCash(altCashEl, Math.round(cashAlt*payMult), 550, 500);
-    } else { altCashEl.className = 'cash locked'; altCashEl.textContent = 'needs Altimeter'; }
+    } else { altRow.style.display = 'none'; }
     if(state.perm.speedo){
+      spdRow.style.display = 'flex';
       spdCashEl.className = 'cash';
       animateCash(spdCashEl, Math.round(cashSpd*payMult), 850, 500);
-    } else { spdCashEl.className = 'cash locked'; spdCashEl.textContent = 'needs Speedometer'; }
+    } else { spdRow.style.display = 'none'; }
 
     const coinsRow = document.getElementById('res-coins-row');
     if(sim.run.coinCount > 0){
