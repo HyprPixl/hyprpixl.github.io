@@ -174,38 +174,39 @@ export function createStore(deps){
   };
 
   // ── tree layout ──
-  // Every upgrade gets its own dedicated row (lane) — never shared with
-  // another upgrade — because each of its LEVELS is its own individual
-  // grid cell/node, laid out one per column along that lane: level i of
-  // an upgrade sits at column `startCol+i`. That's what makes it read as
-  // a path (a chain of level-nodes strung left→right) rather than a
-  // cluster. `startCol` is 1 + the deepest prerequisite's own startCol
-  // (so a path only ever begins strictly right of every upgrade whose
-  // level-1 node unlocks it — matching the actual gate, which only needs
-  // level ≥ 1, not a maxed prerequisite), i.e. the same tiers the old
-  // upgDepth() scheme used. Rows are ordered so branches fan both above
-  // and below the wings/aero/rocket hub, not in one flat stack — that's
-  // the "all four directions" part; the horizontal path itself always
-  // runs left→right, and only the connector between a prerequisite's
-  // first node and its dependent's first node bends up or down.
+  // One node per upgrade, hand-placed on a grid with the Ramp dead centre
+  // and every branch radiating outward from it — up is the flight tech
+  // spine (wings → aero → {struts→plating→gun, rocket→{burner, fuel→regen→
+  // tank}}), down is the ground game (bounce→sling, sponsor), left is the
+  // instrument branch (speedo→alti), right is the economy branch (cargo).
+  // These are pure presentation; the real gates are `requires`/`unlock` in
+  // flightless-data.js. Coordinates were chosen so a prerequisite always
+  // sits adjacent to (or at least inward of) its dependents, so the SVG
+  // connector lines read as a tree rather than a hairball. A node missing
+  // from this table falls back to the centre cell rather than crashing.
+  const CENTER = { col:3, row:7 };
   const TREE_LAYOUT = {
-    speedo:  { col:1, row:1 },
-    alti:    { col:2, row:2 },
-    ramp:    { col:1, row:3 },
-    bounce:  { col:2, row:4 },
-    sling:   { col:3, row:5 },
-    sponsor: { col:3, row:6 },
-    wings:   { col:1, row:7 },
-    aero:    { col:2, row:8 },
-    struts:  { col:3, row:9 },
-    rocket:  { col:3, row:10 },
-    fuel:    { col:4, row:11 },
-    regen:   { col:5, row:12 },
-    tank:    { col:6, row:13 },
-    burner:  { col:4, row:14 },
-    plating: { col:4, row:15 },
-    gun:     { col:5, row:16 },
-    cargo:   { col:1, row:17 },
+    ramp:    { col:3, row:7 },   // ── centre / root ──
+    // ◀ instruments
+    speedo:  { col:2, row:7 },
+    alti:    { col:1, row:7 },
+    // ▶ economy
+    cargo:   { col:4, row:7 },
+    // ▼ ground game
+    bounce:  { col:3, row:8 },
+    sling:   { col:3, row:9 },
+    sponsor: { col:4, row:8 },
+    // ▲ flight spine
+    wings:   { col:3, row:6 },
+    aero:    { col:3, row:5 },
+    struts:  { col:2, row:4 },
+    rocket:  { col:4, row:4 },
+    plating: { col:1, row:3 },
+    gun:     { col:1, row:2 },
+    burner:  { col:4, row:3 },
+    fuel:    { col:5, row:3 },
+    regen:   { col:6, row:2 },
+    tank:    { col:6, row:1 },
   };
 
   // Connector redraw hook — renderShop() swaps in a closure over the
@@ -217,6 +218,25 @@ export function createStore(deps){
   window.addEventListener('resize', () => redrawConnectors && redrawConnectors());
   if(typeof ResizeObserver === 'function'){
     new ResizeObserver(() => redrawConnectors && redrawConnectors()).observe(shopGrid);
+  }
+
+  // Center the scroll viewport on the Ramp (the tree's root) the first time
+  // the shop is laid out — the tree is bigger than the viewport and radiates
+  // from the middle, so the player should open onto the centre and pan out,
+  // not onto the top of the flight branch. Once done we leave scroll alone
+  // so buying (which re-renders but never moves a node) doesn't yank the
+  // view around.
+  const shopScroll = document.querySelector('#shop .shop-scroll');
+  let didCenterTree = false;
+  function centerOnRoot(rootEl){
+    if(didCenterTree || !rootEl || !shopScroll) return;
+    const sr = shopScroll.getBoundingClientRect();
+    if(sr.height < 2) return;                 // still hidden — try again later
+    const rr = rootEl.getBoundingClientRect();
+    shopScroll.scrollTop  += (rr.top  + rr.height/2) - (sr.top  + sr.height/2);
+    const gr = shopGrid.getBoundingClientRect();
+    shopGrid.scrollLeft   += (rr.left + rr.width/2)  - (gr.left + gr.width/2);
+    didCenterTree = true;
   }
 
   // ── ramp designer (collapsible pop-over) ──
@@ -515,179 +535,184 @@ export function createStore(deps){
     })() : null;
     // todaysDeal is expected to be { id, discount } — e.g. { id: 'engine', discount: 0.25 }
 
-    // upgrade tree — unlocked at distance milestones AND tree prerequisites.
-    // A maxed-out node drops off the list entirely (its slot is free for a
-    // later tier), and a locked one (missing a prerequisite) doesn't show
-    // at all — no "requires X + Y" clutter for nodes you can't work toward
-    // yet. Everything whose prerequisites ARE met stays visible regardless
-    // of affordability — a real tree has real branches, hiding options
-    // behind "only show the cheapest" fights against letting the player see
-    // and choose between them. `oneTime` nodes (formerly the separate GEAR
-    // list — Speedometer, Altimeter, Afterburner, Reserve Tank) are bought
-    // once ever: ownership lives in state.perm[id] instead of state.lvl[id],
-    // so physics/hud/results (which already read state.perm.speedo etc.)
-    // needed no changes.
+    // ── upgrade tree ──
+    // A bog-standard branching upgrade tree: one node per upgrade, the Ramp
+    // dead centre, every branch radiating outward (see TREE_LAYOUT). EVERY
+    // node is always on screen — a locked one (prerequisites not yet met)
+    // renders greyed with a lock so the player can see the whole tree and
+    // plan a route outward; a maxed one stays put showing ✓ MAX. Each node
+    // shows its icon, the price of its NEXT level underneath, and a row of
+    // pips for level progress; the name, current effect and any unmet
+    // requirement only ever appear in the hover tooltip. `oneTime` nodes
+    // (Speedometer, Altimeter, Afterburner, Reserve Tank) are bought once
+    // ever — ownership lives in state.perm[id], everything else in
+    // state.lvl[id].
     //
-    // Layout: a real 2-D tree on TREE_LAYOUT's grid — every node sits at
-    // its hand-placed (col, row), branching above and below its roots as
-    // well as left-to-right by tier, with an SVG underlay drawing a
-    // connector from each visible prerequisite node to its dependent (a
-    // two-parent node gets two lines in). Each node itself is still the
-    // flat row of per-level icons: only the level right after the owned
-    // count is buyable, later levels show their price greyed out, and
-    // name/per-level effect/price only ever show in the hover tooltip.
-    shopGrid.innerHTML = '';
-    function isOwned(id){
+    // `requires` entries are either 'id' (needs level ≥1 / owned) or
+    // { id, lvl } (needs level ≥ lvl) — see flightless-data.js. reqId/
+    // reqLvl/reqMet normalise both forms.
+    const reqId  = r => typeof r === 'string' ? r : r.id;
+    const reqLvl = r => typeof r === 'string' ? 1 : (r.lvl || 1);
+    function levelOf(id){
       const u = UPGRADES.find(x => x.id === id);
-      if(!u) return false;
-      return u.oneTime ? !!state.perm[id] : (state.lvl[id] ?? 0) > 0;
+      if(!u) return 0;
+      return u.oneTime ? (state.perm[id] ? 1 : 0) : (state.lvl[id] ?? 0);
     }
+    const reqMet = r => levelOf(reqId(r)) >= reqLvl(r);
     function ownedLevel(u){ return u.oneTime ? (state.perm[u.id] ? 1 : 0) : (state.lvl[u.id] ?? 0); }
-    const missingRequires = u => (u.requires || []).filter(id => !isOwned(id));
-    const upgAvail = UPGRADES.filter(u =>
-      state.best.dist >= (u.unlock||0) && ownedLevel(u) < u.max && missingRequires(u).length === 0);
+    const upgById = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
     const capOut = capRemaining() <= 0;
 
+    shopGrid.innerHTML = '';
     const svgNS = 'http://www.w3.org/2000/svg';
     const treeSvg = document.createElementNS(svgNS, 'svg');
     treeSvg.setAttribute('class', 'tree-svg');
     treeSvg.setAttribute('preserveAspectRatio', 'none');
     shopGrid.appendChild(treeSvg);
 
-    // firstNodeEls: upgrade id → its level-1 cell (the branch point other
-    // upgrades' prerequisite lines connect to, and where its own path
-    // starts). lastNodeEls: upgrade id → its furthest-right rendered cell
-    // (where the path's own rail line ends). nodeAffordable: upgrade id →
-    // true if its next buyable level is affordable right now (colors both
-    // the rail and any dependent's incoming connector gold).
-    const firstNodeEls = {};
-    const lastNodeEls = {};
-    const nodeAffordable = {};
+    const nodeEls = {};          // id → node element (for connector geometry)
+    const nodeState = {};        // id → 'locked' | 'buyable' | 'maxed'
 
-    for(const u of upgAvail){
+    for(const u of UPGRADES){
+      const pos = TREE_LAYOUT[u.id] || CENTER;
       const lvl = ownedLevel(u);
-      const levels = u.oneTime ? 1 : u.max;
-      const pos = TREE_LAYOUT[u.id] || { col:1, row:1 };
-      let lastCell = null;
+      const max = u.oneTime ? 1 : u.max;
+      const maxed = lvl >= max;
 
-      for(let i=0; i<levels; i++){
-        const owned = i < lvl;
-        const isNext = i === lvl;
-        const rawCost = u.oneTime ? u.base : Math.round(u.base * Math.pow(u.mul, i));
+      const unmet = (u.requires || []).filter(r => !reqMet(r));
+      const distLocked = state.best.dist < (u.unlock || 0);
+      const locked = unmet.length > 0 || distLocked;
 
-        // Daily deal discount only ever applies to the next buyable level.
-        const isDailyDeal = isNext && todaysDeal && todaysDeal.id === u.id;
-        const dealDiscount = isDailyDeal && typeof todaysDeal.discount === 'number'
-          ? clamp(todaysDeal.discount, 0, 0.9) : 0;
-        const cost = isDailyDeal ? Math.max(1, Math.round(rawCost * (1 - dealDiscount))) : rawCost;
-        const affordable = isNext && !capOut && state.money >= cost;
-        if(affordable) nodeAffordable[u.id] = true;
+      // next-level pricing (+ daily deal, only when actually buyable)
+      const rawCost = u.oneTime ? u.base : Math.round(u.base * Math.pow(u.mul, lvl));
+      const isDailyDeal = !locked && !maxed && todaysDeal && todaysDeal.id === u.id;
+      const dealDiscount = isDailyDeal && typeof todaysDeal.discount === 'number'
+        ? clamp(todaysDeal.discount, 0, 0.9) : 0;
+      const cost = isDailyDeal ? Math.max(1, Math.round(rawCost * (1 - dealDiscount))) : rawCost;
+      const affordable = !locked && !maxed && !capOut && state.money >= cost;
 
-        const cell = document.createElement('div');
-        cell.className = 'lvl-icon' +
-          (owned ? ' owned' : isNext ? ' next' : ' locked') +
-          (affordable ? ' affordable' : '') + (isDailyDeal ? ' daily-deal' : '');
-        cell.style.gridColumn = pos.col + i;
-        cell.style.gridRow = pos.row;
+      const status = maxed ? 'maxed' : locked ? 'locked' : 'buyable';
+      nodeState[u.id] = status;
 
-        const effect = u.oneTime ? u.desc : u.val(i + 1);
-        const statusLine = owned ? 'owned'
-          : isNext && capOut ? 'no deliveries left today'
-          : isDailyDeal ? `${fmtCash(cost)} (deal, was ${fmtCash(rawCost)})`
-          : fmtCash(cost);
-        const tipLabel = levels > 1 ? `${u.name} · Lv.${i+1}` : u.name;
+      const node = document.createElement('div');
+      node.className = 'upg-node ' + status +
+        (affordable ? ' affordable' : '') + (isDailyDeal ? ' daily-deal' : '');
+      node.style.gridColumn = pos.col;
+      node.style.gridRow = pos.row;
 
-        cell.innerHTML = `
-          <div class="lvl-art">${UPG_ICONS[u.id] || `<span style="font-size:28px">${u.icon}</span>`}</div>
-          <div class="lvl-price">${owned ? '✓' : fmtCash(cost)}</div>
-          <div class="lvl-tip"><b>${tipLabel}</b>${effect}<br>${statusLine}</div>`;
+      // pips: one per level, filled up to current level
+      const pips = Array.from({length:max}, (_,i) =>
+        `<span class="pip${i < lvl ? ' on' : ''}"></span>`).join('');
 
-        if(isNext){
-          cell.tabIndex = 0;
-          cell.addEventListener('click', () => {
-            if(state.money < cost || capRemaining() <= 0) return;
-            state.money -= cost;
-            if(u.oneTime) state.perm[u.id] = true;
-            else state.lvl[u.id]++;
-            registerPurchase();
-            econLog?.logBuy({ name: u.name, id: u.id, cost, lvl: u.oneTime ? 'owned' : state.lvl[u.id] });
-            SFX.buy();
-            save();
-            renderShop();
-            recompute();   // live-preview taller ramp behind the shop
-          });
-        }
-        shopGrid.appendChild(cell);
-        if(i === 0) firstNodeEls[u.id] = cell;
-        lastCell = cell;
+      // price line under the icon
+      const priceHTML = maxed ? '<span class="pmax">✓ MAX</span>'
+        : locked ? '<span class="plock">🔒</span>'
+        : isDailyDeal
+          ? `<span class="pdeal">${fmtCash(cost)}</span> <s>${fmtCash(rawCost)}</s>`
+          : `<span class="pnow">${fmtCash(cost)}</span>`;
+
+      // hover tooltip — name, current/next effect, and any unmet requirement
+      const effect = u.oneTime ? u.desc
+        : maxed ? u.val(lvl) : u.val(lvl + 1);
+      const reqNote = unmet.length
+        ? `<span class="need">Needs ${unmet.map(r => {
+            const ru = upgById[reqId(r)];
+            const nm = ru ? ru.name : reqId(r);
+            return reqLvl(r) > 1 ? `${nm} Lv.${reqLvl(r)}` : nm;
+          }).join(' + ')}</span>`
+        : distLocked ? `<span class="need">Reach ${fmtDist(u.unlock)} first</span>` : '';
+      const lvlNote = maxed ? 'maxed' : `Lv.${lvl}/${max}`;
+      const tipStatus = maxed ? '' : locked ? '' : `<div class="tip-buy">Buy Lv.${lvl+1} — ${fmtCash(cost)}${isDailyDeal ? ' ⚡deal' : ''}</div>`;
+
+      node.innerHTML = `
+        <div class="node-art">${UPG_ICONS[u.id] || `<span style="font-size:30px">${u.icon}</span>`}</div>
+        <div class="node-price">${priceHTML}</div>
+        <div class="node-pips">${pips}</div>
+        <div class="node-tip">
+          <b>${u.name}</b>
+          <span class="tip-lvl">${lvlNote}</span>
+          <span class="tip-effect">${effect}</span>
+          ${reqNote}${tipStatus}
+        </div>`;
+
+      if(status === 'buyable'){
+        node.tabIndex = 0;
+        const buy = () => {
+          if(locked || maxed) return;
+          if(state.money < cost || capRemaining() <= 0) return;
+          state.money -= cost;
+          if(u.oneTime) state.perm[u.id] = true;
+          else state.lvl[u.id]++;
+          registerPurchase();
+          econLog?.logBuy({ name: u.name, id: u.id, cost, lvl: u.oneTime ? 'owned' : state.lvl[u.id] });
+          SFX.buy();
+          save();
+          renderShop();
+          recompute();   // live-preview taller ramp behind the shop
+        };
+        node.addEventListener('click', buy);
+        node.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); buy(); } });
       }
-      lastNodeEls[u.id] = lastCell;
+
+      shopGrid.appendChild(node);
+      nodeEls[u.id] = node;
     }
 
     // ── connector pass ──
-    // Two kinds of line, both drawn from real DOM rects so they're correct
-    // regardless of how far a lane wanders up or down:
-    //  1. a path rail — a plain line strung through every level-node of one
-    //     upgrade, first to last, so its levels read as one chain rather
-    //     than loose dots;
-    //  2. a prerequisite branch — a bezier from a prerequisite's level-1
-    //     node (the actual unlock point: `requires` only ever needs level
-    //     ≥ 1) to its dependent's level-1 node. A prerequisite that's
-    //     maxed out and no longer rendered simply contributes no line.
-    // Either kind glows dusk-gold when the destination upgrade's next level
-    // is affordable right now; otherwise it stays glacial blue.
+    // One bezier per prerequisite edge, from the parent node's centre to
+    // the dependent's centre, drawn from real DOM rects so it's correct in
+    // any direction the branch happens to run. An edge whose requirement is
+    // already satisfied is drawn solid (the path you've walked / can walk);
+    // an edge into a still-locked node is drawn dim + dashed (a route not
+    // yet open). A level-threshold edge (e.g. regen needs wings Lv.3) is
+    // labelled with the level at its midpoint so cross-branch gates read.
     function drawConnectors(){
       while(treeSvg.firstChild) treeSvg.removeChild(treeSvg.firstChild);
       const g = shopGrid.getBoundingClientRect();
       if(g.width < 2 || g.height < 2) return;   // shop hidden — retry on observe
       treeSvg.setAttribute('viewBox', `0 0 ${g.width} ${g.height}`);
 
-      function line(x1, y1, x2, y2, gold, dashed){
-        const path = document.createElementNS(svgNS, 'path');
-        path.setAttribute('d', `M ${x1} ${y1} L ${x2} ${y2}`);
-        path.setAttribute('fill', 'none');
-        path.setAttribute('stroke', gold ? 'rgba(255,200,87,0.55)' : 'rgba(148,164,224,0.35)');
-        path.setAttribute('stroke-width', dashed ? '3' : '2');
-        if(dashed) path.setAttribute('stroke-linecap', 'round');
-        treeSvg.appendChild(path);
-      }
-      function curve(x1, y1, x2, y2, gold){
-        const bend = Math.max(16, (x2 - x1) * 0.5);
-        const path = document.createElementNS(svgNS, 'path');
-        path.setAttribute('d', `M ${x1} ${y1} C ${x1+bend} ${y1}, ${x2-bend} ${y2}, ${x2} ${y2}`);
-        path.setAttribute('fill', 'none');
-        path.setAttribute('stroke', gold ? 'rgba(255,200,87,0.6)' : 'rgba(148,164,224,0.45)');
-        path.setAttribute('stroke-width', '2');
-        treeSvg.appendChild(path);
-        for(const [cx, cy] of [[x1, y1], [x2, y2]]){
-          const dot = document.createElementNS(svgNS, 'circle');
-          dot.setAttribute('cx', cx); dot.setAttribute('cy', cy);
-          dot.setAttribute('r', '2.6');
-          dot.setAttribute('fill', gold ? 'rgba(255,200,87,0.85)' : 'rgba(148,164,224,0.65)');
-          treeSvg.appendChild(dot);
-        }
-      }
+      const cx = el => el.getBoundingClientRect().left + el.getBoundingClientRect().width/2 - g.left;
+      const cy = el => el.getBoundingClientRect().top + el.getBoundingClientRect().height/2 - g.top;
 
-      for(const u of upgAvail){
-        const gold = !!nodeAffordable[u.id];
-        // 1. this upgrade's own path rail (skip single-level upgrades)
-        const first = firstNodeEls[u.id], last = lastNodeEls[u.id];
-        if(first && last && first !== last){
-          const fr = first.getBoundingClientRect(), lr = last.getBoundingClientRect();
-          line(fr.left + fr.width/2 - g.left, fr.top + fr.height/2 - g.top,
-               lr.left + lr.width/2 - g.left, lr.top + lr.height/2 - g.top, gold, true);
-        }
-        // 2. branch curves in from every visible prerequisite
-        for(const rid of (u.requires || [])){
-          const parent = firstNodeEls[rid];
-          const node = firstNodeEls[u.id];
-          if(!parent || !node) continue;
-          const nr = node.getBoundingClientRect();
-          const pr = parent.getBoundingClientRect();
-          curve(pr.right - g.left, pr.top + pr.height/2 - g.top,
-                nr.left - g.left, nr.top + nr.height/2 - g.top, gold);
+      for(const u of UPGRADES){
+        const node = nodeEls[u.id];
+        if(!node) continue;
+        for(const r of (u.requires || [])){
+          const parent = nodeEls[reqId(r)];
+          if(!parent) continue;
+          const met = reqMet(r);
+          const x1 = cx(parent), y1 = cy(parent), x2 = cx(node), y2 = cy(node);
+          // bend along the dominant axis so vertical & horizontal edges both curve gently
+          const horiz = Math.abs(x2 - x1) >= Math.abs(y2 - y1);
+          const bx = horiz ? Math.max(14, Math.abs(x2 - x1) * 0.4) : 0;
+          const by = horiz ? 0 : Math.max(14, Math.abs(y2 - y1) * 0.4);
+          const c1x = x1 + (horiz ? (x2>x1?bx:-bx) : 0), c1y = y1 + (horiz ? 0 : (y2>y1?by:-by));
+          const c2x = x2 - (horiz ? (x2>x1?bx:-bx) : 0), c2y = y2 - (horiz ? 0 : (y2>y1?by:-by));
+          const path = document.createElementNS(svgNS, 'path');
+          path.setAttribute('d', `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`);
+          path.setAttribute('fill', 'none');
+          path.setAttribute('stroke', met ? 'rgba(255,200,87,0.5)' : 'rgba(120,134,190,0.35)');
+          path.setAttribute('stroke-width', met ? '2.4' : '2');
+          if(!met) path.setAttribute('stroke-dasharray', '5 5');
+          path.setAttribute('stroke-linecap', 'round');
+          treeSvg.appendChild(path);
+          // level-threshold badge at the edge midpoint
+          if(reqLvl(r) > 1){
+            const mx = (x1 + x2)/2, my = (y1 + y2)/2;
+            const badge = document.createElementNS(svgNS, 'text');
+            badge.setAttribute('x', mx); badge.setAttribute('y', my);
+            badge.setAttribute('text-anchor', 'middle');
+            badge.setAttribute('dominant-baseline', 'central');
+            badge.setAttribute('font-size', '9');
+            badge.setAttribute('font-weight', '700');
+            badge.setAttribute('fill', met ? 'rgba(255,216,138,0.95)' : 'rgba(160,172,214,0.8)');
+            badge.textContent = 'L' + reqLvl(r);
+            treeSvg.appendChild(badge);
+          }
         }
       }
+      centerOnRoot(nodeEls['ramp']);
     }
     redrawConnectors = drawConnectors;
     requestAnimationFrame(drawConnectors);

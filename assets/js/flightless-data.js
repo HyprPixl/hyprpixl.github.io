@@ -21,31 +21,34 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
   // incrementing state.lvl[id], so every other consumer (physics/hud/
   // results) that already reads state.perm.speedo etc. needs no changes.
   //
-  // This is a real tree. `requires` is an array of upgrade ids that must
-  // each be at level ≥1 (or owned, for oneTime nodes) before a card is even
-  // buyable — some nodes need one prerequisite, some need two — and every
-  // base cost is high enough relative to early/mid earnings that getting
-  // even one upgrade should take multiple flights of saving, not one.
-  // Tree shape:
+  // This is a real branching tree with a single root — the Ramp, dead
+  // centre. Everything grows outward from it in all directions. `requires`
+  // is an array of prerequisite entries, each either:
+  //   'id'            — that upgrade must be at level ≥1 (owned, for oneTime)
+  //   { id, lvl }     — that upgrade must be at level ≥ lvl
+  // The level form lets a branch hang off a *specific rung* of its parent —
+  // the Speedometer isn't worth reading until you've a few Ramp levels of
+  // speed to read, so it needs Ramp Lv.3; Fuel Regen only pays off once
+  // you've a deep Fuel Tank and real glider time, so it needs Fuel Lv.4 AND
+  // Glider Wings Lv.3. Base costs stay high enough that even one upgrade is
+  // several flights of saving.
+  // Tree shape (▲ up = flight, ▼ down = ground game, ◀ left = instruments,
+  // ▶ right = economy — all radiating from ramp):
   //
-  //   ramp, speedo, wings, cargo   (roots — no prerequisites; ramp is the
-  //                                 cheapest, the obvious first buy)
-  //     ├─ alti      (speedo)
-  //     ├─ aero      (wings)
-  //     ├─ bounce    (ramp)
-  //     ├─ struts    (wings + aero)
-  //     ├─ sling     (ramp + bounce)
-  //     ├─ rocket    (wings + aero)
-  //     │   ├─ fuel     (rocket)
-  //     │   │   ├─ regen    (fuel + sponsor)
-  //     │   │   │   └─ tank     (fuel + regen)
-  //     │   │   └─ burner   (rocket)
-  //     │   └─ plating  (struts + rocket)
-  //     │       └─ gun      (rocket + plating)
-  //     └─ sponsor   (aero + bounce)
+  //   ramp  (root — centre, cheapest, the obvious first buy)
+  //     ◀ speedo   (ramp Lv.3) ─ alti (speedo)
+  //     ▶ cargo    (ramp)
+  //     ▼ bounce   (ramp Lv.2) ─ sling (bounce)
+  //     ▼ sponsor  (bounce)
+  //     ▲ wings    (ramp Lv.2)
+  //         ▲ aero (wings)
+  //             ▲ struts (aero) ─ plating (struts) ─ gun (plating)
+  //             ▲ rocket (aero) ─ burner (rocket)
+  //                 ▲ fuel (rocket)
+  //                     ▲ regen (fuel Lv.4 + wings Lv.3) ─ tank (regen)
   //
   // Distance-based `unlock` gates stay as a secondary check (mostly already
-  // trivial next to the new prerequisite gate) — the real gate is now cost
+  // trivial next to the prerequisite gate) — the real gate is now cost
   // + tree position.
   //
   // Daily delivery cap: how many $ purchases (upgrades + gear; the BP-funded
@@ -64,14 +67,14 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
       desc:'More track to build speed on. Reshape it in the designer below.',
       val:l=>{ const d=derive({ramp:l}); const r=buildRamp(d.rampLen);
                return `${Math.round(d.rampLen)} m · ${Math.round(r.H)} m tall · ~${Math.round(rampExitEst(d, r))} m/s exit`; } },
-    { id:'speedo', icon:'\u{1F4DF}', name:'Speedometer', base:65, mul:1, max:1, unlock:0, requires:[], oneTime:true,
+    { id:'speedo', icon:'\u{1F4DF}', name:'Speedometer', base:65, mul:1, max:1, unlock:0, requires:[{id:'ramp',lvl:3}], oneTime:true,
       desc:'See your speed — and get paid for top speed.',
       val:l=> l===0 ? 'not installed' : 'installed' },
-    { id:'wings',   icon:'\u{1FABD}', name:'Glider Wings', base:90, mul:1.55, max:10, unlock:0, requires:[],
+    { id:'wings',   icon:'\u{1FABD}', name:'Glider Wings', base:90, mul:1.55, max:10, unlock:0, requires:[{id:'ramp',lvl:2}],
       desc:'More lift, flatter glide. Ease off "up" to cruise. New rig every couple of levels.',
       val:l=>{ if(l===0) return 'no wings'; const d=derive({wings:l});
                return `${gliderName(l)} · ~${Math.max(1,Math.round(d.bestLD))}:1 glide`; } },
-    { id:'cargo', icon:'\u{1F4E6}', name:'Cargo Crate', base:150, mul:1.6, max:7, unlock:0, requires:[],
+    { id:'cargo', icon:'\u{1F4E6}', name:'Cargo Crate', base:150, mul:1.6, max:7, unlock:0, requires:['ramp'],
       desc:'How many upgrades Fish Co. can drop off before your next flight. Bigger crate, more buys per visit.',
       val:l=>`${DAILY_CAP_BASE+l} deliveries/day` },
 
@@ -82,24 +85,24 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
     { id:'aero',    icon:'\u{1F9CA}', name:'Slick Suit',   base:70,  mul:1.55, max:10, unlock:0, requires:['wings'],
       desc:'Waxed feathers cut drag on the ramp, in the air, and on the ice.',
       val:l=>`dives to ~${Math.round(derive({aero:l}).vDive)} m/s` },
-    { id:'bounce',  icon:'\u{1F3C0}', name:'Rubber Belly', base:450, mul:1.55, max:6, unlock:0, requires:['ramp'],
+    { id:'bounce',  icon:'\u{1F3C0}', name:'Rubber Belly', base:450, mul:1.55, max:6, unlock:0, requires:[{id:'ramp',lvl:2}],
       desc:'Spring back on landing. Keep momentum for distance.',
       val:l=> l===0 ? 'splat' : `${Math.round((0.12+0.09*l)*100)}% bounce` },
 
     // ── tier 2 (two prerequisites) ──
-    { id:'struts',  icon:'\u{1F529}', name:'Wing Struts',  base:500, mul:1.55, max:6, unlock:250, requires:['wings','aero'],
+    { id:'struts',  icon:'\u{1F529}', name:'Wing Struts',  base:500, mul:1.55, max:6, unlock:250, requires:['aero'],
       desc:'Stiffer spars pull harder turns at speed without folding.',
       val:l=>`${derive({struts:l}).gMax.toFixed(1)}g max pull` },
-    { id:'sling',   icon:'\u{1F3AF}', name:'Catapult',     base:1100, mul:1.55, max:8, unlock:500, requires:['ramp','bounce'],
+    { id:'sling',   icon:'\u{1F3AF}', name:'Catapult',     base:1100, mul:1.55, max:8, unlock:500, requires:['bounce'],
       desc:'An elastic winch flings you from the gate at the top of the track.',
       val:l=> l===0 ? 'not installed' : `+${20*l} m/s at the gate` },
 
     // Rocket: mul raised 1.55→1.65 to slow the runaway late-game power spike.
-    { id:'rocket',  icon:'\u{1F680}', name:'Rocket',       base:380, mul:1.65, max:10, unlock:100, requires:['wings','aero'],
+    { id:'rocket',  icon:'\u{1F680}', name:'Rocket',       base:380, mul:1.65, max:10, unlock:100, requires:['aero'],
       desc:'A strap-on booster. Hold SPACE to climb faster.',
       val:l=> l===0 ? 'not installed' : `${Math.round(derive({rocket:l}).thrust)} m/s² thrust` },
     // Sponsor: multiplier stacks hard with airtime — keep it a real reach.
-    { id:'sponsor', icon:'\u{1F4B0}', name:'Sponsor Deal', base:850, mul:1.60, max:6, unlock:250, requires:['aero','bounce'],
+    { id:'sponsor', icon:'\u{1F4B0}', name:'Sponsor Deal', base:850, mul:1.60, max:6, unlock:250, requires:['bounce'],
       desc:'Fish Co. multiplies your earnings on every flight.',
       val:l=>`×${(1+0.35*l).toFixed(2)} cash earned` },
 
@@ -110,14 +113,14 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
     { id:'burner', icon:'\u{1F4A5}', name:'Afterburner', base:2800, mul:1, max:1, unlock:1000, requires:['rocket'], oneTime:true,
       desc:'Once per flight, press X: instant +90 m/s. No fuel.',
       val:l=> l===0 ? 'not installed' : 'installed' },
-    { id:'plating', icon:'\u{1F6E1}', name:'Ram Plating',  base:1000, mul:1.55, max:6, unlock:1500, requires:['struts','rocket'],
+    { id:'plating', icon:'\u{1F6E1}', name:'Ram Plating',  base:1000, mul:1.55, max:6, unlock:1500, requires:['struts'],
       desc:'An armored belly plate. Smash landmarks harder and keep more speed on impact.',
       val:l=>`×${(1+0.35*l).toFixed(2)} smash damage`,
     },
 
     // ── tier 4 (deepest nodes) ──
     // Gun: a true late-game luxury, now gated behind rocket + plating too.
-    { id:'gun',     icon:'\u{1F52B}', name:'Sky Cannon',   base:6000, mul:1.75, max:6, unlock:2500, requires:['rocket','plating'],
+    { id:'gun',     icon:'\u{1F52B}', name:'Sky Cannon',   base:6000, mul:1.75, max:6, unlock:2500, requires:['plating'],
       desc:'Press C to blast obstacles out of the sky. Upgrade for range and bigger targets.',
       val:l=>{ if(l===0) return 'not installed';
                const tier = l>=5?'planes':l>=3?'balloons':'birds';
@@ -125,12 +128,12 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
     // Fuel Regen: mid-late-game payoff for rocket-heavy builds — passively
     // refills the tank while gliding (not thrusting). See physics.js's
     // regenRate stat and the "cool down" branch of stepFlight.
-    { id:'regen',   icon:'\u{267B}\u{FE0F}', name:'Fuel Regen',  base:900, mul:1.6, max:5, unlock:1000, requires:['fuel','sponsor'],
+    { id:'regen',   icon:'\u{267B}\u{FE0F}', name:'Fuel Regen',  base:900, mul:1.6, max:5, unlock:1000, requires:[{id:'fuel',lvl:4},{id:'wings',lvl:3}],
       desc:'Slowly refills the tank while gliding — coast to keep the rocket fed.',
       val:l=> l===0 ? 'no regen' : `${(0.12*l).toFixed(2)} s of burn / s gliding` },
 
     // ── tier 5 (deepest) ──
-    { id:'tank',   icon:'\u{1F6E2}', name:'Reserve Tank', base:6500, mul:1, max:1, unlock:2500, requires:['fuel','regen'], oneTime:true,
+    { id:'tank',   icon:'\u{1F6E2}', name:'Reserve Tank', base:6500, mul:1, max:1, unlock:2500, requires:['regen'], oneTime:true,
       desc:'Rocket refuels to half on your first ground bounce.',
       val:l=> l===0 ? 'not installed' : 'installed' },
   ];

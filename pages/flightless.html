@@ -197,8 +197,9 @@
   }
   @media (max-width:700px){
     .shop-top{ padding:38px 0 0; }
-    .shop-grid{ grid-template-columns:repeat(13, minmax(46px,1fr)); gap:12px 6px; }
-    .lvl-icon{ width:42px; }
+    .shop-grid{ grid-template-columns:repeat(6, minmax(72px,1fr)); gap:16px 10px; }
+    .upg-node{ width:66px; }
+    .upg-node .node-art svg{ width:34px; height:34px; }
   }
   .shop-top .game-title{ margin:0; text-align:left; font-size:clamp(18px,2.6vw,28px); letter-spacing:2.5px; }
   .shop-top .subtitle{ margin:0; text-align:left; flex:1 1 auto; }
@@ -282,67 +283,76 @@
   .shop-panel[hidden]{ display:none; }
 
   /* ── upgrade tree ──
-     A real tree laid out on a CSS grid (TREE_LAYOUT in store.js): every
-     upgrade owns a dedicated row (lane), and each of its LEVELS is its own
-     grid cell/node placed one per column along that lane — level i sits
-     at column startCol+i, so a 12-level upgrade is a chain of 12
-     individual nodes, not one clustered card. An absolutely-positioned SVG
-     underlay (.tree-svg, built by store.js) draws two kinds of line: a
-     plain rail strung through one upgrade's own level-nodes (so its levels
-     read as one path), and a bezier from a prerequisite's level-1 node to
-     its dependent's level-1 node (the actual unlock point) — lanes are
-     ordered so those branch curves bend both up and down off the
-     wings/aero/rocket hub, not in one flat stack. Price sits under each
-     icon; name/effect only ever show on hover. */
+     A bog-standard branching upgrade tree on a CSS grid (TREE_LAYOUT in
+     store.js): one node per upgrade, the Ramp dead centre, branches
+     radiating outward in every direction — flight up, ground game down,
+     instruments left, economy right. Every node is always visible: locked
+     nodes (prerequisites unmet) render greyed with a 🔒, maxed nodes show
+     ✓ MAX, buyable ones show their next-level price. An absolutely-
+     positioned SVG underlay (.tree-svg) draws the dependency edges — solid
+     gold where the requirement is met, dim dashed where the route is still
+     locked, with an Lv.N badge on level-threshold edges. Icon + price +
+     level pips on the node; name/effect/requirements only on hover. */
   .shop-grid{
     position:relative; display:grid;
-    grid-template-columns:repeat(13, minmax(58px,1fr));
-    grid-auto-rows:min-content;
-    gap:14px 8px; padding:8px 2px 14px; margin-bottom:8px;
+    grid-template-columns:repeat(6, minmax(92px,1fr));
+    grid-auto-rows:1fr; gap:22px 16px;
+    padding:14px 6px 18px; margin-bottom:8px;
     overflow-x:auto;
   }
   .tree-svg{
     position:absolute; inset:0; width:100%; height:100%;
     z-index:0; pointer-events:none;
   }
-  .lvl-icon{
-    position:relative; z-index:1; width:50px; cursor:help;
+  .upg-node{
+    position:relative; z-index:1; justify-self:center; align-self:center;
+    width:78px; cursor:help;
     background:linear-gradient(165deg,var(--panel2) 0%,var(--panel) 100%);
-    border:1px solid var(--border); border-radius:10px;
-    padding:6px 4px 5px; display:flex; flex-direction:column; gap:3px;
+    border:1px solid var(--border); border-radius:12px;
+    padding:8px 6px 7px; display:flex; flex-direction:column; gap:4px;
     align-items:center; text-align:center;
-    box-shadow:0 3px 8px rgba(4,6,20,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+    box-shadow:0 3px 10px rgba(4,6,20,0.32), inset 0 1px 0 rgba(255,255,255,0.05);
     transition:transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
   }
-  .lvl-icon svg{ width:28px; height:28px; display:block; filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35)); }
-  .lvl-icon .lvl-price{ font-size:10px; font-weight:700; color:var(--muted); }
-  .lvl-icon.owned{ opacity:0.55; }
-  .lvl-icon.owned .lvl-price{ color:var(--cash); }
-  .lvl-icon.locked{ filter:grayscale(0.7); opacity:0.4; cursor:default; }
-  .lvl-icon.next{ cursor:pointer; }
-  .lvl-icon.next:hover{
+  .upg-node .node-art svg{ width:40px; height:40px; display:block; filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35)); }
+  .upg-node .node-art span{ line-height:40px; }
+  .upg-node .node-price{ font-size:11px; font-weight:800; color:var(--muted); letter-spacing:0.2px; }
+  .upg-node .node-price s{ font-size:9px; color:var(--muted); opacity:0.7; font-weight:600; }
+  .upg-node .node-price .pmax{ color:var(--cash); }
+  .upg-node .node-price .pnow{ color:var(--text); }
+  .upg-node .node-price .plock{ color:var(--muted); }
+  .upg-node .node-pips{ display:flex; flex-wrap:wrap; gap:3px; justify-content:center; max-width:70px; }
+  .upg-node .pip{ width:8px; height:5px; border-radius:2px; background:rgba(10,14,38,0.85); border:1px solid var(--border); }
+  .upg-node .pip.on{ background:var(--yellow); border-color:var(--yellow); box-shadow:0 0 4px rgba(255,200,87,0.5); }
+  /* node states */
+  .upg-node.locked{ filter:grayscale(0.85); opacity:0.42; cursor:help; }
+  .upg-node.maxed{ border-color:rgba(99,230,164,0.45); box-shadow:0 0 10px rgba(99,230,164,0.14), inset 0 1px 0 rgba(255,255,255,0.05); }
+  .upg-node.buyable{ cursor:pointer; }
+  .upg-node.buyable:hover{
     border-color:var(--border-strong); transform:translateY(-2px);
-    box-shadow:0 6px 14px rgba(4,6,20,0.4), inset 0 1px 0 rgba(255,255,255,0.07);
+    box-shadow:0 8px 18px rgba(4,6,20,0.42), inset 0 1px 0 rgba(255,255,255,0.07);
   }
-  .lvl-icon.next.affordable{ border-color:rgba(99,230,164,0.65); box-shadow:0 0 10px rgba(99,230,164,0.2), inset 0 1px 0 rgba(255,255,255,0.05); }
-  .lvl-icon.next.affordable .lvl-price{ color:#8ff0bb; }
-  .lvl-icon.next.daily-deal{ border-color:rgba(255,200,87,0.75); box-shadow:0 0 12px rgba(255,180,60,0.25), inset 0 1px 0 rgba(255,255,255,0.05); }
-  .lvl-icon.next.daily-deal .lvl-price{ color:#ffd88a; }
-  .lvl-icon.next:not(.affordable) .lvl-price{ color:var(--red); }
-  /* hover/focus tooltip — name + level effect + price, hidden by default */
-  .lvl-icon .lvl-tip{
-    position:absolute; left:50%; bottom:calc(100% + 6px); transform:translateX(-50%);
-    width:170px; z-index:5;
-    background:rgba(9,12,32,0.96); border:1px solid var(--border-strong);
-    border-radius:10px; padding:8px 9px;
-    font-size:10.5px; line-height:1.45; color:var(--text); text-align:left;
+  .upg-node.buyable.affordable{ border-color:rgba(99,230,164,0.7); box-shadow:0 0 13px rgba(99,230,164,0.24), inset 0 1px 0 rgba(255,255,255,0.05); }
+  .upg-node.buyable.affordable .node-price .pnow{ color:#8ff0bb; }
+  .upg-node.buyable.daily-deal{ border-color:rgba(255,200,87,0.78); box-shadow:0 0 14px rgba(255,180,60,0.28), inset 0 1px 0 rgba(255,255,255,0.05); }
+  .upg-node.buyable.daily-deal .node-price .pdeal{ color:#ffd88a; }
+  .upg-node.buyable:not(.affordable) .node-price .pnow{ color:#ff9a8a; }
+  /* hover/focus tooltip */
+  .upg-node .node-tip{
+    position:absolute; left:50%; bottom:calc(100% + 8px); transform:translateX(-50%);
+    width:184px; z-index:6;
+    background:rgba(9,12,32,0.97); border:1px solid var(--border-strong);
+    border-radius:11px; padding:9px 10px;
+    font-size:10.5px; line-height:1.5; color:var(--text); text-align:left;
     opacity:0; pointer-events:none; transition:opacity .12s ease;
-    box-shadow:0 8px 18px rgba(4,6,20,0.5);
+    box-shadow:0 8px 20px rgba(4,6,20,0.55);
   }
-  .lvl-icon .lvl-tip b{
-    display:block; font-size:10.5px; font-weight:800; color:#ffd88a; margin-bottom:2px;
-  }
-  .lvl-icon:hover .lvl-tip, .lvl-icon:focus-within .lvl-tip{ opacity:1; }
+  .upg-node .node-tip b{ display:block; font-size:12px; font-weight:800; color:#ffd88a; }
+  .upg-node .node-tip .tip-lvl{ display:block; font-size:9px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--teal); margin-bottom:3px; }
+  .upg-node .node-tip .tip-effect{ display:block; }
+  .upg-node .node-tip .need{ display:block; margin-top:4px; color:#ff9a8a; font-weight:700; }
+  .upg-node .node-tip .tip-buy{ margin-top:5px; padding-top:5px; border-top:1px solid var(--border); color:#8ff0bb; font-weight:700; }
+  .upg-node:hover .node-tip, .upg-node:focus-within .node-tip{ opacity:1; }
 
   .goals{
     background:var(--glass); border:1px solid var(--border); border-radius:12px;
@@ -558,7 +568,7 @@
 
   @media (prefers-reduced-motion:reduce){
     .big-btn{ animation:none; }
-    .lvl-icon, .lvl-icon:hover{ transform:none; transition:none; }
+    .upg-node, .upg-node:hover{ transform:none; transition:none; }
     .popup{ animation-duration:0.6s; }
   }
 </style>
