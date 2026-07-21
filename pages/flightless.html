@@ -586,33 +586,17 @@
         <div class="chip money">&#128176; <b id="shop-money">$0</b></div>
         <div class="chip">&#128197; Day <b id="shop-day">1</b></div>
         <div class="chip">&#127942; Best <b id="shop-best">0 m</b></div>
-        <div class="chip">&#127941; <b id="shop-bp">0 BP</b></div>
         <div class="chip" id="shop-cap-chip">&#128230; <b id="shop-cap">3/3</b></div>
       </div>
     </div>
     <div class="goals">
       <h3>&#127937; Goals</h3>
       <ul id="goal-list"></ul>
-    </div>
-    <div class="shop-tabs" id="shop-tabs" role="tablist">
-      <button class="shop-tab active" data-tab="upgrades" role="tab">⚙ Upgrades<span class="tab-count" id="tab-count-upgrades"></span></button>
-      <button class="shop-tab" data-tab="gear" role="tab">🛠 Gear<span class="tab-count" id="tab-count-gear"></span></button>
-      <button class="shop-tab" data-tab="bonus" role="tab">✨ Bonus<span class="tab-count" id="tab-count-bonus"></span></button>
-      <button class="shop-tab" data-tab="medals" role="tab">🏅 Medals<span class="tab-count" id="tab-count-medals"></span></button>
+      <div class="medal-row" id="medal-row"></div>
     </div>
     <div class="shop-scroll">
       <div class="shop-panel" id="panel-upgrades">
         <div class="shop-grid" id="shop-grid"></div>
-      </div>
-      <div class="shop-panel" id="panel-gear" hidden>
-        <div class="shop-grid" id="gear-grid"></div>
-      </div>
-      <div class="shop-panel" id="panel-bonus" hidden>
-        <p class="section-label">spend BP, keeps through resets</p>
-        <div class="shop-grid" id="bonus-grid"></div>
-      </div>
-      <div class="shop-panel" id="panel-medals" hidden>
-        <div class="medal-row" id="medal-row"></div>
       </div>
     </div>
     <div class="shop-foot">
@@ -801,8 +785,8 @@ const w2sY = y => sim.Hpx*0.72 - (y-cam.y)*cam.z;
 // Data tables first (upgrade-preview text calls back into physics/renderer
 // through the bridge, filled in once those exist below).
 const {
-  UPGRADES, GEAR, upgCost, MILESTONES, WIN_DIST, OBSTACLE_TYPES,
-  CONTRACT_POOL, contractsFor, LANDMARKS, MEDALS, BONUS_SHOP, DAILY_CAP_BASE,
+  UPGRADES, upgCost, MILESTONES, WIN_DIST, OBSTACLE_TYPES,
+  CONTRACT_POOL, contractsFor, LANDMARKS, MEDALS, DAILY_CAP_BASE,
   dailyModFor,
 } = createData({
   state, clamp, hash01,
@@ -888,7 +872,7 @@ const settingsEl = document.getElementById('settings');
 function recompute(){ sim.st = physics.derive(); sim.ramp = physics.buildRamp(sim.st.rampLen); }
 
 const store = createStore({
-  state, UPGRADES, GEAR, BONUS_SHOP, MEDALS, LANDMARKS, MILESTONES, DAILY_CAP_BASE,
+  state, UPGRADES, MEDALS, LANDMARKS, MILESTONES, DAILY_CAP_BASE,
   contractsFor, upgCost, fmtCash, fmtDist, save, SFX, defaultState,
   exportSave, importSave, econLog,
   getSt: () => sim.st, getRamp: () => sim.ramp, recompute,
@@ -998,12 +982,12 @@ document.getElementById('victory-btn').addEventListener('click', () => {
 });
 document.getElementById('ng-plus-btn').addEventListener('click', () => {
   victoryEl.classList.remove('show');
-  // Increment NG+, reset upgrades/gear/progress, keep medals/BP/bonus/settings.
+  // Increment NG+, reset upgrades/gear/progress, keep medals/everDid/settings.
   const ng = (state.ngPlus ?? 0) + 1;
   const keep = {
     muted: state.muted, musicMuted: state.musicMuted ?? false,
     settings: state.settings ?? { reduceMotion:false, sfxVol:1, musicVol:1 },
-    medals: state.medals, bp: state.bp, bonus: state.bonus,
+    medals: state.medals, everDid: state.everDid,
     ngPlus: ng,
   };
   const fresh = defaultState();
@@ -1020,11 +1004,11 @@ document.getElementById('ng-plus-btn').addEventListener('click', () => {
 });
 
 document.getElementById('reset-btn').addEventListener('click', () => {
-  if(!confirm('Start over from Day 1? Medals, Bonus Points and Bonus Shop levels are permanent and carry over.')) return;
+  if(!confirm('Start over from Day 1? Medals are permanent and carry over.')) return;
   const keep = {
     muted: state.muted, musicMuted: state.musicMuted ?? false,
     settings: state.settings ?? { reduceMotion:false, sfxVol:1, musicVol:1 },
-    medals: state.medals, bp: state.bp, bonus: state.bonus,
+    medals: state.medals, everDid: state.everDid,
   };
   const fresh = defaultState();
   // mutate the existing object in place — every module holds a reference

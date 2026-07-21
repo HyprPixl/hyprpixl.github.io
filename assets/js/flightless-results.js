@@ -104,10 +104,33 @@ export function createResults(deps){
     const contractTotal = contractResults.reduce((sum,c) => sum + (c.met ? c.reward : 0), 0);
     const skimCash = Math.round(sim.run.skimCash);
 
+    // medals — permanent achievements; some pay cash, folded straight into
+    // this flight's total the same as a milestone.
+    const newMedals = [];
+    for(const m of MEDALS){
+      if(state.medals.includes(m.id)) continue;
+      if(m.chk(sim.run)){ state.medals.push(m.id); newMedals.push(m); }
+    }
+    const medalTotal = newMedals.reduce((sum,m) => sum + (m.cash||0), 0);
+
     const total = Math.round(subtotal + bonusTotal + contractTotal + sim.run.smashCash
       + sim.run.coinCash + sim.run.starCash + sim.run.gunCash + sim.run.ringCash
-      + skimCash);
+      + skimCash + medalTotal);
     state.money += total;
+
+    // lifetime "have I ever done X" flags — gate future daily contracts
+    // (flightless-data.js's CONTRACT_POOL) so a mission never references a
+    // mechanic the player hasn't discovered yet.
+    if(!state.everDid || typeof state.everDid !== 'object') state.everDid = {};
+    if(sim.run.coinCount > 0)  state.everDid.fish   = true;
+    if(sim.run.ringCount > 0)  state.everDid.ring   = true;
+    if(sim.run.starCount > 0)  state.everDid.star   = true;
+    if(sim.run.gunKills > 0)   state.everDid.gun    = true;
+    if(sim.run.obHits > 0)     state.everDid.smash  = true;
+    if(sim.run.skimT > 0)      state.everDid.skim   = true;
+    if(sim.run.bounceCount > 0)state.everDid.bounce = true;
+    if(sim.run.maxCombo > 1)   state.everDid.combo  = true;
+    if(sim.run.loopCount > 0)  state.everDid.loop   = true;
 
     if(typeof econLog?.logFlight === 'function'){
       econLog.logFlight({
@@ -116,7 +139,7 @@ export function createResults(deps){
           distance: Math.round(cashDist*payMult), altitude: Math.round(cashAlt*payMult),
           speed: Math.round(cashSpd*payMult), milestones: bonusTotal, contracts: contractTotal,
           smash: sim.run.smashCash, coins: sim.run.coinCash, stars: sim.run.starCash,
-          gun: sim.run.gunCash, rings: sim.run.ringCash, skim: skimCash,
+          gun: sim.run.gunCash, rings: sim.run.ringCash, skim: skimCash, medals: medalTotal,
         },
       });
     }
@@ -125,13 +148,6 @@ export function createResults(deps){
     state.best.dist = Math.max(state.best.dist, dist);
     state.best.alt = Math.max(state.best.alt, sim.run.maxAlt);
     state.best.spd = Math.max(state.best.spd, sim.run.maxSpd);
-
-    // medals — permanent, and they pay Bonus Points
-    const newMedals = [];
-    for(const m of MEDALS){
-      if(state.medals.includes(m.id)) continue;
-      if(m.chk(sim.run)){ state.medals.push(m.id); state.bp += m.bp; newMedals.push(m); }
-    }
 
     // ── Sound barks (guarded — SFX.cheer/oof may not exist yet) ──────────
     const isRecord = recD || recA || recS || newMedals.length > 0;
@@ -188,8 +204,10 @@ export function createResults(deps){
     newMedals.forEach((m, i) => {
       const row = document.createElement('div');
       row.className = 'res-row bonus';
-      row.innerHTML = `<span class="val">\u{1F3C5} MEDAL: ${m.name}</span><span class="cash">+${m.bp} BP</span>`;
+      row.innerHTML = `<span class="val">\u{1F3C5} MEDAL: ${m.name}</span><span class="cash"></span>`;
       bonusBox.appendChild(row);
+      if(m.cash > 0) animateCash(row.querySelector('.cash'), m.cash, 1450+i*250, 500);
+      else row.querySelector('.cash').textContent = '';
     });
     if(newMedals.length) setTimeout(()=>SFX.ding(), 1500);
 
@@ -254,7 +272,7 @@ export function createResults(deps){
       animateCash(document.getElementById('cash-gun'), sim.run.gunCash, 1250, 500);
     } else gunRow.style.display = 'none';
 
-    animateCash(document.getElementById('cash-total'), total, 1300+(newBonuses.length+contractResults.length)*250, 900);
+    animateCash(document.getElementById('cash-total'), total, 1300+(newBonuses.length+newMedals.length+contractResults.length)*250, 900);
 
     state.day++;
     save();

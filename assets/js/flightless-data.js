@@ -15,29 +15,34 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
 
   // ─── UPGRADES ────────────────────────────────────────────────────────────
   // Cost formula: Math.round(base * mul^level). Levels are 0-indexed, so
-  // level 0 costs `base` and you buy your way up.
+  // level 0 costs `base` and you buy your way up. `oneTime: true` marks a
+  // node bought once ever (formerly the separate GEAR list) — max is always
+  // 1, and the buy handler in store.js sets state.perm[id]=true instead of
+  // incrementing state.lvl[id], so every other consumer (physics/hud/
+  // results) that already reads state.perm.speedo etc. needs no changes.
   //
-  // REWORK: this used to be 11 independent cost tracks, each cheap enough at
-  // the start that a single decent flight could afford several of them at
-  // once — even with the daily delivery cap gating how many purchases you
-  // can make per visit, the $ curve itself never made you wait. That's
-  // gone: this is now a real tree. `requires` is an array of upgrade ids
-  // that must each be at level ≥1 before a card is even buyable — some
-  // nodes need one prerequisite, some need two — and every base cost is
-  // high enough relative to early/mid earnings that getting even one
-  // upgrade should take multiple flights of saving, not one. Tree shape:
+  // This is a real tree. `requires` is an array of upgrade ids that must
+  // each be at level ≥1 (or owned, for oneTime nodes) before a card is even
+  // buyable — some nodes need one prerequisite, some need two — and every
+  // base cost is high enough relative to early/mid earnings that getting
+  // even one upgrade should take multiple flights of saving, not one.
+  // Tree shape:
   //
-  //   ramp, wings, cargo          (roots — no prerequisites)
+  //   ramp, speedo, wings, cargo   (roots — no prerequisites; ramp is the
+  //                                 cheapest, the obvious first buy)
+  //     ├─ alti      (speedo)
   //     ├─ aero      (wings)
   //     ├─ bounce    (ramp)
   //     ├─ struts    (wings + aero)
   //     ├─ sling     (ramp + bounce)
   //     ├─ rocket    (wings + aero)
-  //     ├─ sponsor   (aero + bounce)
   //     │   ├─ fuel     (rocket)
-  //     │   ├─ plating  (struts + rocket)
-  //     │   │   └─ gun      (rocket + plating)
-  //     │   └─ regen    (fuel + sponsor)
+  //     │   │   ├─ regen    (fuel + sponsor)
+  //     │   │   │   └─ tank     (fuel + regen)
+  //     │   │   └─ burner   (rocket)
+  //     │   └─ plating  (struts + rocket)
+  //     │       └─ gun      (rocket + plating)
+  //     └─ sponsor   (aero + bounce)
   //
   // Distance-based `unlock` gates stay as a secondary check (mostly already
   // trivial next to the new prerequisite gate) — the real gate is now cost
@@ -49,25 +54,31 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
   // store.js's cap-gate logic, which reads this constant directly so the
   // number here and the number enforced never drift apart. Base dropped
   // 3→1: with real tree gating now doing the heavy lifting on pacing, a
-  // starting cap higher than 1 was redundant slack — Cargo Crate is the
-  // one upgrade worth grabbing first almost regardless of build.
+  // starting cap higher than 1 was redundant slack.
   const DAILY_CAP_BASE = 1;
 
   const UPGRADES = [
-    // ── roots (no prerequisites) ──
-    { id:'cargo', icon:'\u{1F4E6}', name:'Cargo Crate', base:70, mul:1.6, max:7, unlock:0, requires:[],
-      desc:'How many upgrades Fish Co. can drop off before your next flight. Bigger crate, more buys per visit.',
-      val:l=>`${DAILY_CAP_BASE+l} deliveries/day` },
-    { id:'ramp',    icon:'\u{1F6DD}', name:'Ramp Track',   base:90,  mul:1.65, max:12, unlock:0, requires:[],
+    // ── roots (no prerequisites) — ramp is deliberately the cheapest, the
+    // obvious first buy in a ramp game, not a shop-capacity meta-upgrade ──
+    { id:'ramp',    icon:'\u{1F6DD}', name:'Ramp Track',   base:50,  mul:1.65, max:12, unlock:0, requires:[],
       desc:'More track to build speed on. Reshape it in the designer below.',
       val:l=>{ const d=derive({ramp:l}); const r=buildRamp(d.rampLen);
                return `${Math.round(d.rampLen)} m · ${Math.round(r.H)} m tall · ~${Math.round(rampExitEst(d, r))} m/s exit`; } },
-    { id:'wings',   icon:'\u{1FABD}', name:'Glider Wings', base:120, mul:1.55, max:10, unlock:0, requires:[],
+    { id:'speedo', icon:'\u{1F4DF}', name:'Speedometer', base:65, mul:1, max:1, unlock:0, requires:[], oneTime:true,
+      desc:'See your speed — and get paid for top speed.',
+      val:l=> l===0 ? 'not installed' : 'installed' },
+    { id:'wings',   icon:'\u{1FABD}', name:'Glider Wings', base:90, mul:1.55, max:10, unlock:0, requires:[],
       desc:'More lift, flatter glide. Ease off "up" to cruise. New rig every couple of levels.',
       val:l=>{ if(l===0) return 'no wings'; const d=derive({wings:l});
                return `${gliderName(l)} · ~${Math.max(1,Math.round(d.bestLD))}:1 glide`; } },
+    { id:'cargo', icon:'\u{1F4E6}', name:'Cargo Crate', base:150, mul:1.6, max:7, unlock:0, requires:[],
+      desc:'How many upgrades Fish Co. can drop off before your next flight. Bigger crate, more buys per visit.',
+      val:l=>`${DAILY_CAP_BASE+l} deliveries/day` },
 
     // ── tier 1 (one prerequisite) ──
+    { id:'alti',   icon:'\u{1F4E1}', name:'Altimeter',   base:220, mul:1, max:1, unlock:100, requires:['speedo'], oneTime:true,
+      desc:'See your altitude — and get paid for peak height.',
+      val:l=> l===0 ? 'not installed' : 'installed' },
     { id:'aero',    icon:'\u{1F9CA}', name:'Slick Suit',   base:70,  mul:1.55, max:10, unlock:0, requires:['wings'],
       desc:'Waxed feathers cut drag on the ramp, in the air, and on the ice.',
       val:l=>`dives to ~${Math.round(derive({aero:l}).vDive)} m/s` },
@@ -96,6 +107,9 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
     { id:'fuel',    icon:'⛽',    name:'Fuel Tank',    base:140,  mul:1.55, max:10, unlock:100, requires:['rocket'],
       desc:'More burn time for sustained climbs.',
       val:l=>`${(2+1.3*l).toFixed(1)} s of burn` },
+    { id:'burner', icon:'\u{1F4A5}', name:'Afterburner', base:2800, mul:1, max:1, unlock:1000, requires:['rocket'], oneTime:true,
+      desc:'Once per flight, press X: instant +90 m/s. No fuel.',
+      val:l=> l===0 ? 'not installed' : 'installed' },
     { id:'plating', icon:'\u{1F6E1}', name:'Ram Plating',  base:1000, mul:1.55, max:6, unlock:1500, requires:['struts','rocket'],
       desc:'An armored belly plate. Smash landmarks harder and keep more speed on impact.',
       val:l=>`×${(1+0.35*l).toFixed(2)} smash damage`,
@@ -114,21 +128,14 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
     { id:'regen',   icon:'\u{267B}\u{FE0F}', name:'Fuel Regen',  base:900, mul:1.6, max:5, unlock:1000, requires:['fuel','sponsor'],
       desc:'Slowly refills the tank while gliding — coast to keep the rocket fed.',
       val:l=> l===0 ? 'no regen' : `${(0.12*l).toFixed(2)} s of burn / s gliding` },
+
+    // ── tier 5 (deepest) ──
+    { id:'tank',   icon:'\u{1F6E2}', name:'Reserve Tank', base:6500, mul:1, max:1, unlock:2500, requires:['fuel','regen'], oneTime:true,
+      desc:'Rocket refuels to half on your first ground bounce.',
+      val:l=> l===0 ? 'not installed' : 'installed' },
   ];
 
-  // ─── GEAR ─────────────────────────────────────────────────────────────────
-  const GEAR = [
-    { id:'speedo', icon:'\u{1F4DF}', name:'Speedometer', cost:60,   unlock:0,
-      desc:'See your speed — and get paid for top speed.' },
-    { id:'alti',   icon:'\u{1F4E1}', name:'Altimeter',   cost:200,  unlock:100,
-      desc:'See your altitude — and get paid for peak height.' },
-    { id:'burner', icon:'\u{1F4A5}', name:'Afterburner', cost:2500, unlock:1000,
-      desc:'Once per flight, press X: instant +90 m/s. No fuel.' },
-    { id:'tank',   icon:'\u{1F6E2}', name:'Reserve Tank', cost:6000, unlock:2500,
-      desc:'Rocket refuels to half on your first ground bounce.' },
-  ];
-
-  const upgCost = u => Math.round(u.base * Math.pow(u.mul, state.lvl[u.id]));
+  const upgCost = u => Math.round(u.base * Math.pow(u.mul, u.oneTime ? 0 : state.lvl[u.id]));
 
   // ─── MILESTONES ───────────────────────────────────────────────────────────
   // Each entry is [dist_m, cash_reward]. Claimed once ever (state.claimed).
@@ -182,19 +189,28 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
   ];
 
   // ─── CONTRACT_POOL ────────────────────────────────────────────────────────
-  // Two per-day side objectives, deterministic from the day number and scaled
-  // to current progress. Checked at the end of the flight; paid in results.
-  // Style-based entries added: combo, stars, gunKills, skimT combos.
+  // Up to two per-day side objectives, deterministic from the day number and
+  // scaled to current progress. Checked at the end of the flight; paid in
+  // results. Style-based entries added: combo, stars, gunKills, skimT combos.
+  //
+  // `gate(everDid)` — most mechanic-specific contracts (fish, rings, a gun
+  // kill, a loop...) don't show up until the player has actually done that
+  // thing at least once, ever (state.everDid, set in results.js). A fresh
+  // player who's never seen a ring shouldn't get a "fly through 3 rings"
+  // mission before they know rings exist. Contracts with no `gate` (spd,
+  // alt) are universal — every flight has some speed and altitude, nothing
+  // to discover first. contractsFor() below filters on this before picking,
+  // and it's fine for a day to end up with 0 eligible contracts.
   const CONTRACT_POOL = [
     { id:'fish',   txt:n=>`Catch ${n} fish`,
       tgt:b=>clamp(Math.round(3 + b.dist/400), 3, 20),
-      val:r=>r.coinCount },
+      val:r=>r.coinCount, gate:ed=>!!ed.fish },
     { id:'rings',  txt:n=>`Fly through ${n} ring${n>1?'s':''}`,
       tgt:b=>clamp(Math.round(1 + b.dist/1500), 1, 6),
-      val:r=>r.ringCount },
+      val:r=>r.ringCount, gate:ed=>!!ed.ring },
     { id:'skim',   txt:n=>`Skim the ice for ${n}s`,
       tgt:b=>clamp(Math.round(2 + b.dist/2500), 2, 8),
-      val:r=>Math.floor(r.skimT) },
+      val:r=>Math.floor(r.skimT), gate:ed=>!!ed.skim },
     { id:'spd',    txt:n=>`Hit ${n} m/s`,
       tgt:b=>Math.round(clamp(b.spd*1.1 + 5, 30, 400)),
       val:r=>Math.round(r.maxSpd) },
@@ -203,32 +219,41 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
       val:r=>Math.round(r.maxAlt) },
     { id:'bounce', txt:n=>`Bounce ${n} times`,
       tgt:b=>clamp(2 + Math.floor(b.dist/3000), 2, 6),
-      val:r=>r.bounceCount },
+      val:r=>r.bounceCount, gate:ed=>!!ed.bounce },
     // Style contracts — uses existing run fields only
     { id:'combo',  txt:n=>`Build a ×${n} combo`,
       tgt:b=>clamp(2 + Math.floor(b.dist/4000), 2, 8),
-      val:r=>r.maxCombo },
+      val:r=>r.maxCombo, gate:ed=>!!ed.combo },
     { id:'stars',  txt:n=>`Collect ${n} star${n>1?'s':''}`,
       tgt:b=>clamp(Math.round(1 + b.dist/3000), 1, 8),
-      val:r=>r.starCount },
+      val:r=>r.starCount, gate:ed=>!!ed.star },
     { id:'gun',    txt:n=>`Down ${n} target${n>1?'s':''} with the cannon`,
       tgt:b=>clamp(1 + Math.floor(b.dist/5000), 1, 6),
-      val:r=>r.gunKills },
+      val:r=>r.gunKills, gate:ed=>!!ed.gun },
     { id:'smash',  txt:n=>`Smash through ${n} obstacle${n>1?'s':''}`,
       tgt:b=>clamp(2 + Math.floor(b.dist/4000), 2, 6),
-      val:r=>r.obHits },
+      val:r=>r.obHits, gate:ed=>!!ed.smash },
     { id:'lowfly', txt:n=>`Skim for ${n}s AND catch 3 fish`,
       tgt:b=>clamp(Math.round(3 + b.dist/3000), 3, 10),
-      val:r=>Math.min(Math.floor(r.skimT), r.coinCount >= 3 ? 999 : 0) },
+      val:r=>Math.min(Math.floor(r.skimT), r.coinCount >= 3 ? 999 : 0), gate:ed=>!!ed.skim && !!ed.fish },
+    { id:'loop',   txt:n=>`Pull ${n} loop-de-loop${n>1?'s':''}`,
+      tgt:b=>clamp(1 + Math.floor(b.dist/6000), 1, 4),
+      val:r=>r.loopCount, gate:ed=>!!ed.loop },
   ];
 
   function contractsFor(day){
     const b = state.best;
-    const a = Math.floor(hash01(day*13+3)*CONTRACT_POOL.length);
-    const c2 = (a + 1 + Math.floor(hash01(day*29+11)*(CONTRACT_POOL.length-1))) % CONTRACT_POOL.length;
+    const everDid = state.everDid || {};
+    const eligible = CONTRACT_POOL.filter(c => !c.gate || c.gate(everDid));
+    if(!eligible.length) return [];
     const reward = Math.round(clamp(100 + b.dist*0.25, 100, 5000)/10)*10;
-    return [a, c2].map(idx => {
-      const c = CONTRACT_POOL[idx];
+    const a = Math.floor(hash01(day*13+3)*eligible.length);
+    const picks = [eligible[a]];
+    if(eligible.length > 1){
+      const c2 = (a + 1 + Math.floor(hash01(day*29+11)*(eligible.length-1))) % eligible.length;
+      picks.push(eligible[c2]);
+    }
+    return picks.map(c => {
       const target = c.tgt(b);
       return { id:c.id, text:c.txt(target), target, val:c.val, reward };
     });
@@ -254,75 +279,71 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
   ];
 
   // ─── MEDALS ───────────────────────────────────────────────────────────────
-  // Permanent achievements worth Bonus Points; BP buys bonus-shop levels.
-  // All three survive a progress reset — the prestige loop.
-  // New medals added for style play (combo chains, stars, endurance, accuracy).
+  // Permanent achievements — earned once, forever, survive a progress reset.
+  // Some pay cash on the flight that earns them (folded straight into that
+  // flight's total, same as a milestone); a few purely-trivial ones (first
+  // flight) pay nothing — the medal itself is the reward. No BP, no bonus
+  // shop — that whole prestige loop was cut, the mechanics weren't pulling
+  // their weight for the replay value they cost in complexity.
   const MEDALS = [
-    { id:'first',    bp:1, icon:'\u{1F423}', name:'Leap of Faith',
+    { id:'first',    cash:0,   icon:'\u{1F423}', name:'Leap of Faith',
       desc:'Complete your first flight',               chk:r=>true },
-    { id:'century',  bp:1, icon:'\u{1F4CF}', name:'Century',
+    { id:'century',  cash:40,  icon:'\u{1F4CF}', name:'Century',
       desc:'Fly 100 m',                                chk:r=>r.dist>=100 },
-    { id:'kmclub',   bp:1, icon:'\u{1F6E3}', name:'Kilometre Club',
+    { id:'kmclub',   cash:60,  icon:'\u{1F6E3}', name:'Kilometre Club',
       desc:'Fly 1 km',                                 chk:r=>r.dist>=1000 },
-    { id:'fivek',    bp:2, icon:'\u{1F680}', name:'Frequent Flyer',
+    { id:'fivek',    cash:150, icon:'\u{1F680}', name:'Frequent Flyer',
       desc:'Fly 5 km',                                 chk:r=>r.dist>=5000 },
-    { id:'tenk',     bp:2, icon:'\u{1F30D}', name:'Ten-K',
+    { id:'tenk',     cash:200, icon:'\u{1F30D}', name:'Ten-K',
       desc:'Fly 10 km',                                chk:r=>r.dist>=10000 },
-    { id:'twentyk',  bp:3, icon:'\u{1F30C}', name:'Horizon Chaser',
+    { id:'twentyk',  cash:350, icon:'\u{1F30C}', name:'Horizon Chaser',
       desc:'Fly 20 km',                                chk:r=>r.dist>=20000 },
-    { id:'stratos',  bp:2, icon:'\u{1F30C}', name:'Stratospheric',
+    { id:'stratos',  cash:150, icon:'\u{1F30C}', name:'Stratospheric',
       desc:'Reach 3,000 m altitude',                   chk:r=>r.maxAlt>=3000 },
-    { id:'ionosphere',bp:3,icon:'\u{2728}',  name:'Ionospheric',
+    { id:'ionosphere',cash:350,icon:'\u{2728}',  name:'Ionospheric',
       desc:'Reach 6,000 m altitude',                   chk:r=>r.maxAlt>=6000 },
-    { id:'mach',     bp:2, icon:'\u{1F4A8}', name:'Mach Penguin',
+    { id:'mach',     cash:150, icon:'\u{1F4A8}', name:'Mach Penguin',
       desc:'Hit 200 m/s',                              chk:r=>r.maxSpd>=200 },
-    { id:'hypersonic',bp:3,icon:'\u{1F525}', name:'Hypersonic',
+    { id:'hypersonic',cash:350,icon:'\u{1F525}', name:'Hypersonic',
       desc:'Hit 350 m/s',                              chk:r=>r.maxSpd>=350 },
-    { id:'fish10',   bp:1, icon:'\u{1F41F}', name:'Fish Magnet',
+    { id:'fish10',   cash:60,  icon:'\u{1F41F}', name:'Fish Magnet',
       desc:'Catch 10 fish in one flight',              chk:r=>r.coinCount>=10 },
-    { id:'fish20',   bp:2, icon:'\u{1F420}', name:'Shoal Surfer',
+    { id:'fish20',   cash:150, icon:'\u{1F420}', name:'Shoal Surfer',
       desc:'Catch 20 fish in one flight',              chk:r=>r.coinCount>=20 },
-    { id:'combo5',   bp:2, icon:'\u{1F517}', name:'Chain Reaction',
+    { id:'combo5',   cash:150, icon:'\u{1F517}', name:'Chain Reaction',
       desc:'Reach a ×5 combo',                         chk:r=>r.maxCombo>=5 },
-    { id:'combo10',  bp:3, icon:'\u{26D3}',  name:'Unbreakable',
+    { id:'combo10',  cash:350, icon:'\u{26D3}',  name:'Unbreakable',
       desc:'Reach a ×10 combo',                        chk:r=>r.maxCombo>=10 },
-    { id:'ring5',    bp:2, icon:'\u{2B55}',  name:'Ring Master',
+    { id:'ring5',    cash:150, icon:'\u{2B55}',  name:'Ring Master',
       desc:'Thread 5 rings in one flight',             chk:r=>r.ringCount>=5 },
-    { id:'ring8',    bp:3, icon:'\u{1F4CD}', name:'Ring Lord',
+    { id:'ring8',    cash:350, icon:'\u{1F4CD}', name:'Ring Lord',
       desc:'Thread 8 rings in one flight',             chk:r=>r.ringCount>=8 },
-    { id:'skim10',   bp:2, icon:'\u{2744}',  name:'Belly Surfer',
+    { id:'skim10',   cash:150, icon:'\u{2744}',  name:'Belly Surfer',
       desc:'Skim the ice for 10 s in one flight',      chk:r=>r.skimT>=10 },
-    { id:'skim20',   bp:3, icon:'\u{1F9CA}', name:'Ice Dancer',
+    { id:'skim20',   cash:350, icon:'\u{1F9CA}', name:'Ice Dancer',
       desc:'Skim the ice for 20 s in one flight',      chk:r=>r.skimT>=20 },
-    { id:'bounce6',  bp:1, icon:'\u{1F3C0}', name:'Superball',
+    { id:'bounce6',  cash:60,  icon:'\u{1F3C0}', name:'Superball',
       desc:'Bounce 6 times in one flight',             chk:r=>r.bounceCount>=6 },
-    { id:'ace',      bp:2, icon:'\u{1F3AF}', name:'Sky Ace',
+    { id:'loopy',    cash:150, icon:'\u{1F501}', name:'Loop the Loop',
+      desc:'Pull off a loop-de-loop',                  chk:r=>r.loopCount>=1 },
+    { id:'ace',      cash:150, icon:'\u{1F3AF}', name:'Sky Ace',
       desc:'Down 5 targets in one flight',             chk:r=>r.gunKills>=5 },
-    { id:'topgun',   bp:3, icon:'\u{1F52B}', name:'Top Gun',
+    { id:'topgun',   cash:350, icon:'\u{1F52B}', name:'Top Gun',
       desc:'Down 10 targets in one flight',            chk:r=>r.gunKills>=10 },
-    { id:'ouch',     bp:1, icon:'\u{1F915}', name:'Crash Test Penguin',
+    { id:'ouch',     cash:60,  icon:'\u{1F915}', name:'Crash Test Penguin',
       desc:'Hit 3 obstacles in one flight',            chk:r=>r.obHits>=3 },
-    { id:'stars5',   bp:2, icon:'\u{2B50}',  name:'Star Collector',
+    { id:'stars5',   cash:150, icon:'\u{2B50}',  name:'Star Collector',
       desc:'Collect 5 stars in one flight',            chk:r=>r.starCount>=5 },
-    { id:'kit',      bp:2, icon:'\u{1F9F0}', name:'Fully Loaded',
+    { id:'kit',      cash:150, icon:'\u{1F9F0}', name:'Fully Loaded',
       desc:'Own every piece of permanent gear',        chk:()=>Object.values(state.perm).every(v=>v) },
-    { id:'snowman',  bp:2, icon:'\u{26C4}',  name:"Frosty's Bane",
+    { id:'snowman',  cash:400, icon:'\u{26C4}',  name:"Frosty's Bane",
       desc:'Demolish the Giant Snowman',               chk:()=>state.lmHP.snowman<=0 },
-    { id:'iceberg',  bp:3, icon:'\u{1F9CA}', name:'Cold Revenge',
+    { id:'iceberg',  cash:600, icon:'\u{1F9CA}', name:'Cold Revenge',
       desc:'Shatter the Iceberg',                      chk:()=>state.lmHP.iceberg<=0 },
-    { id:'wall',     bp:5, icon:'\u{1F9F1}', name:'Another Brick',
+    { id:'wall',     cash:1500,icon:'\u{1F9F1}', name:'Another Brick',
       desc:'Bring down The Wall',                      chk:()=>state.lmHP.wall<=0 },
   ];
 
-  // ─── BONUS_SHOP ───────────────────────────────────────────────────────────
-  const BONUS_SHOP = [
-    { id:'aero',  icon:'\u{1FAB6}', name:'Penguin Physique', max:3, cost:[2,4,6],
-      desc:'Molted down to racing feathers: −7% drag per level. Permanent — survives resets.' },
-    { id:'cash',  icon:'\u{1F3E6}', name:'Merch Empire',     max:3, cost:[2,4,6],
-      desc:'Plush penguins in every store: +12% earnings per level. Permanent.' },
-    { id:'skull', icon:'\u{1FA96}', name:'Hardened Skull',   max:3, cost:[2,4,6],
-      desc:'Pure bone. +40% smash damage per level. Permanent.' },
-  ];
 
   // ─── DAILY MODIFIER TABLE ─────────────────────────────────────────────────
   // Each entry is a descriptor that physics/world can read defensively from
@@ -400,8 +421,8 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
 
   // ─── EXPORTS ──────────────────────────────────────────────────────────────
   return {
-    UPGRADES, GEAR, upgCost, MILESTONES, WIN_DIST, OBSTACLE_TYPES,
-    CONTRACT_POOL, contractsFor, LANDMARKS, MEDALS, BONUS_SHOP,
+    UPGRADES, upgCost, MILESTONES, WIN_DIST, OBSTACLE_TYPES,
+    CONTRACT_POOL, contractsFor, LANDMARKS, MEDALS,
     DAILY_CAP_BASE,
     // New exports — consumed defensively (typeof guard) by other modules:
     DAILY_MOD_TABLE, dailyModFor,

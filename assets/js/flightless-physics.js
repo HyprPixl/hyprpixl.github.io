@@ -21,12 +21,11 @@ export function createPhysics(deps){
   // physical stats derived from upgrade levels (overrides let upgrade cards preview values)
   function derive(over){
     const L = Object.assign({}, state.lvl, over||{});
-    const B = state.bonus;                                  // permanent bonus-shop levels
     const wings = L.wings;
     const mass  = 10;                                       // kg, penguin + kit
     const wingS = wings===0 ? 0.02 : 0.10 + 0.09*wings;     // m² lifting area
     const ar    = wings===0 ? 1.2  : 3 + 0.55*wings;        // wing aspect ratio
-    const cdA   = Math.max(0.006, 0.022 - 0.0016*L.aero) * (1 - 0.07*B.aero);  // m², body parasite drag area
+    const cdA   = Math.max(0.006, 0.022 - 0.0016*L.aero);   // m², body parasite drag area
     const cd0w  = 0.008;                                    // clean-wing profile drag coeff
     const k     = 1/(Math.PI*ar*0.85);                      // induced drag factor (e = 0.85)
     const cd0eff = cdA/wingS + cd0w;
@@ -54,8 +53,8 @@ export function createPhysics(deps){
       regenRate: 0.12*L.regen,      // s of burn refilled per second spent gliding (not thrusting)
       sling,
       rest:   L.bounce ? 0.12 + 0.09*L.bounce : 0,
-      mult:   (1 + 0.35*L.sponsor) * (1 + 0.12*B.cash),
-      smash:  (1 + 0.35*L.plating) * (1 + 0.4*B.skull),
+      mult:   1 + 0.35*L.sponsor,
+      smash:  1 + 0.35*L.plating,
       gunLevel: L.gun,
       gunRange: L.gun ? 260 + 90*L.gun : 0,
       slideDecel: Math.max(3, 6.5 - 0.35*L.aero),
@@ -143,6 +142,7 @@ export function createPhysics(deps){
       skimT:0, skimCash:0, skimSeg:0, skimQuiet:0, bounceCount:0,
       obHits:0, smashCash:0, contractsMet:new Set(), contractT:0,
       contracts:contractsFor(state.day),   // locked in at launch
+      loopAccum:0, loopCount:0,
 
       // overheat: accumulates while thrusting, dissipates at rest; triggers
       // penalty above HEAT_MAX, auto-resets once cooled
@@ -308,6 +308,23 @@ export function createPhysics(deps){
     const slew = sim.st.wingAuth*(0.35+0.65*airEff)*h;
     const aoa1 = angDiff(sim.run.head, velA);
     sim.run.head = velA + clamp(aoa1 + clamp(aoaTgt-aoa1, -slew, slew), -0.9, 0.9);
+
+    // ── loop-de-loop detection ──
+    // Tracks net rotation of the velocity VECTOR (not attitude/head, which
+    // wobbles with angle-of-attack) — a full 2π sweep is a real trajectory
+    // loop. Gated on real airspeed so near-stall heading jitter can't rack
+    // up false loops.
+    if(sim.run._prevVelA === undefined) sim.run._prevVelA = velA;
+    if(sp > 15){
+      sim.run.loopAccum += angDiff(velA, sim.run._prevVelA);
+      if(Math.abs(sim.run.loopAccum) >= 2*Math.PI){
+        sim.run.loopCount++;
+        sim.run.loopAccum -= Math.sign(sim.run.loopAccum)*2*Math.PI;
+        popup('\u{1F501} LOOP!', 22);
+        SFX.ding();
+      }
+    }
+    sim.run._prevVelA = velA;
 
     // ── forces (accelerations, m/s²) ──
     // Daily-modifier wind: state.dailyMod is an optional object set at

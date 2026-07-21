@@ -40,12 +40,17 @@ export function defaultState(){
     musicMuted: false,
     settings: { reduceMotion:false, sfxVol:1, musicVol:1 },
     ngPlus: 0,
-    // landmark hit points (persist between days), medals earned, bonus points,
-    // and permanent bonus-shop levels (these three survive a progress reset)
-    // NOTE: these MUST match the `hp` values in flightless-data.js's LANDMARKS
-    // table — lmHP is the persisted *current* HP, seeded to each landmark's max.
+    // landmark hit points (persist between days) and medals earned — these
+    // survive a progress reset. NOTE: lmHP defaults MUST match the `hp`
+    // values in flightless-data.js's LANDMARKS table — lmHP is the
+    // persisted *current* HP, seeded to each landmark's max.
     lmHP: { snowman:350, iceberg:2000, wall:8000 },
-    medals: [], bp: 0, bonus: { aero:0, cash:0, skull:0 },
+    medals: [],
+    // lifetime "have I ever done X" flags — gates mechanic-specific daily
+    // contracts (fish, rings, a loop...) so they don't show up before the
+    // player has discovered that thing at least once. See flightless-data.js's
+    // CONTRACT_POOL `gate` fields and flightless-results.js's finishRun().
+    everDid: {},
     // ramp spline control points in unit shape space (gate → lip); the last
     // point IS the lip. Upgrades buy track length; this is the shape of it.
     rampShape: [{x:0.03,y:0.95},{x:0.16,y:0.32},{x:0.72,y:0.02},{x:1,y:0.10}],
@@ -89,14 +94,14 @@ const KNOWN_LVL_KEYS   = new Set(['ramp','aero','wings','rocket','fuel','sling',
 const KNOWN_PERM_KEYS  = new Set(['speedo','alti','burner','tank']);
 const KNOWN_BEST_KEYS  = new Set(['dist','alt','spd']);
 const KNOWN_LMHP_KEYS  = new Set(['snowman','iceberg','wall']);
-const KNOWN_BONUS_KEYS = new Set(['aero','cash','skull']);
+const KNOWN_EVERDID_KEYS = new Set(['fish','ring','skim','bounce','combo','star','gun','smash','loop']);
 const KNOWN_SETTINGS_KEYS = new Set(['reduceMotion','sfxVol','musicVol']);
 
 // Top-level keys that belong in a saved state.
 const KNOWN_TOP_KEYS = new Set([
   'version','money','day','lvl','perm','best','claimed','won','muted',
   'started','musicMuted','settings','ngPlus',
-  'lmHP','medals','bp','bonus','rampShape',
+  'lmHP','medals','everDid','rampShape',
 ]);
 
 function sanitize(state){
@@ -111,7 +116,6 @@ function sanitize(state){
   state.version        = SCHEMA_VER;
   state.money          = clamp(finite(state.money,          0), 0, 1e12);
   state.day            = clamp(finite(state.day,            1), 1, 1e6);
-  state.bp             = clamp(finite(state.bp,             0), 0, 1e9);
   state.ngPlus         = clamp(finite(state.ngPlus,         0), 0, 999);
   state.won            = bool(state.won,     false);
   state.muted          = bool(state.muted,   false);
@@ -135,8 +139,8 @@ function sanitize(state){
   state.lmHP = Object.fromEntries(
     Array.from(KNOWN_LMHP_KEYS).map(k => [k, clamp(finite(state.lmHP?.[k], d.lmHP[k]), 0, 1e7)])
   );
-  state.bonus = Object.fromEntries(
-    Array.from(KNOWN_BONUS_KEYS).map(k => [k, clamp(finite(state.bonus?.[k], 0), 0, 1e6)])
+  state.everDid = Object.fromEntries(
+    Array.from(KNOWN_EVERDID_KEYS).map(k => [k, bool(state.everDid?.[k], false)])
   );
 
   // Settings sub-object

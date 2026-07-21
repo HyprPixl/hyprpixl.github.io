@@ -1,18 +1,19 @@
 // Flightless — store/shop module.
 //
-// Owns everything about the in-between-flights shop screen: the tabbed
-// upgrade/gear/bonus/medal shelves, the goals list, and the ramp-shape
-// designer pop-over. It has no physics or rendering of its own — it's
-// handed the save state, the upgrade/gear/medal data tables, and a handful
-// of pure helper functions from the host page, and it owns the DOM inside
-// #shop from there.
+// Owns everything about the in-between-flights shop screen: the single
+// unified upgrade tree (upgrades + one-time gear, all one grid now — no
+// more tabs), the goals list (milestones + daily contracts + landmarks +
+// the medal wall), and the ramp-shape designer pop-over. It has no physics
+// or rendering of its own — it's handed the save state, the upgrade/medal
+// data tables, and a handful of pure helper functions from the host page,
+// and it owns the DOM inside #shop from there.
 //
 // This is split out of pages/flightless.html so the store UI can be
 // iterated on independently of the flight sim, canvas renderer, and save
 // system that still live in the host page.
 export function createStore(deps){
   const {
-    state, UPGRADES, GEAR, BONUS_SHOP, MEDALS, LANDMARKS, MILESTONES,
+    state, UPGRADES, MEDALS, LANDMARKS, MILESTONES,
     contractsFor, upgCost, fmtCash, fmtDist, save, SFX, defaultState,
     getSt, getRamp, recompute, sampleShape, clamp, RAD, econLog,
   } = deps;
@@ -34,12 +35,11 @@ export function createStore(deps){
 
   // ── daily delivery cap ──
   // Fish Co. only drops off so many upgrades before your next flight — a
-  // hard cap on $ purchases (upgrades + gear; the BP-funded bonus shop is a
-  // separate, already-scarce economy and isn't capped), raised by buying
-  // Cargo Crate levels. Resets the moment a flight happens (state.day
-  // changes). Without this, a payout that comfortably affords every
-  // upgrade's base cost turns each shop visit into clicking "buy" ten times
-  // in a row with no real prioritization.
+  // hard cap on $ purchases (every tree node, leveled or one-time), raised
+  // by buying Cargo Crate levels. Resets the moment a flight happens
+  // (state.day changes). Without this, a payout that comfortably affords
+  // every upgrade's base cost turns each shop visit into clicking "buy" ten
+  // times in a row with no real prioritization.
   let capDay = state.day;
   let purchasesToday = 0;
   function dailyCap(){ return DAILY_CAP_BASE + (state.lvl.cargo ?? 0); }
@@ -53,39 +53,8 @@ export function createStore(deps){
   }
 
   const shopGrid = document.getElementById('shop-grid');
-  const gearGrid = document.getElementById('gear-grid');
-  const bonusGrid = document.getElementById('bonus-grid');
   const medalRow = document.getElementById('medal-row');
   const goalList = document.getElementById('goal-list');
-  const tabsEl = document.getElementById('shop-tabs');
-  const panels = {
-    upgrades: document.getElementById('panel-upgrades'),
-    gear: document.getElementById('panel-gear'),
-    bonus: document.getElementById('panel-bonus'),
-    medals: document.getElementById('panel-medals'),
-  };
-  const tabCountEls = {
-    upgrades: document.getElementById('tab-count-upgrades'),
-    gear: document.getElementById('tab-count-gear'),
-    bonus: document.getElementById('tab-count-bonus'),
-    medals: document.getElementById('tab-count-medals'),
-  };
-
-  tabsEl.addEventListener('click', e => {
-    const btn = e.target.closest('.shop-tab');
-    if(!btn) return;
-    setTab(btn.dataset.tab);
-  });
-  function setTab(tab){
-    tabsEl.querySelectorAll('.shop-tab').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
-    for(const [name, el] of Object.entries(panels)) el.hidden = name!==tab;
-  }
-  function setTabCount(name, n){
-    const el = tabCountEls[name];
-    if(!el) return;
-    el.textContent = n>0 ? String(n) : '';
-    el.classList.toggle('on', n>0);
-  }
 
   // ── ramp designer (collapsible pop-over) ──
   // A one-line summary button in the shop footer; the canvas appears above
@@ -381,7 +350,6 @@ export function createStore(deps){
     document.getElementById('shop-money').textContent = fmtCash(state.money);
     document.getElementById('shop-day').textContent = state.day;
     document.getElementById('shop-best').textContent = fmtDist(state.best.dist);
-    document.getElementById('shop-bp').textContent = state.bp + ' BP';
     const capEl = document.getElementById('shop-cap');
     if(capEl){
       const remaining = Math.max(0, capRemaining());
@@ -431,29 +399,48 @@ export function createStore(deps){
       goalList.appendChild(li);
     }
 
+    // medal wall — unified into Goals (no separate tab): earned bright,
+    // unearned greyed, cash value (if any) shown in the tooltip
+    medalRow.innerHTML = '';
+    for(const m of MEDALS){
+      const got = state.medals.includes(m.id);
+      const chip = document.createElement('div');
+      chip.className = 'medal ' + (got ? 'on' : 'off');
+      chip.textContent = m.icon;
+      chip.title = `${m.name}${m.cash > 0 ? ' (+'+fmtCash(m.cash)+')' : ''} — ${m.desc}`;
+      medalRow.appendChild(chip);
+    }
+
     // ── daily deal resolution (defensive: dailyDealFor may be absent) ──
     const todaysDeal = dailyDealFor ? (function(){
       try { return dailyDealFor(state.day); } catch(_){ return null; }
     })() : null;
     // todaysDeal is expected to be { id, discount } — e.g. { id: 'engine', discount: 0.25 }
 
-    // upgrade cards — unlocked at distance milestones AND tree prerequisites.
-    // A maxed-out upgrade drops off the list entirely (its slot is free for
-    // a later tier), and a locked one (missing a prerequisite) doesn't show
+    // upgrade tree — unlocked at distance milestones AND tree prerequisites.
+    // A maxed-out node drops off the list entirely (its slot is free for a
+    // later tier), and a locked one (missing a prerequisite) doesn't show
     // at all — no "requires X + Y" clutter for nodes you can't work toward
     // yet. Everything whose prerequisites ARE met stays visible regardless
-    // of affordability (unlike the old single-track economy, a real tree
-    // has real branches — hiding options behind "only show the cheapest"
-    // fights against letting the player see and choose between them).
+    // of affordability — a real tree has real branches, hiding options
+    // behind "only show the cheapest" fights against letting the player see
+    // and choose between them. `oneTime` nodes (formerly the separate GEAR
+    // list — Speedometer, Altimeter, Afterburner, Reserve Tank) are bought
+    // once ever: ownership lives in state.perm[id] instead of state.lvl[id],
+    // so physics/hud/results (which already read state.perm.speedo etc.)
+    // needed no changes.
     shopGrid.innerHTML = '';
-    // requires is an array of upgrade ids that must each be at level ≥1 —
-    // some nodes need one prerequisite, some need two (see flightless-data.js)
-    const missingRequires = u => (u.requires || []).filter(id => (state.lvl[id] ?? 0) === 0);
+    function isOwned(id){
+      const u = UPGRADES.find(x => x.id === id);
+      if(!u) return false;
+      return u.oneTime ? !!state.perm[id] : (state.lvl[id] ?? 0) > 0;
+    }
+    function ownedLevel(u){ return u.oneTime ? (state.perm[u.id] ? 1 : 0) : (state.lvl[u.id] ?? 0); }
+    const missingRequires = u => (u.requires || []).filter(id => !isOwned(id));
     const upgAvail = UPGRADES.filter(u =>
-      state.best.dist >= (u.unlock||0) && state.lvl[u.id] < u.max && missingRequires(u).length === 0);
-    let upgAffordable = 0;
+      state.best.dist >= (u.unlock||0) && ownedLevel(u) < u.max && missingRequires(u).length === 0);
     for(const u of upgAvail){
-      const lvl = state.lvl[u.id];
+      const lvl = ownedLevel(u);
       const baseCost = upgCost(u);
 
       // Apply daily deal discount if this upgrade matches today's deal.
@@ -465,7 +452,6 @@ export function createStore(deps){
       const capOut = capRemaining() <= 0;
 
       const affordable = !capOut && state.money >= cost;
-      if(affordable) upgAffordable++;
       const card = document.createElement('div');
       card.className = 'upg' + (affordable ? ' affordable' : '') + (isDailyDeal ? ' daily-deal' : '');
 
@@ -511,9 +497,10 @@ export function createStore(deps){
       card.querySelector('button').addEventListener('click', () => {
         if(state.money < cost || capRemaining() <= 0) return;
         state.money -= cost;
-        state.lvl[u.id]++;
+        if(u.oneTime) state.perm[u.id] = true;
+        else state.lvl[u.id]++;
         registerPurchase();
-        econLog?.logBuy({ name: u.name, id: u.id, cost, lvl: state.lvl[u.id] });
+        econLog?.logBuy({ name: u.name, id: u.id, cost, lvl: u.oneTime ? 'owned' : state.lvl[u.id] });
         SFX.buy();
         save();
         renderShop();
@@ -521,116 +508,7 @@ export function createStore(deps){
       });
       shopGrid.appendChild(card);
     }
-    setTabCount('upgrades', upgAffordable);
-
-    // medal wall — earned bright, unearned greyed with the hint in the tooltip
-    medalRow.innerHTML = '';
-    for(const m of MEDALS){
-      const got = state.medals.includes(m.id);
-      const chip = document.createElement('div');
-      chip.className = 'medal ' + (got ? 'on' : 'off');
-      chip.textContent = m.icon;
-      chip.title = `${m.name} (+${m.bp} BP) — ${m.desc}`;
-      medalRow.appendChild(chip);
-    }
-    setTabCount('medals', 0);
-
-    // bonus shop — permanent levels bought with BP
-    bonusGrid.innerHTML = '';
-    let bonusAffordable = 0;
-    for(const b of BONUS_SHOP){
-      const lvl = state.bonus[b.id] ?? 0;
-      const maxed = lvl >= b.max;
-      const cost = maxed ? 0 : b.cost[lvl];
-      const affordable = !maxed && state.bp >= cost;
-      if(affordable) bonusAffordable++;
-      const card = document.createElement('div');
-      card.className = 'upg gear' + (affordable ? ' affordable' : '');
-      const pips = Array.from({length:b.max}, (_,i)=>`<div class="pip${i<lvl?' on':''}"></div>`).join('');
-
-      // ── bonus respec: refund button (50% BP back per level) ──
-      // Only show refund when at least one level has been bought.
-      const refundPerLevel = Math.floor((b.cost[0] ?? 1) * 0.5);
-      const totalRefund    = lvl > 0 ? lvl * refundPerLevel : 0;
-      const refundHTML = lvl > 0
-        ? `<button class="bonus-refund" style="font-family:inherit;font-size:9.5px;cursor:pointer;background:none;border:none;color:#e87;text-decoration:underline;padding:0;margin-top:2px;" title="Refund all levels for ${totalRefund} BP (50% per level)">↩ refund (${totalRefund} BP)</button>`
-        : '';
-
-      card.innerHTML = `
-        <div class="upg-head"><span class="upg-icon">${b.icon}</span><span class="upg-name">${b.name}</span></div>
-        <div class="upg-desc">${b.desc}</div>
-        <div class="pips">${pips}</div>
-        ${refundHTML}
-        <button ${(maxed || state.bp < cost)?'disabled':''}>${maxed ? 'MAX' : `Buy — ${cost} BP`}</button>`;
-
-      card.querySelector('button:last-of-type').addEventListener('click', () => {
-        if(maxed || state.bp < cost) return;
-        state.bp -= cost;
-        state.bonus[b.id] = (state.bonus[b.id] ?? 0) + 1;
-        econLog?.logBuy({ name: b.name, id: b.id, cost, lvl: state.bonus[b.id], currency: 'BP' });
-        SFX.buy();
-        save();
-        renderShop();
-        recompute();
-      });
-
-      // Wire refund button if it exists.
-      const refundBtn = card.querySelector('.bonus-refund');
-      if(refundBtn){
-        refundBtn.addEventListener('click', () => {
-          const curLvl = state.bonus[b.id] ?? 0;
-          if(curLvl <= 0) return;
-          const refund = curLvl * refundPerLevel;
-          state.bp += refund;
-          state.bonus[b.id] = 0;
-          econLog?.logRefund({ name: b.name, id: b.id, refund, currency: 'BP' });
-          SFX.buy();
-          save();
-          renderShop();
-          recompute();
-        });
-      }
-
-      bonusGrid.appendChild(card);
-    }
-    setTabCount('bonus', bonusAffordable);
-
-    // gear cards (one-time permanent buys) — same unlock/hide rules as upgrades
-    gearGrid.innerHTML = '';
-    const gearAvail = GEAR.filter(g => state.best.dist >= (g.unlock||0) && !state.perm[g.id]);
-    const cheapestNewGear = gearAvail.reduce((min,g) => (!min || g.cost < min.cost) ? g : min, null);
-    let gearAffordable = 0;
-    for(const g of gearAvail){
-      const cost = g.cost;
-      const capOut = capRemaining() <= 0;
-      if(state.money < cost && g !== cheapestNewGear) continue;
-      const affordable = !capOut && state.money >= cost;
-      if(affordable) gearAffordable++;
-      const card = document.createElement('div');
-      card.className = 'upg gear' + (affordable ? ' affordable' : '');
-      const capNote = capOut
-        ? `<div style="font-size:9px;font-weight:bold;color:#ff8a8a;background:#3a1010;padding:1px 5px;border-radius:2px;margin-bottom:3px;display:inline-block;">\u{1F4E6} NO DELIVERIES LEFT TODAY</div><br>`
-        : '';
-      card.innerHTML = `
-        <div class="upg-head"><span class="upg-icon">${g.icon}</span><span class="upg-name">${g.name}</span></div>
-        ${capNote}
-        <div class="upg-desc">${g.desc}</div>
-        <button ${(capOut || state.money<cost)?'disabled':''}>Buy — ${fmtCash(cost)}</button>`;
-      card.querySelector('button').addEventListener('click', () => {
-        if(state.money < cost || capRemaining() <= 0) return;
-        state.money -= cost;
-        state.perm[g.id] = true;
-        registerPurchase();
-        econLog?.logBuy({ name: g.name, id: g.id, cost, lvl: 'owned' });
-        SFX.buy();
-        save();
-        renderShop();
-      });
-      gearGrid.appendChild(card);
-    }
-    setTabCount('gear', gearAffordable);
   }
 
-  setTab('upgrades');
   return { renderShop, drawEditor };
 }
