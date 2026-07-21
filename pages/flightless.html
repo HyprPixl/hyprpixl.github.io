@@ -197,9 +197,8 @@
   }
   @media (max-width:700px){
     .shop-top{ padding:38px 0 0; }
-    .shop-grid{ gap:14px 18px; }
-    .upg-group{ gap:4px; }
-    .lvl-icon{ width:48px; }
+    .shop-grid{ grid-template-columns:repeat(13, minmax(46px,1fr)); gap:12px 6px; }
+    .lvl-icon{ width:42px; }
   }
   .shop-top .game-title{ margin:0; text-align:left; font-size:clamp(18px,2.6vw,28px); letter-spacing:2.5px; }
   .shop-top .subtitle{ margin:0; text-align:left; flex:1 1 auto; }
@@ -283,18 +282,31 @@
   .shop-panel[hidden]{ display:none; }
 
   /* ── upgrade tree ──
-     A single flat grid of level icons: one cell per level of each unlocked
-     upgrade, grouped so an upgrade's levels sit contiguously. Price sits
-     under the icon; name/description/effect only ever show on hover. */
+     A real tree laid out on a CSS grid (TREE_LAYOUT in store.js): every
+     upgrade owns a dedicated row (lane), and each of its LEVELS is its own
+     grid cell/node placed one per column along that lane — level i sits
+     at column startCol+i, so a 12-level upgrade is a chain of 12
+     individual nodes, not one clustered card. An absolutely-positioned SVG
+     underlay (.tree-svg, built by store.js) draws two kinds of line: a
+     plain rail strung through one upgrade's own level-nodes (so its levels
+     read as one path), and a bezier from a prerequisite's level-1 node to
+     its dependent's level-1 node (the actual unlock point) — lanes are
+     ordered so those branch curves bend both up and down off the
+     wings/aero/rocket hub, not in one flat stack. Price sits under each
+     icon; name/effect only ever show on hover. */
   .shop-grid{
-    display:flex; flex-wrap:wrap; align-content:flex-start;
-    gap:18px 22px; padding:8px 2px 14px; margin-bottom:8px;
+    position:relative; display:grid;
+    grid-template-columns:repeat(13, minmax(58px,1fr));
+    grid-auto-rows:min-content;
+    gap:14px 8px; padding:8px 2px 14px; margin-bottom:8px;
+    overflow-x:auto;
   }
-  .upg-group{
-    display:flex; gap:5px; flex-wrap:wrap; align-items:flex-start;
+  .tree-svg{
+    position:absolute; inset:0; width:100%; height:100%;
+    z-index:0; pointer-events:none;
   }
   .lvl-icon{
-    position:relative; width:56px; flex:0 0 auto; cursor:help;
+    position:relative; z-index:1; width:50px; cursor:help;
     background:linear-gradient(165deg,var(--panel2) 0%,var(--panel) 100%);
     border:1px solid var(--border); border-radius:10px;
     padding:6px 4px 5px; display:flex; flex-direction:column; gap:3px;
@@ -302,7 +314,7 @@
     box-shadow:0 3px 8px rgba(4,6,20,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
     transition:transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
   }
-  .lvl-icon svg{ width:32px; height:32px; display:block; filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35)); }
+  .lvl-icon svg{ width:28px; height:28px; display:block; filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35)); }
   .lvl-icon .lvl-price{ font-size:10px; font-weight:700; color:var(--muted); }
   .lvl-icon.owned{ opacity:0.55; }
   .lvl-icon.owned .lvl-price{ color:var(--cash); }

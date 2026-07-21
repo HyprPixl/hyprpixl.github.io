@@ -173,6 +173,52 @@ export function createStore(deps){
       `<line x1="33" y1="32" x2="33" y2="38" stroke="${IC.G}" stroke-width="2.2"/>`),
   };
 
+  // ── tree layout ──
+  // Every upgrade gets its own dedicated row (lane) — never shared with
+  // another upgrade — because each of its LEVELS is its own individual
+  // grid cell/node, laid out one per column along that lane: level i of
+  // an upgrade sits at column `startCol+i`. That's what makes it read as
+  // a path (a chain of level-nodes strung left→right) rather than a
+  // cluster. `startCol` is 1 + the deepest prerequisite's own startCol
+  // (so a path only ever begins strictly right of every upgrade whose
+  // level-1 node unlocks it — matching the actual gate, which only needs
+  // level ≥ 1, not a maxed prerequisite), i.e. the same tiers the old
+  // upgDepth() scheme used. Rows are ordered so branches fan both above
+  // and below the wings/aero/rocket hub, not in one flat stack — that's
+  // the "all four directions" part; the horizontal path itself always
+  // runs left→right, and only the connector between a prerequisite's
+  // first node and its dependent's first node bends up or down.
+  const TREE_LAYOUT = {
+    speedo:  { col:1, row:1 },
+    alti:    { col:2, row:2 },
+    ramp:    { col:1, row:3 },
+    bounce:  { col:2, row:4 },
+    sling:   { col:3, row:5 },
+    sponsor: { col:3, row:6 },
+    wings:   { col:1, row:7 },
+    aero:    { col:2, row:8 },
+    struts:  { col:3, row:9 },
+    rocket:  { col:3, row:10 },
+    fuel:    { col:4, row:11 },
+    regen:   { col:5, row:12 },
+    tank:    { col:6, row:13 },
+    burner:  { col:4, row:14 },
+    plating: { col:4, row:15 },
+    gun:     { col:5, row:16 },
+    cargo:   { col:1, row:17 },
+  };
+
+  // Connector redraw hook — renderShop() swaps in a closure over the
+  // current node set. renderShop() runs while #shop is still display:none
+  // (the host page adds .show right after), so rects are all zero at build
+  // time; the ResizeObserver fires when the grid actually gets laid out
+  // (0 → real size), and again on any wrap/resize.
+  let redrawConnectors = null;
+  window.addEventListener('resize', () => redrawConnectors && redrawConnectors());
+  if(typeof ResizeObserver === 'function'){
+    new ResizeObserver(() => redrawConnectors && redrawConnectors()).observe(shopGrid);
+  }
+
   // ── ramp designer (collapsible pop-over) ──
   // A one-line summary button in the shop footer; the canvas appears above
   // it on demand. All four control points drag, including the lip, so the
@@ -482,12 +528,14 @@ export function createStore(deps){
     // so physics/hud/results (which already read state.perm.speedo etc.)
     // needed no changes.
     //
-    // Layout: one flat grid, one icon cell per level of each visible
-    // upgrade, grouped so an upgrade's levels sit contiguously (in
-    // UPGRADES' own root→leaf order — no depth tiers, no connector lines).
-    // Only the level right after the owned count is buyable; later levels
-    // show their price greyed out so the player can plan ahead. Name,
-    // per-level effect, and price only ever show in the hover tooltip.
+    // Layout: a real 2-D tree on TREE_LAYOUT's grid — every node sits at
+    // its hand-placed (col, row), branching above and below its roots as
+    // well as left-to-right by tier, with an SVG underlay drawing a
+    // connector from each visible prerequisite node to its dependent (a
+    // two-parent node gets two lines in). Each node itself is still the
+    // flat row of per-level icons: only the level right after the owned
+    // count is buyable, later levels show their price greyed out, and
+    // name/per-level effect/price only ever show in the hover tooltip.
     shopGrid.innerHTML = '';
     function isOwned(id){
       const u = UPGRADES.find(x => x.id === id);
@@ -500,11 +548,27 @@ export function createStore(deps){
       state.best.dist >= (u.unlock||0) && ownedLevel(u) < u.max && missingRequires(u).length === 0);
     const capOut = capRemaining() <= 0;
 
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const treeSvg = document.createElementNS(svgNS, 'svg');
+    treeSvg.setAttribute('class', 'tree-svg');
+    treeSvg.setAttribute('preserveAspectRatio', 'none');
+    shopGrid.appendChild(treeSvg);
+
+    // firstNodeEls: upgrade id → its level-1 cell (the branch point other
+    // upgrades' prerequisite lines connect to, and where its own path
+    // starts). lastNodeEls: upgrade id → its furthest-right rendered cell
+    // (where the path's own rail line ends). nodeAffordable: upgrade id →
+    // true if its next buyable level is affordable right now (colors both
+    // the rail and any dependent's incoming connector gold).
+    const firstNodeEls = {};
+    const lastNodeEls = {};
+    const nodeAffordable = {};
+
     for(const u of upgAvail){
       const lvl = ownedLevel(u);
       const levels = u.oneTime ? 1 : u.max;
-      const group = document.createElement('div');
-      group.className = 'upg-group';
+      const pos = TREE_LAYOUT[u.id] || { col:1, row:1 };
+      let lastCell = null;
 
       for(let i=0; i<levels; i++){
         const owned = i < lvl;
@@ -517,11 +581,14 @@ export function createStore(deps){
           ? clamp(todaysDeal.discount, 0, 0.9) : 0;
         const cost = isDailyDeal ? Math.max(1, Math.round(rawCost * (1 - dealDiscount))) : rawCost;
         const affordable = isNext && !capOut && state.money >= cost;
+        if(affordable) nodeAffordable[u.id] = true;
 
         const cell = document.createElement('div');
         cell.className = 'lvl-icon' +
           (owned ? ' owned' : isNext ? ' next' : ' locked') +
           (affordable ? ' affordable' : '') + (isDailyDeal ? ' daily-deal' : '');
+        cell.style.gridColumn = pos.col + i;
+        cell.style.gridRow = pos.row;
 
         const effect = u.oneTime ? u.desc : u.val(i + 1);
         const statusLine = owned ? 'owned'
@@ -550,10 +617,80 @@ export function createStore(deps){
             recompute();   // live-preview taller ramp behind the shop
           });
         }
-        group.appendChild(cell);
+        shopGrid.appendChild(cell);
+        if(i === 0) firstNodeEls[u.id] = cell;
+        lastCell = cell;
       }
-      shopGrid.appendChild(group);
+      lastNodeEls[u.id] = lastCell;
     }
+
+    // ── connector pass ──
+    // Two kinds of line, both drawn from real DOM rects so they're correct
+    // regardless of how far a lane wanders up or down:
+    //  1. a path rail — a plain line strung through every level-node of one
+    //     upgrade, first to last, so its levels read as one chain rather
+    //     than loose dots;
+    //  2. a prerequisite branch — a bezier from a prerequisite's level-1
+    //     node (the actual unlock point: `requires` only ever needs level
+    //     ≥ 1) to its dependent's level-1 node. A prerequisite that's
+    //     maxed out and no longer rendered simply contributes no line.
+    // Either kind glows dusk-gold when the destination upgrade's next level
+    // is affordable right now; otherwise it stays glacial blue.
+    function drawConnectors(){
+      while(treeSvg.firstChild) treeSvg.removeChild(treeSvg.firstChild);
+      const g = shopGrid.getBoundingClientRect();
+      if(g.width < 2 || g.height < 2) return;   // shop hidden — retry on observe
+      treeSvg.setAttribute('viewBox', `0 0 ${g.width} ${g.height}`);
+
+      function line(x1, y1, x2, y2, gold, dashed){
+        const path = document.createElementNS(svgNS, 'path');
+        path.setAttribute('d', `M ${x1} ${y1} L ${x2} ${y2}`);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', gold ? 'rgba(255,200,87,0.55)' : 'rgba(148,164,224,0.35)');
+        path.setAttribute('stroke-width', dashed ? '3' : '2');
+        if(dashed) path.setAttribute('stroke-linecap', 'round');
+        treeSvg.appendChild(path);
+      }
+      function curve(x1, y1, x2, y2, gold){
+        const bend = Math.max(16, (x2 - x1) * 0.5);
+        const path = document.createElementNS(svgNS, 'path');
+        path.setAttribute('d', `M ${x1} ${y1} C ${x1+bend} ${y1}, ${x2-bend} ${y2}, ${x2} ${y2}`);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', gold ? 'rgba(255,200,87,0.6)' : 'rgba(148,164,224,0.45)');
+        path.setAttribute('stroke-width', '2');
+        treeSvg.appendChild(path);
+        for(const [cx, cy] of [[x1, y1], [x2, y2]]){
+          const dot = document.createElementNS(svgNS, 'circle');
+          dot.setAttribute('cx', cx); dot.setAttribute('cy', cy);
+          dot.setAttribute('r', '2.6');
+          dot.setAttribute('fill', gold ? 'rgba(255,200,87,0.85)' : 'rgba(148,164,224,0.65)');
+          treeSvg.appendChild(dot);
+        }
+      }
+
+      for(const u of upgAvail){
+        const gold = !!nodeAffordable[u.id];
+        // 1. this upgrade's own path rail (skip single-level upgrades)
+        const first = firstNodeEls[u.id], last = lastNodeEls[u.id];
+        if(first && last && first !== last){
+          const fr = first.getBoundingClientRect(), lr = last.getBoundingClientRect();
+          line(fr.left + fr.width/2 - g.left, fr.top + fr.height/2 - g.top,
+               lr.left + lr.width/2 - g.left, lr.top + lr.height/2 - g.top, gold, true);
+        }
+        // 2. branch curves in from every visible prerequisite
+        for(const rid of (u.requires || [])){
+          const parent = firstNodeEls[rid];
+          const node = firstNodeEls[u.id];
+          if(!parent || !node) continue;
+          const nr = node.getBoundingClientRect();
+          const pr = parent.getBoundingClientRect();
+          curve(pr.right - g.left, pr.top + pr.height/2 - g.top,
+                nr.left - g.left, nr.top + nr.height/2 - g.top, gold);
+        }
+      }
+    }
+    redrawConnectors = drawConnectors;
+    requestAnimationFrame(drawConnectors);
   }
 
   return { renderShop, drawEditor };
