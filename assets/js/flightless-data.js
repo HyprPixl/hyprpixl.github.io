@@ -15,80 +15,105 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
 
   // ─── UPGRADES ────────────────────────────────────────────────────────────
   // Cost formula: Math.round(base * mul^level). Levels are 0-indexed, so
-  // level 0 costs `base` and you buy your way up. Tuning goals:
-  //   • Early gear (ramp/wings/aero/bounce) should be affordable in 1-3 days.
-  //   • Mid-tier (struts/rocket/fuel/sling) takes a week of moderate flights.
-  //   • Late-tier (sponsor/plating/gun) takes sustained good flights to max.
-  // mul raised from 1.55 on ramp/rocket/gun to slow their late-level cost climb.
-
+  // level 0 costs `base` and you buy your way up.
+  //
+  // REWORK: this used to be 11 independent cost tracks, each cheap enough at
+  // the start that a single decent flight could afford several of them at
+  // once — even with the daily delivery cap gating how many purchases you
+  // can make per visit, the $ curve itself never made you wait. That's
+  // gone: this is now a real tree. `requires` is an array of upgrade ids
+  // that must each be at level ≥1 before a card is even buyable — some
+  // nodes need one prerequisite, some need two — and every base cost is
+  // high enough relative to early/mid earnings that getting even one
+  // upgrade should take multiple flights of saving, not one. Tree shape:
+  //
+  //   ramp, wings, cargo          (roots — no prerequisites)
+  //     ├─ aero      (wings)
+  //     ├─ bounce    (ramp)
+  //     ├─ struts    (wings + aero)
+  //     ├─ sling     (ramp + bounce)
+  //     ├─ rocket    (wings + aero)
+  //     ├─ sponsor   (aero + bounce)
+  //     │   ├─ fuel     (rocket)
+  //     │   ├─ plating  (struts + rocket)
+  //     │   │   └─ gun      (rocket + plating)
+  //     │   └─ regen    (fuel + sponsor)
+  //
+  // Distance-based `unlock` gates stay as a secondary check (mostly already
+  // trivial next to the new prerequisite gate) — the real gate is now cost
+  // + tree position.
+  //
   // Daily delivery cap: how many $ purchases (upgrades + gear; the BP-funded
   // bonus shop is a separate economy and isn't capped) Fish Co. will drop
   // off before your next flight. Resets when a flight happens — see
   // store.js's cap-gate logic, which reads this constant directly so the
-  // number here and the number enforced never drift apart.
-  //
-  // Exists so a rich payout can't turn into clicking "buy" across every
-  // upgrade at once with no real choice — a logged playtest showed a
-  // single flight comfortably affording one level of nearly every upgrade
-  // in the game simultaneously. Cargo Crate (below) raises the cap for
-  // players who want bigger shopping sprees and are willing to pay for it.
-  const DAILY_CAP_BASE = 3;
+  // number here and the number enforced never drift apart. Base dropped
+  // 3→1: with real tree gating now doing the heavy lifting on pacing, a
+  // starting cap higher than 1 was redundant slack — Cargo Crate is the
+  // one upgrade worth grabbing first almost regardless of build.
+  const DAILY_CAP_BASE = 1;
 
   const UPGRADES = [
-    // Cargo Crate: buys headroom in the daily delivery cap itself, so it's
-    // the one upgrade worth grabbing early regardless of build.
-    { id:'cargo', icon:'\u{1F4E6}', name:'Cargo Crate', base:100, mul:1.6, max:7, unlock:0,
+    // ── roots (no prerequisites) ──
+    { id:'cargo', icon:'\u{1F4E6}', name:'Cargo Crate', base:70, mul:1.6, max:7, unlock:0, requires:[],
       desc:'How many upgrades Fish Co. can drop off before your next flight. Bigger crate, more buys per visit.',
       val:l=>`${DAILY_CAP_BASE+l} deliveries/day` },
-    // mul raised 1.55→1.65: the ramp-length rework made a maxed ramp ~2.4x
-    // more powerful (exit speed ~45→~109 m/s) without touching cost, and a
-    // logged playtest showed exactly the predictable result — an entire
-    // day's earnings dumped into ramp alone, level after level, while every
-    // other upgrade sat untouched. Same fix already applied to rocket/gun.
-    { id:'ramp',    icon:'\u{1F6DD}', name:'Ramp Track',   base:15,  mul:1.65, max:12, unlock:0,
+    { id:'ramp',    icon:'\u{1F6DD}', name:'Ramp Track',   base:90,  mul:1.65, max:12, unlock:0, requires:[],
       desc:'More track to build speed on. Reshape it in the designer below.',
       val:l=>{ const d=derive({ramp:l}); const r=buildRamp(d.rampLen);
                return `${Math.round(d.rampLen)} m · ${Math.round(r.H)} m tall · ~${Math.round(rampExitEst(d, r))} m/s exit`; } },
-    { id:'wings',   icon:'\u{1FABD}', name:'Glider Wings', base:25,  mul:1.55, max:10, unlock:0,
+    { id:'wings',   icon:'\u{1FABD}', name:'Glider Wings', base:120, mul:1.55, max:10, unlock:0, requires:[],
       desc:'More lift, flatter glide. Ease off "up" to cruise. New rig every couple of levels.',
       val:l=>{ if(l===0) return 'no wings'; const d=derive({wings:l});
                return `${gliderName(l)} · ~${Math.max(1,Math.round(d.bestLD))}:1 glide`; } },
-    { id:'aero',    icon:'\u{1F9CA}', name:'Slick Suit',   base:20,  mul:1.55, max:10, unlock:0,
+
+    // ── tier 1 (one prerequisite) ──
+    { id:'aero',    icon:'\u{1F9CA}', name:'Slick Suit',   base:70,  mul:1.55, max:10, unlock:0, requires:['wings'],
       desc:'Waxed feathers cut drag on the ramp, in the air, and on the ice.',
       val:l=>`dives to ~${Math.round(derive({aero:l}).vDive)} m/s` },
-    { id:'bounce',  icon:'\u{1F3C0}', name:'Rubber Belly', base:150, mul:1.55, max:6, unlock:0,
+    { id:'bounce',  icon:'\u{1F3C0}', name:'Rubber Belly', base:450, mul:1.55, max:6, unlock:0, requires:['ramp'],
       desc:'Spring back on landing. Keep momentum for distance.',
       val:l=> l===0 ? 'splat' : `${Math.round((0.12+0.09*l)*100)}% bounce` },
-    { id:'struts',  icon:'\u{1F529}', name:'Wing Struts',  base:180, mul:1.55, max:6, unlock:250, requires:'wings',
+
+    // ── tier 2 (two prerequisites) ──
+    { id:'struts',  icon:'\u{1F529}', name:'Wing Struts',  base:500, mul:1.55, max:6, unlock:250, requires:['wings','aero'],
       desc:'Stiffer spars pull harder turns at speed without folding.',
       val:l=>`${derive({struts:l}).gMax.toFixed(1)}g max pull` },
-    // Rocket: base raised 100→180, mul raised 1.55→1.65 to slow the runaway
-    // late-game power spike. At max (10) the total tree cost is ~$60k rather
-    // than ~$13k, spreading pressure across more flights.
-    { id:'rocket',  icon:'\u{1F680}', name:'Rocket',       base:180, mul:1.65, max:10, unlock:100,
-      desc:'A strap-on booster. Hold SPACE to climb faster.',
-      val:l=> l===0 ? 'not installed' : `${Math.round(derive({rocket:l}).thrust)} m/s² thrust` },
-    { id:'fuel',    icon:'⛽',    name:'Fuel Tank',    base:80,  mul:1.55, max:10, unlock:100,
-      desc:'More burn time for sustained climbs.', requires:'rocket',
-      val:l=>`${(2+1.3*l).toFixed(1)} s of burn` },
-    // Sponsor: base raised 250→400 so it doesn't trivialize the cash curve
-    // until mid-game. Its multiplier stacks hard with airtime — keep it late.
-    { id:'sponsor', icon:'\u{1F4B0}', name:'Sponsor Deal', base:400, mul:1.60, max:6, unlock:250,
-      desc:'Fish Co. multiplies your earnings on every flight.',
-      val:l=>`×${(1+0.35*l).toFixed(2)} cash earned` },
-    { id:'sling',   icon:'\u{1F3AF}', name:'Catapult',     base:400, mul:1.55, max:8, unlock:500,
+    { id:'sling',   icon:'\u{1F3AF}', name:'Catapult',     base:1100, mul:1.55, max:8, unlock:500, requires:['ramp','bounce'],
       desc:'An elastic winch flings you from the gate at the top of the track.',
       val:l=> l===0 ? 'not installed' : `+${20*l} m/s at the gate` },
-    { id:'plating', icon:'\u{1F6E1}', name:'Ram Plating',  base:600, mul:1.55, max:6, unlock:1500,
+
+    // Rocket: mul raised 1.55→1.65 to slow the runaway late-game power spike.
+    { id:'rocket',  icon:'\u{1F680}', name:'Rocket',       base:380, mul:1.65, max:10, unlock:100, requires:['wings','aero'],
+      desc:'A strap-on booster. Hold SPACE to climb faster.',
+      val:l=> l===0 ? 'not installed' : `${Math.round(derive({rocket:l}).thrust)} m/s² thrust` },
+    // Sponsor: multiplier stacks hard with airtime — keep it a real reach.
+    { id:'sponsor', icon:'\u{1F4B0}', name:'Sponsor Deal', base:850, mul:1.60, max:6, unlock:250, requires:['aero','bounce'],
+      desc:'Fish Co. multiplies your earnings on every flight.',
+      val:l=>`×${(1+0.35*l).toFixed(2)} cash earned` },
+
+    // ── tier 3 ──
+    { id:'fuel',    icon:'⛽',    name:'Fuel Tank',    base:140,  mul:1.55, max:10, unlock:100, requires:['rocket'],
+      desc:'More burn time for sustained climbs.',
+      val:l=>`${(2+1.3*l).toFixed(1)} s of burn` },
+    { id:'plating', icon:'\u{1F6E1}', name:'Ram Plating',  base:1000, mul:1.55, max:6, unlock:1500, requires:['struts','rocket'],
       desc:'An armored belly plate. Smash landmarks harder and keep more speed on impact.',
       val:l=>`×${(1+0.35*l).toFixed(2)} smash damage`,
     },
-    // Gun: base raised 3000→4500, mul raised 1.7→1.75 — a true late-game luxury.
-    { id:'gun',     icon:'\u{1F52B}', name:'Sky Cannon',   base:4500, mul:1.75, max:6, unlock:2500,
+
+    // ── tier 4 (deepest nodes) ──
+    // Gun: a true late-game luxury, now gated behind rocket + plating too.
+    { id:'gun',     icon:'\u{1F52B}', name:'Sky Cannon',   base:6000, mul:1.75, max:6, unlock:2500, requires:['rocket','plating'],
       desc:'Press C to blast obstacles out of the sky. Upgrade for range and bigger targets.',
       val:l=>{ if(l===0) return 'not installed';
                const tier = l>=5?'planes':l>=3?'balloons':'birds';
                return `range ${260+90*l}m · downs ${tier}`; } },
+    // Fuel Regen: mid-late-game payoff for rocket-heavy builds — passively
+    // refills the tank while gliding (not thrusting). See physics.js's
+    // regenRate stat and the "cool down" branch of stepFlight.
+    { id:'regen',   icon:'\u{267B}\u{FE0F}', name:'Fuel Regen',  base:900, mul:1.6, max:5, unlock:1000, requires:['fuel','sponsor'],
+      desc:'Slowly refills the tank while gliding — coast to keep the rocket fed.',
+      val:l=> l===0 ? 'no regen' : `${(0.12*l).toFixed(2)} s of burn / s gliding` },
   ];
 
   // ─── GEAR ─────────────────────────────────────────────────────────────────

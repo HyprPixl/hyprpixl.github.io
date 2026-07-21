@@ -51,6 +51,7 @@ export function createPhysics(deps){
       // level 5→~47 m/s²; level 10→~61 m/s² (vs 90 with old linear formula).
       thrust: L.rocket ? 10 + 8*L.rocket / (1 + 0.055*L.rocket) : 0,
       fuelMax:L.rocket ? 2 + 1.3*L.fuel : 0,
+      regenRate: 0.12*L.regen,      // s of burn refilled per second spent gliding (not thrusting)
       sling,
       rest:   L.bounce ? 0.12 + 0.09*L.bounce : 0,
       mult:   (1 + 0.35*L.sponsor) * (1 + 0.12*B.cash),
@@ -337,6 +338,10 @@ export function createPhysics(deps){
       sim.run.heat = Math.max(0, sim.run.heat - HEAT_COOL*h);
       if(sim.run.overheated && sim.run.heat < HEAT_RESUME){
         sim.run.overheated = false;
+      }
+      // Fuel Regen: slowly refills the tank while gliding, capped at fuelMax
+      if(sim.st.regenRate > 0 && sim.st.fuelMax > 0){
+        sim.run.fuel = Math.min(sim.st.fuelMax, sim.run.fuel + sim.st.regenRate*h);
       }
     }
     SFX.setThrust(sim.run.thrusting);

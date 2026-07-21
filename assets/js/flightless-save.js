@@ -32,7 +32,7 @@ export function defaultState(){
   return {
     version: SCHEMA_VER,
     money: 0, day: 1,
-    lvl: { ramp:0, aero:0, wings:0, rocket:0, fuel:0, sling:0, bounce:0, sponsor:0, gun:0, struts:0, plating:0, cargo:0 },
+    lvl: { ramp:0, aero:0, wings:0, rocket:0, fuel:0, sling:0, bounce:0, sponsor:0, gun:0, struts:0, plating:0, cargo:0, regen:0 },
     perm: { speedo:false, alti:false, burner:false, tank:false },
     best: { dist:0, alt:0, spd:0 },
     claimed: [], won: false, muted: false, started: false,
@@ -87,7 +87,7 @@ function applyMigrations(s){
 // ─── sanitization ───────────────────────────────────────────────────────────
 // Called after migrations so every field is in its post-migration shape.
 
-const KNOWN_LVL_KEYS   = new Set(['ramp','aero','wings','rocket','fuel','sling','bounce','sponsor','gun','struts','plating','cargo']);
+const KNOWN_LVL_KEYS   = new Set(['ramp','aero','wings','rocket','fuel','sling','bounce','sponsor','gun','struts','plating','cargo','regen']);
 const KNOWN_PERM_KEYS  = new Set(['speedo','alti','burner','tank']);
 const KNOWN_BEST_KEYS  = new Set(['dist','alt','spd']);
 const KNOWN_LMHP_KEYS  = new Set(['snowman','iceberg','wall']);

@@ -405,11 +405,14 @@ export function createRenderer(deps){
       tz = clamp(320/(sim.ramp.H+16), 0.12, 8);
       tx = -sim.ramp.len*0.28; ty = sim.ramp.H*0.32;
     } else {
-      // floor dropped 0.8→0.28 so zoom-out keeps scaling with speed/altitude
-      // through the ranges a maxed ramp+rocket build now reaches, instead of
-      // pinning at the old ceiling and going visually static right when a
-      // flight is at its most dramatic.
-      tz = clamp(1200/(80 + 2.0*spCam + 0.32*cam.yS), 0.28, 9);
+      // Tighter ceiling (14) so a slow/low moment (right off the ramp, a
+      // gentle glide) reads as a close, intimate shot, and a much lower
+      // floor (0.15) so a maxed ramp+rocket build flying fast and high
+      // keeps opening the view up instead of pinning early and going
+      // visually static right when a flight is at its most dramatic. Base
+      // (60) is low enough that near-zero speed/altitude is already past
+      // the ceiling and clamps there, guaranteeing a tight start every run.
+      tz = clamp(1000/(60 + 2.5*spCam + 0.2*cam.yS), 0.15, 14);
       tx = p.x + cam.vxS*0.35;
       ty = Math.max(0, p.y - (sim.Hpx*0.30)/tz);
     }
@@ -727,7 +730,7 @@ export function createRenderer(deps){
         const c = cl[k];
         const sx=w2sX(c.x), sy=w2sY(c.y);
         if(sx<-60||sx>sim.W+60||sy<-60||sy>sim.Hpx+60) continue;
-        drawFishIcon(sx, sy, clamp(COIN_R*cam.z*0.6, 7, 14), c.gold);
+        drawFishIcon(sx, sy, clamp(COIN_R*cam.z*0.6, 5, 11), c.gold);
       }
     }
     const si0 = Math.floor((cam.x - sim.W/cam.z)/STAR_CELL)-1, si1 = Math.ceil((cam.x + sim.W/cam.z)/STAR_CELL)+1;
@@ -738,7 +741,7 @@ export function createRenderer(deps){
       if(!s) continue;
       const sx=w2sX(s.x), sy=w2sY(s.y);
       if(sx<-40||sx>sim.W+40||sy<-40||sy>sim.Hpx+40) continue;
-      drawStarIcon(sx, sy, clamp(STAR_R*cam.z*0.8, 13, 28));
+      drawStarIcon(sx, sy, clamp(STAR_R*cam.z*0.8, 10, 22));
     }
   }
 
@@ -1153,7 +1156,7 @@ export function createRenderer(deps){
       if(!r) continue;
       const sx=w2sX(r.x), sy=w2sY(r.y);
       if(sx<-80||sx>sim.W+80||sy<-80||sy>sim.Hpx+80) continue;
-      drawRingIcon(sx, sy, clamp(RING_R*cam.z*0.8, 16, 34));
+      drawRingIcon(sx, sy, clamp(RING_R*cam.z*0.8, 13, 27));
     }
   }
 
@@ -1196,7 +1199,7 @@ export function createRenderer(deps){
       if(!p) continue;
       const sx=w2sX(p.x), sy=w2sY(p.y);
       if(sx<-80||sx>sim.W+80||sy<-80||sy>sim.Hpx+80) continue;
-      drawPickupIcon(sx, sy, clamp((PICKUP_R||18)*cam.z*0.7, 12, 26), p.type);
+      drawPickupIcon(sx, sy, clamp((PICKUP_R||18)*cam.z*0.7, 9, 20), p.type);
     }
   }
 

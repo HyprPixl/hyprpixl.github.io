@@ -426,15 +426,20 @@ export function createStore(deps){
     })() : null;
     // todaysDeal is expected to be { id, discount } — e.g. { id: 'engine', discount: 0.25 }
 
-    // upgrade cards — unlock at distance milestones; a maxed-out upgrade drops
-    // off the list entirely (its slot is free for a later "tier 2" upgrade),
-    // and a fresh one you can't afford yet stays hidden too, except the single
-    // cheapest one, which stays visible as the next thing to save toward.
+    // upgrade cards — unlocked at distance milestones AND tree prerequisites.
+    // A maxed-out upgrade drops off the list entirely (its slot is free for
+    // a later tier), and a locked one (missing a prerequisite) doesn't show
+    // at all — no "requires X + Y" clutter for nodes you can't work toward
+    // yet. Everything whose prerequisites ARE met stays visible regardless
+    // of affordability (unlike the old single-track economy, a real tree
+    // has real branches — hiding options behind "only show the cheapest"
+    // fights against letting the player see and choose between them).
     shopGrid.innerHTML = '';
-    const upgAvail = UPGRADES.filter(u => state.best.dist >= (u.unlock||0) && state.lvl[u.id] < u.max);
-    const cheapestNewUpg = upgAvail
-      .filter(u => state.lvl[u.id]===0 && !(u.requires && state.lvl[u.requires]===0))
-      .reduce((min,u) => (!min || upgCost(u) < upgCost(min)) ? u : min, null);
+    // requires is an array of upgrade ids that must each be at level ≥1 —
+    // some nodes need one prerequisite, some need two (see flightless-data.js)
+    const missingRequires = u => (u.requires || []).filter(id => (state.lvl[id] ?? 0) === 0);
+    const upgAvail = UPGRADES.filter(u =>
+      state.best.dist >= (u.unlock||0) && state.lvl[u.id] < u.max && missingRequires(u).length === 0);
     let upgAffordable = 0;
     for(const u of upgAvail){
       const lvl = state.lvl[u.id];
@@ -448,9 +453,7 @@ export function createStore(deps){
       const cost = isDailyDeal ? Math.max(1, Math.round(baseCost * (1 - dealDiscount))) : baseCost;
       const capOut = capRemaining() <= 0;
 
-      const locked = u.requires && state.lvl[u.requires] === 0;
-      if(!locked && lvl===0 && state.money < cost && u !== cheapestNewUpg) continue;
-      const affordable = !locked && !capOut && state.money >= cost;
+      const affordable = !capOut && state.money >= cost;
       if(affordable) upgAffordable++;
       const card = document.createElement('div');
       card.className = 'upg' + (affordable ? ' affordable' : '') + (isDailyDeal ? ' daily-deal' : '');
@@ -493,10 +496,9 @@ export function createStore(deps){
         <div class="upg-desc">${u.desc}</div>
         <div class="upg-stat">${u.val(lvl)}${ladderHTML ? `<span style="color:var(--muted)"> → </span>${ladderHTML}` : ''}</div>
         <div class="pips">${pips}</div>
-        ${locked ? `<div class="locked-note">requires ${UPGRADES.find(x=>x.id===u.requires).name}</div>` : ''}
-        <button ${(locked || capOut || state.money<cost)?'disabled':''}>${isDailyDeal ? `Deal — ${fmtCash(cost)}` : `Buy — ${fmtCash(cost)}`}${isDailyDeal && baseCost !== cost ? ` <s style="color:var(--muted);font-size:9px">${fmtCash(baseCost)}</s>` : ''}</button>`;
+        <button ${(capOut || state.money<cost)?'disabled':''}>${isDailyDeal ? `Deal — ${fmtCash(cost)}` : `Buy — ${fmtCash(cost)}`}${isDailyDeal && baseCost !== cost ? ` <s style="color:var(--muted);font-size:9px">${fmtCash(baseCost)}</s>` : ''}</button>`;
       card.querySelector('button').addEventListener('click', () => {
-        if(state.money < cost || locked || capRemaining() <= 0) return;
+        if(state.money < cost || capRemaining() <= 0) return;
         state.money -= cost;
         state.lvl[u.id]++;
         registerPurchase();

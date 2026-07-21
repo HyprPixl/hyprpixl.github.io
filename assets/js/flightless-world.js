@@ -17,8 +17,8 @@ export function createWorld(deps){
   // altitude corridor a flight at that distance can plausibly reach — so
   // they're actually on your path instead of scattered through empty sky.
   // Stars only exist once you're genuinely high up, on a 2-D grid.
-  const COIN_CELL = 140, COIN_MIN_ALT = 12, COIN_MAX_ALT = 3200, COIN_R = 12;
-  const STAR_CELL = 260, STAR_MIN_ALT = 3200, STAR_R = 20;
+  const COIN_CELL = 140, COIN_MIN_ALT = 12, COIN_MAX_ALT = 3200, COIN_R = 9;
+  const STAR_CELL = 260, STAR_MIN_ALT = 3200, STAR_R = 15;
   // how high anything worth placing can sit at distance x: hugging the ice off
   // the ramp, opening up as flights get longer
   const corridorTop = x => clamp(25 + x*0.55, 60, COIN_MAX_ALT);
@@ -70,7 +70,8 @@ export function createWorld(deps){
         const key = 'c'+i+'_'+k;
         if(sim.run.collected.has(key)) continue;
         const c = cl[k];
-        if(Math.hypot(sim.run.x-c.x, sim.run.y-c.y) < COIN_R*2){
+        // tight hitbox — collect only on real contact, not a generous halo
+        if(Math.hypot(sim.run.x-c.x, sim.run.y-c.y) < COIN_R){
           sim.run.collected.add(key);
           const m = comboMult();
           const val = Math.round((10 + Math.round(hash01(i*3+k*7+1)*15)) * (c.gold?6:1) * m);
@@ -95,7 +96,7 @@ export function createWorld(deps){
         if(sim.run.collected.has(key)) continue;
         const s = starPos(i,j);
         if(!s){ sim.run.collected.add(key); continue; }
-        if(Math.hypot(sim.run.x-s.x, sim.run.y-s.y) < STAR_R*1.6){
+        if(Math.hypot(sim.run.x-s.x, sim.run.y-s.y) < STAR_R){
           sim.run.collected.add(key);
           const m = comboMult();
           const val = Math.round((60 + Math.round(hash01(i*7+j*5)*60)) * m);
@@ -185,7 +186,7 @@ export function createWorld(deps){
   /* ════════════════ boost rings ════════════════ */
   // Golden rings hanging in the corridor: thread one for a speed kick, cash,
   // and a link in the combo chain. Same deterministic cell trick as the rest.
-  const RING_CELL = 420, RING_R = 24;
+  const RING_CELL = 420, RING_R = 20;
   function ringPos(i){
     if(i < 1 || hash01(i*71+29) < 0.30) return null;
     const x = i*RING_CELL + 40 + hash01(i*11+17)*(RING_CELL-80);
@@ -230,7 +231,7 @@ export function createWorld(deps){
     const type = hash01(i*61+29) < 0.6 ? 0 : 1;  // 0=fuel, 1=boost
     return { x, y, type };
   }
-  const PICKUP_R = 18;
+  const PICKUP_R = 14;
   function checkPickups(){
     // no pickups if rocket not installed (fuel would be wasted)
     const pi = Math.round(sim.run.x/PICKUP_CELL);
@@ -239,7 +240,8 @@ export function createWorld(deps){
       if(sim.run.collected.has(key)) continue;
       const p = pickupPos(i);
       if(!p){ sim.run.collected.add(key); continue; }
-      if(Math.hypot(sim.run.x-p.x, sim.run.y-p.y) < PICKUP_R*1.5){
+      // tight hitbox — collect only on real contact, not a generous halo
+      if(Math.hypot(sim.run.x-p.x, sim.run.y-p.y) < PICKUP_R){
         sim.run.collected.add(key);
         if(p.type === 0){
           // fuel canister: refill up to max
