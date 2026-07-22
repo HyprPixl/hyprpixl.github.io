@@ -82,9 +82,9 @@ export function createResults(deps){
     sim.phase = 'results';
 
     const dist = Math.max(0, sim.run.dist);
-    const cashDist = 6 + 2.0*Math.pow(dist, 0.9);
-    const cashAlt = state.perm.alti ? sim.run.maxAlt*0.3 : 0;
-    const cashSpd = state.perm.speedo ? sim.run.maxSpd*1.6 : 0;
+    const cashDist = 4 + 1.5*Math.pow(dist, 0.9);
+    const cashAlt = state.perm.alti ? sim.run.maxAlt*0.25 : 0;
+    const cashSpd = state.perm.speedo ? sim.run.maxSpd*1.3 : 0;
     // airtime multiplier, the LtF classic: staying up pays, up to ×2 at 2 min
     const airMult = 1 + Math.min(sim.run.t, 120)/120;
     const payMult = sim.st.mult * airMult;

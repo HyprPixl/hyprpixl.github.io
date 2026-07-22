@@ -64,14 +64,14 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
   const UPGRADES = [
     // ── roots (no prerequisites) — ramp is deliberately the cheapest, the
     // obvious first buy in a ramp game, not a shop-capacity meta-upgrade ──
-    { id:'ramp',    icon:'\u{1F6DD}', name:'Ramp Track',   base:50,  mul:1.65, max:12, unlock:0, requires:[],
+    { id:'ramp',    icon:'\u{1F6DD}', name:'Ramp Track',   base:65,  mul:1.7, max:12, unlock:0, requires:[],
       desc:'More track to build speed on. Reshape it in the designer below.',
       val:l=>{ const d=derive({ramp:l}); const r=buildRamp(d.rampLen);
                return `${Math.round(d.rampLen)} m · ${Math.round(r.H)} m tall · ~${Math.round(rampExitEst(d, r))} m/s exit`; } },
     { id:'speedo', icon:'\u{1F4DF}', name:'Speedometer', base:65, mul:1, max:1, unlock:0, requires:[{id:'ramp',lvl:3}], oneTime:true,
       desc:'See your speed — and get paid for top speed.',
       val:l=> l===0 ? 'not installed' : 'installed' },
-    { id:'wings',   icon:'\u{1FABD}', name:'Glider Wings', base:90, mul:1.55, max:10, unlock:0, requires:[{id:'ramp',lvl:2}],
+    { id:'wings',   icon:'\u{1FABD}', name:'Glider Wings', base:130, mul:1.55, max:10, unlock:0, requires:[{id:'ramp',lvl:2}],
       desc:'More lift, flatter glide. Ease off "up" to cruise. New rig every couple of levels.',
       val:l=>{ if(l===0) return 'no wings'; const d=derive({wings:l});
                return `${gliderName(l)} · ~${Math.max(1,Math.round(d.bestLD))}:1 glide`; } },
@@ -105,7 +105,7 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
     { id:'struts',  icon:'\u{1F529}', name:'Wing Struts',  base:500, mul:1.55, max:6, unlock:250, requires:[{id:'aero',lvl:4}],
       desc:'Stiffer spars pull harder turns at speed without folding.',
       val:l=>`${derive({struts:l}).gMax.toFixed(1)}g max pull` },
-    { id:'sling',   icon:'\u{1F3AF}', name:'Catapult',     base:1100, mul:1.55, max:8, unlock:500, requires:[{id:'bounce',lvl:2}],
+    { id:'sling',   icon:'\u{1F3AF}', name:'Catapult',     base:1600, mul:1.55, max:8, unlock:500, requires:[{id:'bounce',lvl:2}],
       desc:'An elastic winch flings you from the gate at the top of the track.',
       val:l=> l===0 ? 'not installed' : `+${20*l} m/s at the gate` },
 
@@ -119,7 +119,7 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
       val:l=>`×${(1+0.35*l).toFixed(2)} cash earned` },
 
     // ── tier 3 ──
-    { id:'fuel',    icon:'⛽',    name:'Fuel Tank',    base:140,  mul:1.55, max:10, unlock:100, requires:[{id:'rocket',lvl:2}],
+    { id:'fuel',    icon:'⛽',    name:'Fuel Tank',    base:220,  mul:1.55, max:10, unlock:100, requires:[{id:'rocket',lvl:2}],
       desc:'More burn time for sustained climbs.',
       val:l=>`${(2+1.3*l).toFixed(1)} s of burn` },
     { id:'burner', icon:'\u{1F4A5}', name:'Afterburner', base:2800, mul:1, max:1, unlock:1000, requires:[{id:'rocket',lvl:4}], oneTime:true,
@@ -172,13 +172,13 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
   //                        (~$105 k cumulative), but it takes multiple 35 km flights
   //                        because you won't collect all 14 milestones in one go.
   const MILESTONES = [
-    [100,    150],
-    [250,    300],
-    [500,    600],
-    [1000,   1200],
-    [2500,   3000],
-    [5000,   6000],   // was 7 000 — trimmed so 5 km run doesn't over-pay
-    [8000,   8000],   // new: 8 km rung
+    [100,    40],     // early rungs cut hard — they were over-paying a fresh save
+    [250,    90],
+    [500,    180],
+    [1000,   400],
+    [2500,   1100],
+    [5000,   2800],   // was 6 000
+    [8000,   5000],   // was 8 000
     [12000,  10000],  // new: 12 km rung
     [15000,  10000],  // new: 15 km rung
     [18000,  10000],  // new: 18 km rung
@@ -261,7 +261,7 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
     const everDid = state.everDid || {};
     const eligible = CONTRACT_POOL.filter(c => !c.gate || c.gate(everDid));
     if(!eligible.length) return [];
-    const reward = Math.round(clamp(100 + b.dist*0.25, 100, 5000)/10)*10;
+    const reward = Math.round(clamp(40 + b.dist*0.15, 40, 4000)/10)*10;
     const a = Math.floor(hash01(day*13+3)*eligible.length);
     const picks = [eligible[a]];
     if(eligible.length > 1){
@@ -369,21 +369,23 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
   // Only safe-to-ignore fields — consumers check for their own known ids and
   // fall back to neutral values. Adding new entries here is backward-safe.
   const DAILY_MOD_TABLE = [
+    // Winds and multipliers kept gentle so day-to-day results don't swing
+    // wildly — weather is flavour + a light nudge, not a run-maker.
     { id:'calm',      label:'Calm Day',       windX:0,    windY:0,    dragMul:1.00, cashMul:1.00 },
-    { id:'tailwind',  label:'Tailwind',       windX:4,    windY:0,    dragMul:0.92, cashMul:1.00 },
-    { id:'headwind',  label:'Headwind',       windX:-5,   windY:0,    dragMul:1.10, cashMul:1.20 },
-    { id:'updraft',   label:'Updraft',        windX:0,    windY:3,    dragMul:0.95, cashMul:1.00 },
-    { id:'downdraft', label:'Downdraft',      windX:0,    windY:-4,   dragMul:1.05, cashMul:1.15 },
-    { id:'slippery',  label:'Icy Runway',     windX:0,    windY:0,    dragMul:0.85, cashMul:1.00 },
-    { id:'dense',     label:'Dense Air',      windX:0,    windY:0,    dragMul:1.20, cashMul:1.25 },
-    { id:'bonusday',  label:'Sponsor\'s Day', windX:0,    windY:0,    dragMul:1.00, cashMul:1.50 },
-    { id:'gusty',     label:'Gusty Winds',    windX:3,    windY:2,    dragMul:1.08, cashMul:1.10 },
+    { id:'tailwind',  label:'Tailwind',       windX:1.8,  windY:0,    dragMul:0.96, cashMul:1.00 },
+    { id:'headwind',  label:'Headwind',       windX:-2,   windY:0,    dragMul:1.05, cashMul:1.10 },
+    { id:'updraft',   label:'Updraft',        windX:0,    windY:1.3,  dragMul:0.98, cashMul:1.00 },
+    { id:'downdraft', label:'Downdraft',      windX:0,    windY:-1.6, dragMul:1.03, cashMul:1.08 },
+    { id:'slippery',  label:'Icy Runway',     windX:0,    windY:0,    dragMul:0.93, cashMul:1.00 },
+    { id:'dense',     label:'Dense Air',      windX:0,    windY:0,    dragMul:1.10, cashMul:1.12 },
+    { id:'bonusday',  label:'Sponsor\'s Day', windX:0,    windY:0,    dragMul:1.00, cashMul:1.30 },
+    { id:'gusty',     label:'Gusty Winds',    windX:1.3,  windY:0.9,  dragMul:1.04, cashMul:1.06 },
     // snow/aurora: mostly a visual treat (falling snow / an aurora ribbon —
     // see flightless-render.js's ambientMode()), with a mild physics flavor
     // to match. dailyModFor() picks one id per day, so these show up in the
     // same rotation as the other weather days.
-    { id:'snow',      label:'Snowfall',       windX:-1,   windY:0,    dragMul:1.05, cashMul:1.00 },
-    { id:'aurora',    label:'Aurora Night',   windX:0,    windY:0,    dragMul:1.00, cashMul:1.10 },
+    { id:'snow',      label:'Snowfall',       windX:-0.6, windY:0,    dragMul:1.03, cashMul:1.00 },
+    { id:'aurora',    label:'Aurora Night',   windX:0,    windY:0,    dragMul:1.00, cashMul:1.06 },
   ];
 
   // ─── DAILY DEAL TABLE ─────────────────────────────────────────────────────
