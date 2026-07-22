@@ -244,6 +244,49 @@ export function createStore(deps){
     didCenterTree = true;
   }
 
+  // ── click-drag to pan the tree ──
+  // The scrollbars are hidden (CSS), so the tree pans by grabbing it. Mouse
+  // only — touch already pans natively. We don't capture the pointer until it
+  // actually moves past a small threshold, so a plain click still lands on a
+  // node; once it's a real drag we swallow the trailing click so panning onto
+  // a buyable node never accidentally buys it.
+  (function enableDragPan(){
+    if(!shopScroll) return;
+    let down = false, moved = false, sx = 0, sy = 0, sl = 0, st = 0, pid = null;
+    shopScroll.addEventListener('pointerdown', e => {
+      if(e.button !== 0 || e.pointerType !== 'mouse') return;
+      down = true; moved = false; pid = e.pointerId;
+      sx = e.clientX; sy = e.clientY;
+      sl = shopScroll.scrollLeft; st = shopScroll.scrollTop;
+    });
+    shopScroll.addEventListener('pointermove', e => {
+      if(!down) return;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if(!moved){
+        if(Math.hypot(dx, dy) < 4) return;      // still a click, not a drag
+        moved = true;
+        shopScroll.classList.add('dragging');
+        try { shopScroll.setPointerCapture(pid); } catch(_){}
+      }
+      shopScroll.scrollLeft = sl - dx;
+      shopScroll.scrollTop  = st - dy;
+    });
+    const end = () => {
+      if(!down) return;
+      down = false;
+      if(moved){
+        shopScroll.classList.remove('dragging');
+        try { shopScroll.releasePointerCapture(pid); } catch(_){}
+        // eat the click that fires right after a drag so it can't buy a node
+        shopScroll.addEventListener('click',
+          ev => { ev.stopPropagation(); ev.preventDefault(); },
+          { capture: true, once: true });
+      }
+    };
+    shopScroll.addEventListener('pointerup', end);
+    shopScroll.addEventListener('pointercancel', end);
+  })();
+
   // ── ramp designer (slide-in side drawer) ──
   // The canvas lives in the #drawer-ramp drawer, toggled from the shop's
   // side rail (host page owns the open/close). All four control points drag,
