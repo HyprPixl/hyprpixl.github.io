@@ -173,41 +173,47 @@ export function createStore(deps){
       `<line x1="33" y1="32" x2="33" y2="38" stroke="${IC.G}" stroke-width="2.2"/>`),
   };
 
-  // ── tree layout ──
-  // One node per upgrade, hand-placed on a grid with the Ramp dead centre
-  // and every branch radiating outward from it — up is the flight tech
-  // spine (wings → aero → {struts→plating→gun, rocket→{burner, fuel→regen→
-  // tank}}), down is the ground game (bounce→sling, sponsor), left is the
-  // instrument branch (speedo→alti), right is the economy branch (cargo).
-  // These are pure presentation; the real gates are `requires`/`unlock` in
-  // flightless-data.js. Coordinates were chosen so a prerequisite always
-  // sits adjacent to (or at least inward of) its dependents, so the SVG
-  // connector lines read as a tree rather than a hairball. A node missing
-  // from this table falls back to the centre cell rather than crashing.
-  const CENTER = { col:3, row:7 };
-  const TREE_LAYOUT = {
-    ramp:    { col:3, row:7 },   // ── centre / root ──
-    // ◀ instruments
-    speedo:  { col:2, row:7 },
-    alti:    { col:1, row:7 },
-    // ▶ economy
-    cargo:   { col:4, row:7 },
-    // ▼ ground game
-    bounce:  { col:3, row:8 },
-    sling:   { col:3, row:9 },
-    sponsor: { col:4, row:8 },
-    // ▲ flight spine
-    wings:   { col:3, row:6 },
-    aero:    { col:3, row:5 },
-    struts:  { col:2, row:4 },
-    rocket:  { col:4, row:4 },
-    plating: { col:1, row:3 },
-    gun:     { col:1, row:2 },
-    burner:  { col:4, row:3 },
-    fuel:    { col:5, row:3 },
-    regen:   { col:6, row:2 },
-    tank:    { col:6, row:1 },
+  // ── tree layout — one node PER LEVEL ──
+  // Every purchasable level is its own node on a tight 21×20 grid, so a
+  // branch can hang off the exact rung that unlocks it (Glider Wings off
+  // Ramp Lv.2 = its node literally sits on T2) instead of a labelled edge.
+  // Ramp (T1) is dead centre; the spine runs right, flight tech stacks up,
+  // the ground game drops down, cheap tails (cargo, wings levels) stream
+  // left. Every prerequisite node is orthogonally adjacent to (or in line
+  // with) its dependent, so every connector is a straight right-angled
+  // segment — see the ASCII map in pages/flightless.html's tree comment.
+  //
+  // LAYOUT maps `${id}:${level}` → {col,row} (1-indexed grid cells).
+  const LAYOUT = {};
+  const place = (id, startLvl, count, col, row, dCol, dRow) => {
+    for(let i = 0; i < count; i++)
+      LAYOUT[`${id}:${startLvl + i}`] = { col: col + dCol * i, row: row + dRow * i };
   };
+  // ramp spine (T1..T3 spaced 2 apart to give their branches clean columns)
+  LAYOUT['ramp:1'] = { col:8, row:12 };
+  LAYOUT['ramp:2'] = { col:10, row:12 };
+  place('ramp', 3, 10, 12, 12, 1, 0);   // T3..T12 → col 12..21, row 12
+  place('cargo', 1, 7, 7, 12, -1, 0);   // C1..C7  → left along row 12
+  // ▲ flight
+  LAYOUT['wings:1'] = { col:10, row:11 };
+  place('wings', 2, 9, 9, 11, -1, 0);   // G2..G10 → left along row 11
+  place('aero',    1, 10, 10, 10, 0, -1); // A1..A10 → up col 10
+  place('struts',  1, 6,  9, 10, 0, -1);  // W1..W6  → up col 9
+  place('plating', 1, 6,  8, 10, 0, -1);  // L1..L6  → up col 8
+  place('gun',     1, 6,  7, 10, 0, -1);  // N1..N6  → up col 7
+  place('rocket',  1, 10, 11, 10, 0, -1); // R1..R10 → up col 11
+  LAYOUT['burner:1'] = { col:11, row:11 };
+  place('fuel',    1, 10, 12, 10, 0, -1); // F1..F10 → up col 12
+  place('regen',   1, 5,  13, 7,  0, -1); // E1..E5  → up col 13 off F4
+  LAYOUT['tank:1'] = { col:14, row:7 };
+  // ◀▼ instruments
+  LAYOUT['speedo:1'] = { col:12, row:13 };
+  LAYOUT['alti:1']   = { col:12, row:14 };
+  // ▼ ground game
+  place('bounce',  1, 6, 10, 13, 0, 1);   // B1..B6 → down col 10
+  place('sling',   1, 8,  9, 13, 0, 1);   // S1..S8 → down col 9
+  place('sponsor', 1, 6, 11, 13, 0, 1);   // P1..P6 → down col 11
+  const CENTER = { col:8, row:12 };       // fallback (ramp root)
 
   // Connector redraw hook — renderShop() swaps in a closure over the
   // current node set. renderShop() runs while #shop is still display:none
@@ -234,8 +240,7 @@ export function createStore(deps){
     if(sr.height < 2) return;                 // still hidden — try again later
     const rr = rootEl.getBoundingClientRect();
     shopScroll.scrollTop  += (rr.top  + rr.height/2) - (sr.top  + sr.height/2);
-    const gr = shopGrid.getBoundingClientRect();
-    shopGrid.scrollLeft   += (rr.left + rr.width/2)  - (gr.left + gr.width/2);
+    shopScroll.scrollLeft += (rr.left + rr.width/2)  - (sr.left + sr.width/2);
     didCenterTree = true;
   }
 
@@ -531,22 +536,22 @@ export function createStore(deps){
     })() : null;
     // todaysDeal is expected to be { id, discount } — e.g. { id: 'engine', discount: 0.25 }
 
-    // ── upgrade tree ──
-    // A bog-standard branching upgrade tree: one node per upgrade, the Ramp
-    // dead centre, every branch radiating outward (see TREE_LAYOUT). EVERY
-    // node is always on screen — a locked one (prerequisites not yet met)
-    // renders greyed with a lock so the player can see the whole tree and
-    // plan a route outward; a maxed one stays put showing ✓ MAX. Each node
-    // shows its icon, the price of its NEXT level underneath, and a row of
-    // pips for level progress; the name, current effect and any unmet
-    // requirement only ever appear in the hover tooltip. `oneTime` nodes
-    // (Speedometer, Altimeter, Afterburner, Reserve Tank) are bought once
-    // ever — ownership lives in state.perm[id], everything else in
-    // state.lvl[id].
+    // ── upgrade tree — one node per LEVEL ──
+    // Every purchasable level of every upgrade is its own square icon on the
+    // grid (positions in LAYOUT). No pips, no lock glyph, no price printed on
+    // the node — the icon IS the upgrade. State reads purely off colour:
+    //   • owned   — a level you've bought (bright, gold-rimmed)
+    //   • buyable — the very next level, prerequisites met (normal; green rim
+    //               if you can afford it, gold rim on a daily deal)
+    //   • locked  — anything else (greyed out — no padlock)
+    // Name / level / effect / price / any unmet requirement live in the hover
+    // tooltip only. `oneTime` upgrades (speedo, alti, burner, tank) are a
+    // single node backed by state.perm[id]; everything else by state.lvl[id].
     //
-    // `requires` entries are either 'id' (needs level ≥1 / owned) or
-    // { id, lvl } (needs level ≥ lvl) — see flightless-data.js. reqId/
-    // reqLvl/reqMet normalise both forms.
+    // `requires` entries are 'id' (level ≥1 / owned) or { id, lvl } (level ≥
+    // lvl). The FIRST requires entry is the node's tree parent (its wire);
+    // any further entries (only Fuel Regen's Wings Lv.3) still gate buying
+    // but aren't wired, to keep every connector a clean right angle.
     const reqId  = r => typeof r === 'string' ? r : r.id;
     const reqLvl = r => typeof r === 'string' ? 1 : (r.lvl || 1);
     function levelOf(id){
@@ -555,7 +560,6 @@ export function createStore(deps){
       return u.oneTime ? (state.perm[id] ? 1 : 0) : (state.lvl[id] ?? 0);
     }
     const reqMet = r => levelOf(reqId(r)) >= reqLvl(r);
-    function ownedLevel(u){ return u.oneTime ? (state.perm[u.id] ? 1 : 0) : (state.lvl[u.id] ?? 0); }
     const upgById = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
     const capOut = capRemaining() <= 0;
 
@@ -566,149 +570,128 @@ export function createStore(deps){
     treeSvg.setAttribute('preserveAspectRatio', 'none');
     shopGrid.appendChild(treeSvg);
 
-    const nodeEls = {};          // id → node element (for connector geometry)
-    const nodeState = {};        // id → 'locked' | 'buyable' | 'maxed'
+    const nodeEls = {};          // 'id:lvl' → node element (for connector geometry)
+    const artFor = u => UPG_ICONS[u.id] || `<span style="font-size:24px">${u.icon}</span>`;
 
     for(const u of UPGRADES){
-      const pos = TREE_LAYOUT[u.id] || CENTER;
-      const lvl = ownedLevel(u);
       const max = u.oneTime ? 1 : u.max;
-      const maxed = lvl >= max;
+      const owned = u.oneTime ? (state.perm[u.id] ? 1 : 0) : (state.lvl[u.id] ?? 0);
 
+      // upgrade-wide prerequisite state (same for every level of this upgrade)
       const unmet = (u.requires || []).filter(r => !reqMet(r));
       const distLocked = state.best.dist < (u.unlock || 0);
-      const locked = unmet.length > 0 || distLocked;
+      const prereqOK = unmet.length === 0 && !distLocked;
 
-      // next-level pricing (+ daily deal, only when actually buyable)
-      const rawCost = u.oneTime ? u.base : Math.round(u.base * Math.pow(u.mul, lvl));
-      const isDailyDeal = !locked && !maxed && todaysDeal && todaysDeal.id === u.id;
-      const dealDiscount = isDailyDeal && typeof todaysDeal.discount === 'number'
-        ? clamp(todaysDeal.discount, 0, 0.9) : 0;
-      const cost = isDailyDeal ? Math.max(1, Math.round(rawCost * (1 - dealDiscount))) : rawCost;
-      const affordable = !locked && !maxed && !capOut && state.money >= cost;
+      for(let lvl = 1; lvl <= max; lvl++){
+        const pos = LAYOUT[`${u.id}:${lvl}`] || CENTER;
+        const isOwned = lvl <= owned;
+        const isNext  = lvl === owned + 1 && prereqOK;   // the one buyable rung
 
-      const status = maxed ? 'maxed' : locked ? 'locked' : 'buyable';
-      nodeState[u.id] = status;
+        // price for THIS rung (going from lvl-1 → lvl), plus any daily deal
+        const rawCost = u.oneTime ? u.base : Math.round(u.base * Math.pow(u.mul, lvl - 1));
+        const isDailyDeal = isNext && todaysDeal && todaysDeal.id === u.id;
+        const dealDiscount = isDailyDeal && typeof todaysDeal.discount === 'number'
+          ? clamp(todaysDeal.discount, 0, 0.9) : 0;
+        const cost = isDailyDeal ? Math.max(1, Math.round(rawCost * (1 - dealDiscount))) : rawCost;
+        const affordable = isNext && !capOut && state.money >= cost;
 
-      const node = document.createElement('div');
-      node.className = 'upg-node ' + status +
-        (affordable ? ' affordable' : '') + (isDailyDeal ? ' daily-deal' : '');
-      node.style.gridColumn = pos.col;
-      node.style.gridRow = pos.row;
+        const status = isOwned ? 'owned' : isNext ? 'buyable' : 'locked';
+        const node = document.createElement('div');
+        node.className = 'upg-node ' + status +
+          (affordable ? ' affordable' : '') + (isDailyDeal ? ' daily-deal' : '');
+        node.style.gridColumn = pos.col;
+        node.style.gridRow = pos.row;
 
-      // pips: one per level, filled up to current level
-      const pips = Array.from({length:max}, (_,i) =>
-        `<span class="pip${i < lvl ? ' on' : ''}"></span>`).join('');
+        // hover tooltip
+        const effect = u.oneTime ? u.desc : u.val(lvl);
+        const lvlNote = u.oneTime ? 'one-time upgrade' : `Lv.${lvl} / ${max}`;
+        // requirement note only on the rung that's blocked by a prerequisite
+        const reqNote = (!isOwned && lvl === owned + 1 && !prereqOK)
+          ? (unmet.length
+              ? `<span class="need">Needs ${unmet.map(r => {
+                  const ru = upgById[reqId(r)]; const nm = ru ? ru.name : reqId(r);
+                  return reqLvl(r) > 1 ? `${nm} Lv.${reqLvl(r)}` : nm;
+                }).join(' + ')}</span>`
+              : `<span class="need">Reach ${fmtDist(u.unlock)} first</span>`)
+          : '';
+        const ownedNote = isOwned ? '<span class="tip-owned">✓ owned</span>' : '';
+        const buyNote = status === 'buyable'
+          ? `<div class="tip-buy">Buy ${u.oneTime ? '' : 'Lv.' + lvl + ' — '}${fmtCash(cost)}${isDailyDeal ? ' ⚡deal' : ''}</div>`
+          : '';
 
-      // price line under the icon
-      const priceHTML = maxed ? '<span class="pmax">✓ MAX</span>'
-        : locked ? '<span class="plock">🔒</span>'
-        : isDailyDeal
-          ? `<span class="pdeal">${fmtCash(cost)}</span> <s>${fmtCash(rawCost)}</s>`
-          : `<span class="pnow">${fmtCash(cost)}</span>`;
+        node.innerHTML = `
+          <div class="node-art">${artFor(u)}</div>
+          <div class="node-tip">
+            <b>${u.name}</b>
+            <span class="tip-lvl">${lvlNote}</span>
+            <span class="tip-effect">${effect}</span>
+            ${ownedNote}${reqNote}${buyNote}
+          </div>`;
 
-      // hover tooltip — name, current/next effect, and any unmet requirement
-      const effect = u.oneTime ? u.desc
-        : maxed ? u.val(lvl) : u.val(lvl + 1);
-      const reqNote = unmet.length
-        ? `<span class="need">Needs ${unmet.map(r => {
-            const ru = upgById[reqId(r)];
-            const nm = ru ? ru.name : reqId(r);
-            return reqLvl(r) > 1 ? `${nm} Lv.${reqLvl(r)}` : nm;
-          }).join(' + ')}</span>`
-        : distLocked ? `<span class="need">Reach ${fmtDist(u.unlock)} first</span>` : '';
-      const lvlNote = maxed ? 'maxed' : `Lv.${lvl}/${max}`;
-      const tipStatus = maxed ? '' : locked ? '' : `<div class="tip-buy">Buy Lv.${lvl+1} — ${fmtCash(cost)}${isDailyDeal ? ' ⚡deal' : ''}</div>`;
+        if(status === 'buyable'){
+          node.tabIndex = 0;
+          const buy = () => {
+            if(state.money < cost || capRemaining() <= 0) return;
+            state.money -= cost;
+            if(u.oneTime) state.perm[u.id] = true;
+            else state.lvl[u.id]++;
+            registerPurchase();
+            econLog?.logBuy({ name: u.name, id: u.id, cost, lvl: u.oneTime ? 'owned' : state.lvl[u.id] });
+            SFX.buy();
+            save();
+            renderShop();
+            recompute();   // live-preview taller ramp behind the shop
+          };
+          node.addEventListener('click', buy);
+          node.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); buy(); } });
+        }
 
-      node.innerHTML = `
-        <div class="node-art">${UPG_ICONS[u.id] || `<span style="font-size:30px">${u.icon}</span>`}</div>
-        <div class="node-price">${priceHTML}</div>
-        <div class="node-pips">${pips}</div>
-        <div class="node-tip">
-          <b>${u.name}</b>
-          <span class="tip-lvl">${lvlNote}</span>
-          <span class="tip-effect">${effect}</span>
-          ${reqNote}${tipStatus}
-        </div>`;
-
-      if(status === 'buyable'){
-        node.tabIndex = 0;
-        const buy = () => {
-          if(locked || maxed) return;
-          if(state.money < cost || capRemaining() <= 0) return;
-          state.money -= cost;
-          if(u.oneTime) state.perm[u.id] = true;
-          else state.lvl[u.id]++;
-          registerPurchase();
-          econLog?.logBuy({ name: u.name, id: u.id, cost, lvl: u.oneTime ? 'owned' : state.lvl[u.id] });
-          SFX.buy();
-          save();
-          renderShop();
-          recompute();   // live-preview taller ramp behind the shop
-        };
-        node.addEventListener('click', buy);
-        node.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); buy(); } });
+        shopGrid.appendChild(node);
+        nodeEls[`${u.id}:${lvl}`] = node;
       }
-
-      shopGrid.appendChild(node);
-      nodeEls[u.id] = node;
     }
 
     // ── connector pass ──
-    // One bezier per prerequisite edge, from the parent node's centre to
-    // the dependent's centre, drawn from real DOM rects so it's correct in
-    // any direction the branch happens to run. An edge whose requirement is
-    // already satisfied is drawn solid (the path you've walked / can walk);
-    // an edge into a still-locked node is drawn dim + dashed (a route not
-    // yet open). A level-threshold edge (e.g. regen needs wings Lv.3) is
-    // labelled with the level at its midpoint so cross-branch gates read.
+    // Every edge is axis-aligned by construction, so a straight segment
+    // between two node centres already reads as a right-angled wire. Two
+    // kinds: intra-upgrade (level n → n+1) and cross-upgrade (a level-1 node
+    // to its tree parent = requires[0]). An edge is solid gold once its lower
+    // end is owned, dim dashed while the route is still locked.
     function drawConnectors(){
       while(treeSvg.firstChild) treeSvg.removeChild(treeSvg.firstChild);
       const g = shopGrid.getBoundingClientRect();
       if(g.width < 2 || g.height < 2) return;   // shop hidden — retry on observe
       treeSvg.setAttribute('viewBox', `0 0 ${g.width} ${g.height}`);
 
-      const cx = el => el.getBoundingClientRect().left + el.getBoundingClientRect().width/2 - g.left;
-      const cy = el => el.getBoundingClientRect().top + el.getBoundingClientRect().height/2 - g.top;
+      const centre = key => {
+        const el = nodeEls[key]; if(!el) return null;
+        const r = el.getBoundingClientRect();
+        return { x: r.left + r.width/2 - g.left, y: r.top + r.height/2 - g.top };
+      };
+      const wire = (a, b, met) => {
+        if(!a || !b) return;
+        const path = document.createElementNS(svgNS, 'path');
+        path.setAttribute('d', `M ${a.x} ${a.y} L ${b.x} ${b.y}`);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', met ? 'rgba(255,200,87,0.55)' : 'rgba(120,134,190,0.34)');
+        path.setAttribute('stroke-width', met ? '2.6' : '2');
+        if(!met) path.setAttribute('stroke-dasharray', '5 5');
+        path.setAttribute('stroke-linecap', 'round');
+        treeSvg.appendChild(path);
+      };
 
       for(const u of UPGRADES){
-        const node = nodeEls[u.id];
-        if(!node) continue;
-        for(const r of (u.requires || [])){
-          const parent = nodeEls[reqId(r)];
-          if(!parent) continue;
-          const met = reqMet(r);
-          const x1 = cx(parent), y1 = cy(parent), x2 = cx(node), y2 = cy(node);
-          // bend along the dominant axis so vertical & horizontal edges both curve gently
-          const horiz = Math.abs(x2 - x1) >= Math.abs(y2 - y1);
-          const bx = horiz ? Math.max(14, Math.abs(x2 - x1) * 0.4) : 0;
-          const by = horiz ? 0 : Math.max(14, Math.abs(y2 - y1) * 0.4);
-          const c1x = x1 + (horiz ? (x2>x1?bx:-bx) : 0), c1y = y1 + (horiz ? 0 : (y2>y1?by:-by));
-          const c2x = x2 - (horiz ? (x2>x1?bx:-bx) : 0), c2y = y2 - (horiz ? 0 : (y2>y1?by:-by));
-          const path = document.createElementNS(svgNS, 'path');
-          path.setAttribute('d', `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`);
-          path.setAttribute('fill', 'none');
-          path.setAttribute('stroke', met ? 'rgba(255,200,87,0.5)' : 'rgba(120,134,190,0.35)');
-          path.setAttribute('stroke-width', met ? '2.4' : '2');
-          if(!met) path.setAttribute('stroke-dasharray', '5 5');
-          path.setAttribute('stroke-linecap', 'round');
-          treeSvg.appendChild(path);
-          // level-threshold badge at the edge midpoint
-          if(reqLvl(r) > 1){
-            const mx = (x1 + x2)/2, my = (y1 + y2)/2;
-            const badge = document.createElementNS(svgNS, 'text');
-            badge.setAttribute('x', mx); badge.setAttribute('y', my);
-            badge.setAttribute('text-anchor', 'middle');
-            badge.setAttribute('dominant-baseline', 'central');
-            badge.setAttribute('font-size', '9');
-            badge.setAttribute('font-weight', '700');
-            badge.setAttribute('fill', met ? 'rgba(255,216,138,0.95)' : 'rgba(160,172,214,0.8)');
-            badge.textContent = 'L' + reqLvl(r);
-            treeSvg.appendChild(badge);
-          }
+        // intra-upgrade rungs: n → n+1, lit once level n is owned
+        if(!u.oneTime){
+          const owned = state.lvl[u.id] ?? 0;
+          for(let lvl = 1; lvl < u.max; lvl++)
+            wire(centre(`${u.id}:${lvl}`), centre(`${u.id}:${lvl+1}`), owned >= lvl);
         }
+        // cross-upgrade: this upgrade's level-1 node → its tree parent
+        const r0 = (u.requires || [])[0];
+        if(r0) wire(centre(`${reqId(r0)}:${reqLvl(r0)}`), centre(`${u.id}:1`), reqMet(r0));
       }
-      centerOnRoot(nodeEls['ramp']);
+      centerOnRoot(nodeEls['ramp:1']);
     }
     redrawConnectors = drawConnectors;
     requestAnimationFrame(drawConnectors);

@@ -206,7 +206,7 @@
   .shop-top .subtitle{ margin:0; text-align:left; }
   .shop-top .big-btn{ margin:0; flex:0 0 auto; padding:11px 42px; font-size:18px; }
   /* the tree fills the middle; left padding clears the vertical side rail */
-  .shop-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; padding:2px 2px 2px 84px; }
+  .shop-scroll{ flex:1 1 auto; min-height:0; overflow:auto; padding:2px 2px 2px 84px; }
   @media (max-width:700px){ .shop-scroll{ padding-left:2px; } }
 
   /* ── side rail + slide-in drawers ──
@@ -317,23 +317,20 @@
   .tab-count.on{ display:inline-block; }
   .shop-panel[hidden]{ display:none; }
 
-  /* ── upgrade tree ──
-     A bog-standard branching upgrade tree on a CSS grid (TREE_LAYOUT in
-     store.js): one node per upgrade, the Ramp dead centre, branches
-     radiating outward in every direction — flight up, ground game down,
-     instruments left, economy right. Every node is always visible: locked
-     nodes (prerequisites unmet) render greyed with a 🔒, maxed nodes show
-     ✓ MAX, buyable ones show their next-level price. An absolutely-
-     positioned SVG underlay (.tree-svg) draws the dependency edges — solid
-     gold where the requirement is met, dim dashed where the route is still
-     locked, with an Lv.N badge on level-threshold edges. Icon + price +
-     level pips on the node; name/effect/requirements only on hover. */
+  /* ── upgrade tree — one square icon per LEVEL ──
+     Every purchasable level is its own square node on a tight 21×20 grid
+     (LAYOUT in store.js), so a branch hangs off the exact rung that unlocks
+     it. No pips, no padlock, no price on the node — the icon IS the upgrade,
+     and state is colour only: owned = gold-rimmed, buyable (the next rung) =
+     normal / green when affordable / gold on a daily deal, everything else =
+     greyed. The .tree-svg underlay wires straight right-angled segments
+     between adjacent nodes — solid gold once the lower end is owned, dim
+     dashed while still locked. Name/level/effect/price live on hover. */
   .shop-grid{
     position:relative; display:grid;
-    grid-template-columns:repeat(6, minmax(92px,1fr));
-    grid-auto-rows:1fr; gap:22px 16px;
-    padding:14px 6px 18px; margin-bottom:8px;
-    overflow-x:auto;
+    grid-template-columns:repeat(21, 44px);
+    grid-auto-rows:44px; gap:14px;
+    padding:26px; width:max-content; margin:0 auto;
   }
   .tree-svg{
     position:absolute; inset:0; width:100%; height:100%;
@@ -341,37 +338,26 @@
   }
   .upg-node{
     position:relative; z-index:1; justify-self:center; align-self:center;
-    width:78px; cursor:help;
+    width:44px; height:44px; cursor:help;
+    display:flex; align-items:center; justify-content:center;
     background:linear-gradient(165deg,var(--panel2) 0%,var(--panel) 100%);
-    border:1px solid var(--border); border-radius:12px;
-    padding:8px 6px 7px; display:flex; flex-direction:column; gap:4px;
-    align-items:center; text-align:center;
-    box-shadow:0 3px 10px rgba(4,6,20,0.32), inset 0 1px 0 rgba(255,255,255,0.05);
+    border:1px solid var(--border); border-radius:11px;
+    box-shadow:0 3px 9px rgba(4,6,20,0.32), inset 0 1px 0 rgba(255,255,255,0.05);
     transition:transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
   }
-  .upg-node .node-art svg{ width:40px; height:40px; display:block; filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35)); }
-  .upg-node .node-art span{ line-height:40px; }
-  .upg-node .node-price{ font-size:11px; font-weight:800; color:var(--muted); letter-spacing:0.2px; }
-  .upg-node .node-price s{ font-size:9px; color:var(--muted); opacity:0.7; font-weight:600; }
-  .upg-node .node-price .pmax{ color:var(--cash); }
-  .upg-node .node-price .pnow{ color:var(--text); }
-  .upg-node .node-price .plock{ color:var(--muted); }
-  .upg-node .node-pips{ display:flex; flex-wrap:wrap; gap:3px; justify-content:center; max-width:70px; }
-  .upg-node .pip{ width:8px; height:5px; border-radius:2px; background:rgba(10,14,38,0.85); border:1px solid var(--border); }
-  .upg-node .pip.on{ background:var(--yellow); border-color:var(--yellow); box-shadow:0 0 4px rgba(255,200,87,0.5); }
-  /* node states */
-  .upg-node.locked{ filter:grayscale(0.85); opacity:0.42; cursor:help; }
-  .upg-node.maxed{ border-color:rgba(99,230,164,0.45); box-shadow:0 0 10px rgba(99,230,164,0.14), inset 0 1px 0 rgba(255,255,255,0.05); }
+  .upg-node .node-art{ line-height:0; }
+  .upg-node .node-art svg{ width:30px; height:30px; display:block; filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35)); }
+  .upg-node .node-art span{ line-height:1; }
+  /* node states — colour only, no glyphs */
+  .upg-node.owned{ border-color:rgba(255,200,87,0.6); box-shadow:0 0 9px rgba(255,190,80,0.22), inset 0 1px 0 rgba(255,255,255,0.06); }
+  .upg-node.locked{ filter:grayscale(0.9); opacity:0.4; }
   .upg-node.buyable{ cursor:pointer; }
   .upg-node.buyable:hover{
     border-color:var(--border-strong); transform:translateY(-2px);
-    box-shadow:0 8px 18px rgba(4,6,20,0.42), inset 0 1px 0 rgba(255,255,255,0.07);
+    box-shadow:0 8px 16px rgba(4,6,20,0.42), inset 0 1px 0 rgba(255,255,255,0.07);
   }
-  .upg-node.buyable.affordable{ border-color:rgba(99,230,164,0.7); box-shadow:0 0 13px rgba(99,230,164,0.24), inset 0 1px 0 rgba(255,255,255,0.05); }
-  .upg-node.buyable.affordable .node-price .pnow{ color:#8ff0bb; }
-  .upg-node.buyable.daily-deal{ border-color:rgba(255,200,87,0.78); box-shadow:0 0 14px rgba(255,180,60,0.28), inset 0 1px 0 rgba(255,255,255,0.05); }
-  .upg-node.buyable.daily-deal .node-price .pdeal{ color:#ffd88a; }
-  .upg-node.buyable:not(.affordable) .node-price .pnow{ color:#ff9a8a; }
+  .upg-node.buyable.affordable{ border-color:rgba(99,230,164,0.72); box-shadow:0 0 12px rgba(99,230,164,0.26), inset 0 1px 0 rgba(255,255,255,0.05); }
+  .upg-node.buyable.daily-deal{ border-color:rgba(255,200,87,0.82); box-shadow:0 0 13px rgba(255,180,60,0.3), inset 0 1px 0 rgba(255,255,255,0.05); }
   /* hover/focus tooltip */
   .upg-node .node-tip{
     position:absolute; left:50%; bottom:calc(100% + 8px); transform:translateX(-50%);
@@ -385,6 +371,7 @@
   .upg-node .node-tip b{ display:block; font-size:12px; font-weight:800; color:#ffd88a; }
   .upg-node .node-tip .tip-lvl{ display:block; font-size:9px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--teal); margin-bottom:3px; }
   .upg-node .node-tip .tip-effect{ display:block; }
+  .upg-node .node-tip .tip-owned{ display:block; margin-top:4px; color:#8ff0bb; font-weight:700; }
   .upg-node .node-tip .need{ display:block; margin-top:4px; color:#ff9a8a; font-weight:700; }
   .upg-node .node-tip .tip-buy{ margin-top:5px; padding-top:5px; border-top:1px solid var(--border); color:#8ff0bb; font-weight:700; }
   .upg-node:hover .node-tip, .upg-node:focus-within .node-tip{ opacity:1; }
