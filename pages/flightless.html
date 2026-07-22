@@ -195,7 +195,8 @@
     flex-wrap:wrap; gap:8px 20px;
     padding:2px 100px 0 150px;   /* clear the corner overlay buttons */
   }
-  .shop-top-info{ display:flex; flex-direction:column; gap:3px; flex:1 1 auto; min-width:0; }
+  .shop-top-info{ display:flex; flex-direction:column; gap:6px; flex:1 1 auto; min-width:0; }
+  .shop-top .title-row{ display:flex; align-items:center; gap:13px; flex-wrap:wrap; }
   @media (max-width:700px){
     .shop-top{ padding:38px 0 0; }
     .shop-grid{ grid-template-columns:repeat(6, minmax(72px,1fr)); gap:16px 10px; }
@@ -203,7 +204,12 @@
     .upg-node .node-art svg{ width:34px; height:34px; }
   }
   .shop-top .game-title{ margin:0; text-align:left; font-size:clamp(18px,2.6vw,28px); letter-spacing:2.5px; }
-  .shop-top .subtitle{ margin:0; text-align:left; }
+  .shop-top .subtitle{
+    margin:0; text-align:left; align-self:stretch;
+    display:flex; flex-direction:column; justify-content:center;
+    padding-left:13px; border-left:1px solid var(--border);
+    font-size:12.5px; line-height:1.25; color:var(--muted);
+  }
   .shop-top .big-btn{ margin:0; flex:0 0 auto; padding:11px 42px; font-size:18px; }
   /* the tree fills the middle; left padding clears the vertical side rail */
   .shop-scroll{ flex:1 1 auto; min-height:0; overflow:auto; padding:2px 2px 2px 84px; }
@@ -669,8 +675,10 @@
   <div class="shop-frame">
     <div class="shop-top">
       <div class="shop-top-info">
-        <h1 class="game-title">&#128039; Flightless</h1>
-        <p class="subtitle">penguins can't fly? prove them wrong.</p>
+        <div class="title-row">
+          <h1 class="game-title">&#128039; Flightless</h1>
+          <p class="subtitle">penguins can't fly?<br>prove them wrong</p>
+        </div>
         <div class="topline">
           <div class="chip money">&#128176; <b id="shop-money">$0</b></div>
           <div class="chip">&#128197; Day <b id="shop-day">1</b></div>
