@@ -173,15 +173,16 @@ export function createStore(deps){
       `<line x1="33" y1="32" x2="33" y2="38" stroke="${IC.G}" stroke-width="2.2"/>`),
   };
 
-  // ── tree layout — one node PER LEVEL ──
-  // Every purchasable level is its own node on a tight 21×20 grid, so a
-  // branch can hang off the exact rung that unlocks it (Glider Wings off
-  // Ramp Lv.2 = its node literally sits on T2) instead of a labelled edge.
-  // Ramp (T1) is dead centre; the spine runs right, flight tech stacks up,
-  // the ground game drops down, cheap tails (cargo, wings levels) stream
-  // left. Every prerequisite node is orthogonally adjacent to (or in line
-  // with) its dependent, so every connector is a straight right-angled
-  // segment — see the ASCII map in pages/flightless.html's tree comment.
+  // ── tree layout — one node PER LEVEL, branches scattered by rung ──
+  // Every purchasable level is its own node on a 20×19 grid. Each upgrade
+  // gets its own lane, and a child hangs off the EXACT rung of its parent
+  // named in flightless-data.js's `requires` (aero off wings Lv.3, rocket
+  // off aero Lv.2, gun off plating Lv.3, …) so the branch points are
+  // scattered across the whole map instead of all clustered at level 1.
+  // The ramp is a horizontal spine (row 10) with cargo streaming left; the
+  // flight tech cascades up-and-right, one upgrade per row, so every wire is
+  // a straight horizontal (level→level) or vertical (parent-rung→child)
+  // segment. The ground game drops down off the ramp's Lv.4.
   //
   // LAYOUT maps `${id}:${level}` → {col,row} (1-indexed grid cells).
   const LAYOUT = {};
@@ -189,31 +190,29 @@ export function createStore(deps){
     for(let i = 0; i < count; i++)
       LAYOUT[`${id}:${startLvl + i}`] = { col: col + dCol * i, row: row + dRow * i };
   };
-  // ramp spine (T1..T3 spaced 2 apart to give their branches clean columns)
-  LAYOUT['ramp:1'] = { col:8, row:12 };
-  LAYOUT['ramp:2'] = { col:10, row:12 };
-  place('ramp', 3, 10, 12, 12, 1, 0);   // T3..T12 → col 12..21, row 12
-  place('cargo', 1, 7, 7, 12, -1, 0);   // C1..C7  → left along row 12
-  // ▲ flight
-  LAYOUT['wings:1'] = { col:10, row:11 };
-  place('wings', 2, 9, 9, 11, -1, 0);   // G2..G10 → left along row 11
-  place('aero',    1, 10, 10, 10, 0, -1); // A1..A10 → up col 10
-  place('struts',  1, 6,  9, 10, 0, -1);  // W1..W6  → up col 9
-  place('plating', 1, 6,  8, 10, 0, -1);  // L1..L6  → up col 8
-  place('gun',     1, 6,  7, 10, 0, -1);  // N1..N6  → up col 7
-  place('rocket',  1, 10, 11, 10, 0, -1); // R1..R10 → up col 11
-  LAYOUT['burner:1'] = { col:11, row:11 };
-  place('fuel',    1, 10, 12, 10, 0, -1); // F1..F10 → up col 12
-  place('regen',   1, 5,  13, 7,  0, -1); // E1..E5  → up col 13 off F4
-  LAYOUT['tank:1'] = { col:14, row:7 };
-  // ◀▼ instruments
-  LAYOUT['speedo:1'] = { col:12, row:13 };
-  LAYOUT['alti:1']   = { col:12, row:14 };
-  // ▼ ground game
-  place('bounce',  1, 6, 10, 13, 0, 1);   // B1..B6 → down col 10
-  place('sling',   1, 8,  9, 13, 0, 1);   // S1..S8 → down col 9
-  place('sponsor', 1, 6, 11, 13, 0, 1);   // P1..P6 → down col 11
-  const CENTER = { col:8, row:12 };       // fallback (ramp root)
+  // ── ramp spine (row 10) + cargo tail (left) ──
+  place('ramp',  1, 12, 6, 10,  1, 0);   // T1..T12 → col 6..17
+  place('cargo', 1, 5,  5, 10, -1, 0);   // C1..C5  → left of T1
+  // ── flight: one upgrade per row, cascading up-right; a child sits one
+  //    row off the parent rung it needs, in that rung's column ──
+  place('wings',   1, 10, 7, 9,  1, 0);  // G1..G10 (row 9, over T2)
+  place('aero',    1, 10, 9, 8,  1, 0);  // A1..A10 (row 8, off wings L3=col9)
+  place('struts',  1, 6, 12, 7,  1, 0);  // W1..W6  (row 7, off aero L4=col12)
+  place('plating', 1, 6, 13, 6,  1, 0);  // L1..L6  (row 6, off struts L2=col13)
+  place('gun',     1, 6, 15, 5,  1, 0);  // N1..N6  (row 5, off plating L3=col15)
+  place('rocket',  1, 10, 10, 4, 1, 0);  // R1..R10 (row 4, off aero L2=col10)
+  LAYOUT['burner:1'] = { col:13, row:5 }; // off rocket L4=col13
+  place('fuel',    1, 10, 11, 3, 1, 0);  // F1..F10 (row 3, off rocket L2=col11)
+  place('regen',   1, 5, 14, 2,  1, 0);  // E1..E5  (row 2, off fuel L4=col14)
+  LAYOUT['tank:1'] = { col:15, row:1 };   // off regen L2=col15
+  // ── instruments (down off ramp L3) ──
+  LAYOUT['speedo:1'] = { col:8, row:11 };
+  LAYOUT['alti:1']   = { col:8, row:12 };
+  // ── ground game (down off ramp L4=col9) ──
+  place('bounce',  1, 6, 9, 11, 0, 1);   // B1..B6 → down col 9
+  place('sling',   1, 8, 10, 12, 0, 1);  // S1..S8 → down col 10 (off bounce L2)
+  place('sponsor', 1, 6, 7, 14, 0, 1);   // P1..P6 → down col 7  (off bounce L4)
+  const CENTER = { col:6, row:10 };       // fallback (ramp root)
 
   // Connector redraw hook — renderShop() swaps in a closure over the
   // current node set. renderShop() runs while #shop is still display:none
