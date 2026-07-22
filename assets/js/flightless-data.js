@@ -75,15 +75,18 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
       desc:'More lift, flatter glide. Ease off "up" to cruise. New rig every couple of levels.',
       val:l=>{ if(l===0) return 'no wings'; const d=derive({wings:l});
                return `${gliderName(l)} · ~${Math.max(1,Math.round(d.bestLD))}:1 glide`; } },
-    { id:'cargo', icon:'\u{1F4E6}', name:'Cargo Crate', base:150, mul:1.6, max:5, unlock:0, requires:['ramp'],
-      desc:'How many upgrades Fish Co. can drop off before your next flight. Bigger crate, more buys per visit.',
+    { id:'cargo', icon:'\u{1F4E6}', name:'Cargo Crate', base:300, mul:1.8, max:5, unlock:0, requires:['ramp'],
+      // Each crate needs a deeper Ramp than the last, so you unlock delivery
+      // capacity gradually instead of chaining all five in a single visit.
+      levelReq:{ 2:[{id:'ramp',lvl:3}], 3:[{id:'ramp',lvl:6}], 4:[{id:'ramp',lvl:9}], 5:[{id:'ramp',lvl:12}] },
+      desc:'How many upgrades Fish Co. can drop off before your next flight. Bigger crate, more buys per visit — each one needs a longer ramp than the last.',
       val:l=>`${DAILY_CAP_BASE+l} deliveries/day` },
 
     // ── tier 1 (one prerequisite) ──
     { id:'alti',   icon:'\u{1F4E1}', name:'Altimeter',   base:220, mul:1, max:1, unlock:100, requires:['speedo'], oneTime:true,
       desc:'See your altitude — and get paid for peak height.',
       val:l=> l===0 ? 'not installed' : 'installed' },
-    { id:'aero',    icon:'\u{1F9CA}', name:'Slick Suit',   base:70,  mul:1.55, max:10, unlock:0, requires:[{id:'wings',lvl:3}],
+    { id:'aero',    icon:'\u{1F9CA}', name:'Slick Suit',   base:140,  mul:1.6, max:10, unlock:0, requires:[{id:'wings',lvl:3}],
       desc:'Waxed feathers cut drag on the ramp, in the air, and on the ice.',
       val:l=>`dives to ~${Math.round(derive({aero:l}).vDive)} m/s` },
     { id:'bounce',  icon:'\u{1F3C0}', name:'Rubber Belly', base:450, mul:1.55, max:6, unlock:0, requires:[{id:'ramp',lvl:4}],
@@ -99,11 +102,11 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
       val:l=> l===0 ? 'not installed' : `+${20*l} m/s at the gate` },
 
     // Rocket: mul raised 1.55→1.65 to slow the runaway late-game power spike.
-    { id:'rocket',  icon:'\u{1F680}', name:'Rocket',       base:380, mul:1.65, max:10, unlock:100, requires:[{id:'aero',lvl:2}],
+    { id:'rocket',  icon:'\u{1F680}', name:'Rocket',       base:560, mul:1.65, max:10, unlock:100, requires:[{id:'aero',lvl:2}],
       desc:'A strap-on booster. Hold SPACE to climb faster.',
       val:l=> l===0 ? 'not installed' : `${Math.round(derive({rocket:l}).thrust)} m/s² thrust` },
     // Sponsor: multiplier stacks hard with airtime — keep it a real reach.
-    { id:'sponsor', icon:'\u{1F4B0}', name:'Sponsor Deal', base:850, mul:1.60, max:6, unlock:250, requires:[{id:'bounce',lvl:4}],
+    { id:'sponsor', icon:'\u{1F4B0}', name:'Sponsor Deal', base:1400, mul:1.72, max:6, unlock:250, requires:[{id:'bounce',lvl:4}],
       desc:'Fish Co. multiplies your earnings on every flight.',
       val:l=>`×${(1+0.35*l).toFixed(2)} cash earned` },
 

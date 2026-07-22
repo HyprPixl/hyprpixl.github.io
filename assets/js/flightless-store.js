@@ -627,7 +627,13 @@ export function createStore(deps){
       for(let lvl = 1; lvl <= max; lvl++){
         const pos = LAYOUT[`${u.id}:${lvl}`] || CENTER;
         const isOwned = lvl <= owned;
-        const isNext  = lvl === owned + 1 && prereqOK;   // the one buyable rung
+        // per-level gate — lets a single upgrade's rungs unlock at different
+        // points so you can't buy them all in one visit (Cargo Crate levels
+        // are gated behind deeper Ramp Track levels; see data.js `levelReq`).
+        const lvlReq = (u.levelReq && u.levelReq[lvl]) || [];
+        const lvlUnmet = lvlReq.filter(r => !reqMet(r));
+        const gatedOK = prereqOK && lvlUnmet.length === 0;
+        const isNext  = lvl === owned + 1 && gatedOK;    // the one buyable rung
 
         // price for THIS rung (going from lvl-1 → lvl), plus any daily deal
         const rawCost = u.oneTime ? u.base : Math.round(u.base * Math.pow(u.mul, lvl - 1));
@@ -648,9 +654,10 @@ export function createStore(deps){
         const effect = u.oneTime ? u.desc : u.val(lvl);
         const lvlNote = u.oneTime ? 'one-time upgrade' : `Lv.${lvl} / ${max}`;
         // requirement note only on the rung that's blocked by a prerequisite
-        const reqNote = (!isOwned && lvl === owned + 1 && !prereqOK)
-          ? (unmet.length
-              ? `<span class="need">Needs ${unmet.map(r => {
+        const allUnmet = [...unmet, ...lvlUnmet];
+        const reqNote = (!isOwned && lvl === owned + 1 && !gatedOK)
+          ? (allUnmet.length
+              ? `<span class="need">Needs ${allUnmet.map(r => {
                   const ru = upgById[reqId(r)]; const nm = ru ? ru.name : reqId(r);
                   return reqLvl(r) > 1 ? `${nm} Lv.${reqLvl(r)}` : nm;
                 }).join(' + ')}</span>`
