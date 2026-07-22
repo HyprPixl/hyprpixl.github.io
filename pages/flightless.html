@@ -191,10 +191,11 @@
     display:flex; flex-direction:column; gap:9px; padding:12px 16px 12px;
   }
   .shop-top{
-    display:flex; align-items:baseline; justify-content:space-between;
-    flex-wrap:wrap; gap:4px 16px;
-    padding-left:150px; padding-right:100px;   /* clear the corner overlay buttons */
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:8px 20px;
+    padding:2px 100px 0 150px;   /* clear the corner overlay buttons */
   }
+  .shop-top-info{ display:flex; flex-direction:column; gap:3px; flex:1 1 auto; min-width:0; }
   @media (max-width:700px){
     .shop-top{ padding:38px 0 0; }
     .shop-grid{ grid-template-columns:repeat(6, minmax(72px,1fr)); gap:16px 10px; }
@@ -202,45 +203,82 @@
     .upg-node .node-art svg{ width:34px; height:34px; }
   }
   .shop-top .game-title{ margin:0; text-align:left; font-size:clamp(18px,2.6vw,28px); letter-spacing:2.5px; }
-  .shop-top .subtitle{ margin:0; text-align:left; flex:1 1 auto; }
-  .shop-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; padding:2px; }
+  .shop-top .subtitle{ margin:0; text-align:left; }
+  .shop-top .big-btn{ margin:0; flex:0 0 auto; padding:11px 42px; font-size:18px; }
+  /* the tree fills the middle; left padding clears the vertical side rail */
+  .shop-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; padding:2px 2px 2px 84px; }
+  @media (max-width:700px){ .shop-scroll{ padding-left:2px; } }
   .shop-foot{ display:flex; align-items:center; justify-content:center; gap:6px 22px; flex-wrap:wrap; }
-  .shop-foot .big-btn{ margin:0; padding:11px 44px; font-size:18px; }
+  .shop-foot .small-note{ margin:0; }
+  .shop-foot .reset-link{ margin:0; width:auto; }
 
-  .shop-foot .notes{ display:flex; flex-direction:column; gap:2px; align-items:flex-start; }
-  .ramp-designer{ position:relative; }
-  .ramp-toggle{
-    font-size:12px; font-weight:700; cursor:pointer;
-    background:var(--glass); color:var(--text);
-    border:1px solid var(--border); border-radius:999px; padding:8px 14px;
-    transition:border-color .15s ease;
+  /* ── side rail + slide-in drawers ──
+     The achievements grid and the ramp-shape designer no longer sit on the
+     shop screen full-time. A vertical rail on the left edge toggles each one
+     open as a drawer that slides in from the side. */
+  .side-rail{
+    position:absolute; left:12px; top:50%; transform:translateY(-50%);
+    z-index:28; display:flex; flex-direction:column; gap:10px;
   }
-  .ramp-toggle:hover{ border-color:var(--yellow); }
-  .ramp-toggle b{ color:var(--yellow); }
-  .ramp-pop{
-    display:none; position:absolute; bottom:calc(100% + 10px); left:50%;
-    transform:translateX(-50%); z-index:25;
+  .side-rail button{
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    width:60px; padding:11px 4px; cursor:pointer;
+    background:var(--glass); color:var(--muted);
+    border:1px solid var(--border); border-radius:14px;
+    font-size:21px; line-height:1;
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+    box-shadow:0 6px 16px rgba(4,6,20,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+    transition:color .15s ease, border-color .15s ease, background .15s ease;
+  }
+  .side-rail button span{
+    font-size:8.5px; font-weight:800; letter-spacing:0.6px; text-transform:uppercase;
+  }
+  .side-rail button:hover{ color:var(--text); border-color:var(--border-strong); }
+  .side-rail button.active{
+    color:#ffd88a; background:rgba(255,200,87,0.14);
+    border-color:rgba(255,200,87,0.55); box-shadow:0 0 12px rgba(255,180,60,0.2);
+  }
+  .side-drawer{
+    position:absolute; top:0; left:0; bottom:0; z-index:26;
+    width:344px; max-width:88vw;
+    display:flex; flex-direction:column; gap:12px;
+    padding:54px 18px 20px 84px;   /* left gutter keeps the side rail clear + clickable */
     background:linear-gradient(165deg,var(--panel2),var(--panel));
-    border:1px solid var(--border-strong); border-radius:var(--radius);
-    padding:10px 12px; box-shadow:var(--shadow-pop), inset 0 1px 0 rgba(255,255,255,0.07);
-    flex-direction:column; gap:6px;
+    border-right:1px solid var(--border-strong);
+    box-shadow:var(--shadow-pop);
+    transform:translateX(-104%);
+    transition:transform .28s cubic-bezier(.4,0,.2,1);
+    overflow-y:auto;
   }
-  .ramp-pop.open{ display:flex; }
-  .ramp-pop canvas{
-    width:260px; height:120px; touch-action:none; cursor:grab;
+  .side-drawer.open{ transform:translateX(0); }
+  .drawer-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .drawer-head h3{
+    margin:0; color:var(--yellow); font-size:13px; font-weight:800;
+    text-transform:uppercase; letter-spacing:2px;
+  }
+  .drawer-close{
+    width:30px; height:30px; padding:0; cursor:pointer; flex:0 0 auto;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:rgba(10,14,38,0.6); color:var(--muted);
+    border:1px solid var(--border); border-radius:9px; font-size:14px;
+    transition:color .15s ease, border-color .15s ease;
+  }
+  .drawer-close:hover{ color:var(--text); border-color:var(--border-strong); }
+  #ramp-editor{
+    width:260px; max-width:100%; height:120px; touch-action:none; cursor:grab;
     background:#0b1130; border:1px solid var(--border); border-radius:9px;
   }
   .ramp-pop-foot{
-    display:flex; justify-content:space-between; align-items:center; gap:10px;
-    font-size:10.5px; color:var(--muted); max-width:260px;
+    display:flex; flex-direction:column; align-items:flex-start; gap:8px;
+    font-size:10.5px; color:var(--muted);
   }
   .ramp-pop-foot button{
     font-size:10.5px; cursor:pointer;
     background:none; border:none; color:#98a4e0; text-decoration:underline;
   }
   .ramp-pop-foot button:hover{ color:var(--text); }
-  .shop-foot .small-note{ margin:0; text-align:left; }
-  .shop-foot .reset-link{ margin:0; width:auto; text-align:left; }
+  .ramp-shape-info{ font-size:12px; color:var(--muted); }
+  .ramp-shape-info b{ color:var(--yellow); }
 
   .topline{
     display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:0;
@@ -354,23 +392,17 @@
   .upg-node .node-tip .tip-buy{ margin-top:5px; padding-top:5px; border-top:1px solid var(--border); color:#8ff0bb; font-weight:700; }
   .upg-node:hover .node-tip, .upg-node:focus-within .node-tip{ opacity:1; }
 
-  .goals{
-    background:var(--glass); border:1px solid var(--border); border-radius:12px;
-    padding:8px 14px; margin:0; font-size:12px;
-    display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap;
-  }
-  .goals h3{
-    margin:4px 0 0; color:var(--yellow); font-size:11px; font-weight:800;
-    text-transform:uppercase; letter-spacing:1.5px; white-space:nowrap;
-  }
-  /* ── achievements grid ──
+  /* ── achievements grid (lives in the side drawer now) ──
      Milestones, landmark bosses, daily contracts, and medals all render as
      one flat icon grid — no text list. Completion state is on/off (plus a
      transitional "next"/"partial" state); every detail (name, reward,
-     description, progress) lives in the hover tooltip only. */
-  .ach-grid{ display:flex; flex-wrap:wrap; gap:6px; flex:1 1 auto; }
+     description, progress) lives in the hover tooltip only. Every cell is a
+     perfect square. */
+  .ach-grid{ display:grid; grid-template-columns:repeat(auto-fill, 46px); gap:8px; justify-content:start; }
   .ach{
-    position:relative; font-size:18px; line-height:1; padding:8px; cursor:help;
+    position:relative; width:46px; height:46px; aspect-ratio:1/1;
+    display:flex; align-items:center; justify-content:center;
+    font-size:20px; line-height:1; cursor:help;
     background:linear-gradient(165deg,var(--panel2),var(--panel));
     border:1px solid var(--border); border-radius:12px;
   }
@@ -547,6 +579,10 @@
     cursor:pointer; border-radius:50%; box-shadow:0 2px 5px rgba(0,0,0,0.4);
   }
   #settings .big-btn{ margin:8px auto 0; padding:10px 40px; font-size:16px; }
+  .set-controls{ margin:0; font-size:12.5px; line-height:1.7; color:var(--text); }
+  #settings-save-buttons{ display:flex; flex-direction:column; gap:6px; align-items:flex-start; }
+  #settings-save-buttons > div{ display:flex; gap:14px; flex-wrap:wrap; }
+  #settings-save-buttons .reset-link{ margin:0; width:auto; text-align:left; }
 
   /* ── Touch controls ── */
   #touch{ position:absolute; bottom:0; left:0; right:0; z-index:15; display:none; justify-content:space-between; padding:0 14px 18px; pointer-events:none; }
@@ -619,20 +655,46 @@
 
 <!-- ── SHOP ── -->
 <div class="panel" id="shop">
+  <!-- side rail: toggles the slide-in drawers -->
+  <div class="side-rail">
+    <button id="rail-ach" title="achievements">&#127942;<span>Awards</span></button>
+    <button id="rail-ramp" title="ramp designer">&#128736;<span>Ramp</span></button>
+  </div>
+  <!-- achievements drawer -->
+  <div class="side-drawer" id="drawer-ach">
+    <div class="drawer-head">
+      <h3>&#127942; Achievements</h3>
+      <button class="drawer-close" title="close">&times;</button>
+    </div>
+    <div class="ach-grid" id="ach-grid"></div>
+  </div>
+  <!-- ramp designer drawer -->
+  <div class="side-drawer" id="drawer-ramp">
+    <div class="drawer-head">
+      <h3>&#128736; Ramp Designer</h3>
+      <button class="drawer-close" title="close">&times;</button>
+    </div>
+    <p class="ramp-shape-info">&#128736; <b id="shape-info"></b></p>
+    <canvas id="ramp-editor"></canvas>
+    <div class="ramp-pop-foot">
+      <span>drag any handle &mdash; the red one is the lip &middot; buy Ramp Track for length</span>
+      <button id="shape-reset">reset shape</button>
+    </div>
+  </div>
+
   <div class="shop-frame">
     <div class="shop-top">
-      <h1 class="game-title">&#128039; Flightless</h1>
-      <p class="subtitle">penguins can't fly. prove them wrong.</p>
-      <div class="topline">
-        <div class="chip money">&#128176; <b id="shop-money">$0</b></div>
-        <div class="chip">&#128197; Day <b id="shop-day">1</b></div>
-        <div class="chip">&#127942; Best <b id="shop-best">0 m</b></div>
-        <div class="chip" id="shop-cap-chip">&#128230; <b id="shop-cap">3/3</b></div>
+      <div class="shop-top-info">
+        <h1 class="game-title">&#128039; Flightless</h1>
+        <p class="subtitle">penguins can't fly? prove them wrong.</p>
+        <div class="topline">
+          <div class="chip money">&#128176; <b id="shop-money">$0</b></div>
+          <div class="chip">&#128197; Day <b id="shop-day">1</b></div>
+          <div class="chip">&#127942; Best <b id="shop-best">0 m</b></div>
+          <div class="chip" id="shop-cap-chip">&#128230; <b id="shop-cap">3/3</b></div>
+        </div>
       </div>
-    </div>
-    <div class="goals">
-      <h3>&#127942; Achievements</h3>
-      <div class="ach-grid" id="ach-grid"></div>
+      <button class="big-btn" id="launch-btn">&#128640; Launch</button>
     </div>
     <div class="shop-scroll">
       <div class="shop-panel" id="panel-upgrades">
@@ -640,22 +702,8 @@
       </div>
     </div>
     <div class="shop-foot">
-      <div class="ramp-designer">
-        <button class="ramp-toggle" id="ramp-toggle">&#128736; Ramp &middot; <b id="shape-info"></b> &#9652;</button>
-        <div class="ramp-pop" id="ramp-pop">
-          <canvas id="ramp-editor"></canvas>
-          <div class="ramp-pop-foot">
-            <span>drag any handle &mdash; the red one is the lip &middot; buy Ramp Track for length</span>
-            <button id="shape-reset">reset</button>
-          </div>
-        </div>
-      </div>
-      <button class="big-btn" id="launch-btn">&#128640; Launch</button>
-      <div class="notes">
-        <p class="small-note" id="controls-hint">&#8679;/&#8681; or W/S steer &middot; SPACE rocket &middot; X afterburner &middot; C fire cannon &middot; F fast-forward &middot; ENTER launch</p>
-        <p class="small-note">&#128230; Fish Co. only delivers so many upgrades before your next flight &mdash; buy Cargo Crate for a bigger allowance</p>
-        <button class="reset-link" id="reset-btn">reset all progress</button>
-      </div>
+      <p class="small-note">&#128230; Fish Co. only delivers so many upgrades before your next flight &mdash; buy Cargo Crate for a bigger allowance</p>
+      <button class="reset-link" id="reset-btn">reset all progress</button>
     </div>
   </div>
 </div>
@@ -737,6 +785,14 @@
         </span>
         <button class="set-toggle" id="set-reduce-motion">OFF</button>
       </div>
+    </div>
+    <div class="set-section">
+      <h3>&#127918; Controls</h3>
+      <p class="set-controls" id="controls-hint">&#8679;/&#8681; or W/S steer &middot; SPACE rocket &middot; X afterburner &middot; C fire cannon &middot; F fast-forward &middot; ENTER launch</p>
+    </div>
+    <div class="set-section">
+      <h3>&#128190; Save Data</h3>
+      <div id="settings-save-buttons"></div>
     </div>
     <button class="big-btn" id="settings-close-btn">Done</button>
   </div>
@@ -920,6 +976,40 @@ const store = createStore({
 });
 const renderShop = store.renderShop;
 
+/* ════════════════ shop side drawers (achievements / ramp designer) ════════════════ */
+// The achievements grid and the ramp-shape designer each live in a drawer
+// that slides in from the left edge, toggled by the vertical side rail. Only
+// one drawer is open at a time; opening the ramp drawer kicks a redraw of the
+// editor canvas (which no-ops while the drawer is closed).
+const sideDrawers = {
+  ach:  document.getElementById('drawer-ach'),
+  ramp: document.getElementById('drawer-ramp'),
+};
+const railBtns = {
+  ach:  document.getElementById('rail-ach'),
+  ramp: document.getElementById('rail-ramp'),
+};
+function closeDrawers(except=null){
+  for(const key of Object.keys(sideDrawers)){
+    if(key === except) continue;
+    sideDrawers[key]?.classList.remove('open');
+    railBtns[key]?.classList.remove('active');
+  }
+}
+function toggleDrawer(key){
+  const d = sideDrawers[key];
+  if(!d) return;
+  const willOpen = !d.classList.contains('open');
+  closeDrawers(willOpen ? key : null);
+  d.classList.toggle('open', willOpen);
+  railBtns[key]?.classList.toggle('active', willOpen);
+  if(willOpen && key === 'ramp' && typeof store.drawEditor === 'function') store.drawEditor();
+}
+railBtns.ach?.addEventListener('click', () => toggleDrawer('ach'));
+railBtns.ramp?.addEventListener('click', () => toggleDrawer('ramp'));
+document.querySelectorAll('#shop .drawer-close').forEach(btn =>
+  btn.addEventListener('click', () => closeDrawers()));
+
 /* ════════════════ NG+ — post-Wall endgame ════════════════ */
 // WIN_DIST is the base wall distance (35 000 m). Each NG+ cycle adds a
 // second, harder wall at 2× the original distance and scales enemy density.
@@ -979,6 +1069,7 @@ function closeResults(){
 function openShop(){
   sim.phase = 'shop';
   sim.run = null;
+  closeDrawers();
   recompute();
   renderShop();
   shopEl.classList.add('show');
@@ -992,6 +1083,7 @@ function startLaunch(){
   // seed today's weather (wind + ambient sky visuals — see flightless-data.js's
   // DAILY_MOD_TABLE and flightless-render.js's ambientMode())
   if(typeof dailyModFor === 'function') state.dailyMod = dailyModFor(state.day);
+  closeDrawers();
   introEl.classList.remove('show');
   shopEl.classList.remove('show');
   physics.newRun();

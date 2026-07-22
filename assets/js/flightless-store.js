@@ -239,15 +239,15 @@ export function createStore(deps){
     didCenterTree = true;
   }
 
-  // ── ramp designer (collapsible pop-over) ──
-  // A one-line summary button in the shop footer; the canvas appears above
-  // it on demand. All four control points drag, including the lip, so the
-  // exit angle and kicker are fully the player's. The world ramp rebuilds
-  // live behind the shop while dragging.
+  // ── ramp designer (slide-in side drawer) ──
+  // The canvas lives in the #drawer-ramp drawer, toggled from the shop's
+  // side rail (host page owns the open/close). All four control points drag,
+  // including the lip, so the exit angle and kicker are fully the player's.
+  // The world ramp rebuilds live behind the shop while dragging.
   const edCv = document.getElementById('ramp-editor');
   const edCtx = edCv.getContext('2d');
   const shapeInfo = document.getElementById('shape-info');
-  const rampPop = document.getElementById('ramp-pop');
+  const rampDrawer = document.getElementById('drawer-ramp');
   const ED_W=260, ED_H=120, ED_PAD=14, ED_TOP=12, ED_GROUND=ED_H-16;
   edCv.width = ED_W*2; edCv.height = ED_H*2; edCtx.setTransform(2,0,0,2,0,0);
   const edX = p => ED_PAD + p.x*(ED_W-2*ED_PAD);
@@ -258,7 +258,7 @@ export function createStore(deps){
     const ramp = getRamp();
     if(!ramp) return;
     shapeInfo.textContent = `${Math.round(ramp.exitTh/RAD)}° nose · ${Math.round(ramp.H)} m tall`;
-    if(!rampPop.classList.contains('open')) return;
+    if(rampDrawer && !rampDrawer.classList.contains('open')) return;
     edCtx.clearRect(0,0,ED_W,ED_H);
     // faint height grid
     edCtx.strokeStyle = 'rgba(58,65,168,0.35)'; edCtx.lineWidth = 1;
@@ -348,10 +348,6 @@ export function createStore(deps){
   };
   edCv.addEventListener('pointerup', edUp);
   edCv.addEventListener('pointercancel', edUp);
-  document.getElementById('ramp-toggle').addEventListener('click', () => {
-    rampPop.classList.toggle('open');
-    drawEditor();
-  });
   document.getElementById('shape-reset').addEventListener('click', () => {
     state.rampShape = defaultState().rampShape;
     recompute();
@@ -360,11 +356,11 @@ export function createStore(deps){
   });
 
   // ── save export / import UI ──
-  // Wire export/import buttons into the shop footer's notes area (next to the
-  // reset link).  The buttons are no-ops if save.exportSave/importSave are not
-  // provided — guarded above at module top.
+  // Wire export/import buttons into the Settings panel's Save Data section.
+  // The buttons are no-ops if save.exportSave/importSave are not provided —
+  // guarded above at module top.
   (function buildSaveButtons(){
-    const notesEl = document.querySelector('#shop .notes');
+    const notesEl = document.getElementById('settings-save-buttons');
     if(!notesEl) return;   // DOM not yet ready somehow; skip gracefully
 
     const row = document.createElement('div');
