@@ -74,7 +74,7 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
       desc:'More lift, flatter glide. Ease off "up" to cruise. New rig every couple of levels.',
       val:l=>{ if(l===0) return 'no wings'; const d=derive({wings:l});
                return `${gliderName(l)} · ~${Math.max(1,Math.round(d.bestLD))}:1 glide`; } },
-    { id:'cargo', icon:'\u{1F4E6}', name:'Cargo Crate', base:150, mul:1.6, max:7, unlock:0, requires:['ramp'],
+    { id:'cargo', icon:'\u{1F4E6}', name:'Cargo Crate', base:150, mul:1.6, max:5, unlock:0, requires:['ramp'],
       desc:'How many upgrades Fish Co. can drop off before your next flight. Bigger crate, more buys per visit.',
       val:l=>`${DAILY_CAP_BASE+l} deliveries/day` },
 

@@ -77,8 +77,8 @@
     transition:color .15s ease, border-color .15s ease;
   }
   .overlay-link:hover{ color:var(--text); border-color:var(--border-strong); }
-  #mute-btn, #settings-btn{
-    position:absolute; top:12px; z-index:30;
+  #settings-btn{
+    position:absolute; top:12px; right:12px; z-index:30;
     width:36px; height:36px; padding:0;
     display:inline-flex; align-items:center; justify-content:center;
     background:var(--glass); color:var(--text);
@@ -87,10 +87,8 @@
     backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
     transition:border-color .15s ease, transform .1s ease;
   }
-  #mute-btn{ right:12px; }
-  #settings-btn{ right:56px; }
-  #mute-btn:hover, #settings-btn:hover{ border-color:var(--border-strong); }
-  #mute-btn:active, #settings-btn:active{ transform:scale(0.92); }
+  #settings-btn:hover{ border-color:var(--border-strong); }
+  #settings-btn:active{ transform:scale(0.92); }
 
   /* ── Flight HUD ── */
   #hud{
@@ -609,7 +607,6 @@
 <canvas id="game"></canvas>
 <a class="overlay-link" href="/index.html" title="back to caleb's site">&#8962; caleb's site</a>
 <button id="settings-btn" title="settings">&#9881;</button>
-<button id="mute-btn" title="toggle sound">&#128266;</button>
 
 <div id="hud">
   <div class="stat"><b id="hud-dist">0 m</b><span>distance</span></div>
@@ -849,14 +846,10 @@ const bridge = {};
 const call = name => (...args) => bridge[name](...args);
 
 /* ════════════════ sound ════════════════ */
+// Audio is controlled entirely from the Settings panel (Music + SFX, each
+// with a toggle and volume). There's no corner mute button — it could only
+// drive the SFX flag, so it never silenced the independent music bed.
 const SFX = createSound(state);
-const muteBtn = document.getElementById('mute-btn');
-function renderMute(){ muteBtn.innerHTML = state.muted ? '&#128263;' : '&#128266;'; }
-muteBtn.addEventListener('click', () => {
-  state.muted = !state.muted; save(); renderMute();
-  if(state.muted) SFX.setThrust(false);
-});
-renderMute();
 
 /* ════════════════ canvas & camera ════════════════ */
 const canvas = document.getElementById('game');
@@ -1208,7 +1201,6 @@ document.getElementById('set-music-vol').addEventListener('input', e => {
 document.getElementById('set-sfx-toggle').addEventListener('click', () => {
   state.muted = !state.muted;
   save();
-  renderMute();   // keep the corner mute button in sync
   const el = document.getElementById('set-sfx-toggle');
   el.textContent = state.muted ? 'OFF' : 'ON';
   el.classList.toggle('on', !state.muted);
