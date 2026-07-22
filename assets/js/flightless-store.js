@@ -171,6 +171,18 @@ export function createStore(deps){
       `<line x1="30" y1="17.5" x2="30" y2="31.5" stroke="${IC.T}" stroke-width="1.8"/>`+
       `<line x1="15" y1="32" x2="15" y2="38" stroke="${IC.G}" stroke-width="2.2"/>`+
       `<line x1="33" y1="32" x2="33" y2="38" stroke="${IC.G}" stroke-width="2.2"/>`),
+    // Trophy Case — a winner's cup on a plinth
+    awards: icon(
+      `<path d="M17 11 H31 V17 A7 7 0 0 1 17 17 Z" fill="rgba(255,200,87,0.16)" stroke="${IC.G}" stroke-width="2.4"/>`+
+      `<path d="M17 13 H12 A4 4 0 0 0 16.5 18.5 M31 13 H36 A4 4 0 0 1 31.5 18.5" stroke="${IC.T}" stroke-width="2"/>`+
+      `<line x1="24" y1="24" x2="24" y2="30" stroke="${IC.G}" stroke-width="2.4"/>`+
+      `<rect x="18" y="30" width="12" height="5" rx="1.5" fill="rgba(255,200,87,0.1)" stroke="${IC.G}" stroke-width="2.4"/>`),
+    // Ramp Designer — a pencil drawing the ramp curve
+    designer: icon(
+      `<line x1="8" y1="38" x2="40" y2="38" stroke="rgba(238,242,255,0.4)" stroke-width="2"/>`+
+      `<path d="M9 37 C 19 37, 27 26, 39 13" stroke="${IC.G}" stroke-width="2.6"/>`+
+      `<path d="M28 30 L 36.5 21.5 L 40 25 L 31.5 33.5 Z" fill="rgba(95,212,232,0.2)" stroke="${IC.T}" stroke-width="2"/>`+
+      `<line x1="31.5" y1="33.5" x2="28" y2="30" stroke="${IC.R}" stroke-width="2"/>`),
   };
 
   // ── tree layout — one node PER LEVEL, branches scattered by rung ──
@@ -205,9 +217,11 @@ export function createStore(deps){
   place('fuel',    1, 10, 11, 3, 1, 0);  // F1..F10 (row 3, off rocket L2=col11)
   place('regen',   1, 5, 14, 2,  1, 0);  // E1..E5  (row 2, off fuel L4=col14)
   LAYOUT['tank:1'] = { col:15, row:1 };   // off regen L2=col15
-  // ── instruments (down off ramp L3) ──
-  LAYOUT['speedo:1'] = { col:8, row:11 };
-  LAYOUT['alti:1']   = { col:8, row:12 };
+  // ── feature unlocks + instruments (all drop down off the ramp start) ──
+  LAYOUT['awards:1']   = { col:6, row:11 };  // off ramp L1 (below T1)
+  LAYOUT['designer:1'] = { col:7, row:11 };  // off ramp L2 (below T2)
+  LAYOUT['speedo:1']   = { col:8, row:11 };  // off ramp L3 (below T3)
+  LAYOUT['alti:1']     = { col:8, row:12 };
   // ── ground game (down off ramp L4=col9) ──
   place('bounce',  1, 6, 9, 11, 0, 1);   // B1..B6 → down col 9
   place('sling',   1, 8, 10, 12, 0, 1);  // S1..S8 → down col 10 (off bounce L2)
@@ -504,6 +518,12 @@ export function createStore(deps){
 
   function renderShop(){
     drawEditor();
+    // The achievements + ramp-designer side panels are feature unlocks now:
+    // their rail buttons only appear once you've bought the upgrade.
+    const railAch  = document.getElementById('rail-ach');
+    const railRamp = document.getElementById('rail-ramp');
+    if(railAch)  railAch.style.display  = state.perm.awards   ? '' : 'none';
+    if(railRamp) railRamp.style.display = state.perm.designer ? '' : 'none';
     document.getElementById('shop-money').textContent = fmtCash(state.money);
     document.getElementById('shop-day').textContent = state.day;
     document.getElementById('shop-best').textContent = fmtDist(state.best.dist);

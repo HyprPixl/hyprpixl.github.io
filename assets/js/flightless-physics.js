@@ -57,7 +57,7 @@ export function createPhysics(deps){
       smash:  1 + 0.35*L.plating,
       gunLevel: L.gun,
       gunRange: L.gun ? 260 + 90*L.gun : 0,
-      slideDecel: Math.max(3, 6.5 - 0.35*L.aero),
+      slideDecel: Math.max(2.5, 5.5 - 0.35*L.aero),
       bestLD: 1/(2*Math.sqrt(cd0eff*k)),                    // best glide ratio
       vDive:  Math.sqrt(2*mass*9.81/(1.225*(cdA + wingS*cd0w))),
     };
@@ -179,6 +179,10 @@ export function createPhysics(deps){
   // drag eases off so extra track keeps buying extra exit speed instead of
   // taxing itself to death.
   const RAMP_DRAG_REF_LEN = 350;
+  // After the belly-slide stops, linger this long (sim-seconds; the slide
+  // runs at ~2.5× time-scale so this is ~1s of real time) with the penguin
+  // sitting on the ice before the results panel pops up.
+  const SETTLE_TIME = 2.5;
 
   // overheat: sustained rocket use risks a melt-down.
   // heat climbs at 1/s while thrusting, cools at HEAT_COOL/s otherwise.
@@ -269,7 +273,13 @@ export function createPhysics(deps){
       // grinding along the ice: snow friction + aerodynamic drag
       const q = 0.5*rho*sim.run.vx*sim.run.vx;
       const dec = sim.st.slideDecel + q*sim.st.cdA/sim.st.mass;
-      if(Math.abs(sim.run.vx) <= dec*h || Math.abs(sim.run.vx) < 0.5){ sim.run.vx=0; onFinishRun(); return; }
+      if(Math.abs(sim.run.vx) <= dec*h || Math.abs(sim.run.vx) < 0.5){
+        // stopped: hold on the ground a beat so the landing reads, then score
+        sim.run.vx = 0;
+        sim.run.settleT = (sim.run.settleT || 0) + h;
+        if(sim.run.settleT >= SETTLE_TIME) onFinishRun();
+        return;
+      }
       sim.run.vx -= dec*h*Math.sign(sim.run.vx);
       sim.run.x += sim.run.vx*h;
       sim.run.head = lerp(sim.run.head, 0, 1-Math.pow(0.001, h));

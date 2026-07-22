@@ -1125,11 +1125,12 @@ document.getElementById('ng-plus-btn').addEventListener('click', () => {
 });
 
 document.getElementById('reset-btn').addEventListener('click', () => {
-  if(!confirm('Start over from Day 1? Medals are permanent and carry over.')) return;
+  if(!confirm('Start over from Day 1? This wipes everything — upgrades, cash, and all achievements & medals.')) return;
+  // Full wipe: keep only audio/accessibility prefs. Achievements (medals,
+  // claimed milestones, landmark HP, everDid flags) all reset with progress.
   const keep = {
     muted: state.muted, musicMuted: state.musicMuted ?? false,
     settings: state.settings ?? { reduceMotion:false, sfxVol:1, musicVol:1 },
-    medals: state.medals, everDid: state.everDid,
   };
   const fresh = defaultState();
   // mutate the existing object in place — every module holds a reference

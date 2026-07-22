@@ -82,6 +82,14 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
       desc:'How many upgrades Fish Co. can drop off before your next flight. Bigger crate, more buys per visit — each one needs a longer ramp than the last.',
       val:l=>`${DAILY_CAP_BASE+l} deliveries/day` },
 
+    // ── feature unlocks (one-time) — buy to reveal the side-rail panels ──
+    { id:'awards', icon:'\u{1F3C6}', name:'Trophy Case', base:60, mul:1, max:1, unlock:0, requires:['ramp'], oneTime:true,
+      desc:'Unlock the achievements panel — milestones, contracts, landmark bosses & medals.',
+      val:l=> l===0 ? 'locked' : 'unlocked' },
+    { id:'designer', icon:'\u{1F6E0}', name:'Ramp Designer', base:120, mul:1, max:1, unlock:0, requires:[{id:'ramp',lvl:2}], oneTime:true,
+      desc:'Unlock the ramp shape editor — drag the ramp into any curve you like.',
+      val:l=> l===0 ? 'locked' : 'unlocked' },
+
     // ── tier 1 (one prerequisite) ──
     { id:'alti',   icon:'\u{1F4E1}', name:'Altimeter',   base:220, mul:1, max:1, unlock:100, requires:['speedo'], oneTime:true,
       desc:'See your altitude — and get paid for peak height.',
