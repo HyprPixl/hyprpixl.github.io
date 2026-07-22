@@ -208,9 +208,6 @@
   /* the tree fills the middle; left padding clears the vertical side rail */
   .shop-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; padding:2px 2px 2px 84px; }
   @media (max-width:700px){ .shop-scroll{ padding-left:2px; } }
-  .shop-foot{ display:flex; align-items:center; justify-content:center; gap:6px 22px; flex-wrap:wrap; }
-  .shop-foot .small-note{ margin:0; }
-  .shop-foot .reset-link{ margin:0; width:auto; }
 
   /* ── side rail + slide-in drawers ──
      The achievements grid and the ramp-shape designer no longer sit on the
@@ -582,7 +579,7 @@
   .set-controls{ margin:0; font-size:12.5px; line-height:1.7; color:var(--text); }
   #settings-save-buttons{ display:flex; flex-direction:column; gap:6px; align-items:flex-start; }
   #settings-save-buttons > div{ display:flex; gap:14px; flex-wrap:wrap; }
-  #settings-save-buttons .reset-link{ margin:0; width:auto; text-align:left; }
+  #settings .set-section .reset-link{ margin:12px 0 0; width:auto; text-align:left; }
 
   /* ── Touch controls ── */
   #touch{ position:absolute; bottom:0; left:0; right:0; z-index:15; display:none; justify-content:space-between; padding:0 14px 18px; pointer-events:none; }
@@ -691,7 +688,7 @@
           <div class="chip money">&#128176; <b id="shop-money">$0</b></div>
           <div class="chip">&#128197; Day <b id="shop-day">1</b></div>
           <div class="chip">&#127942; Best <b id="shop-best">0 m</b></div>
-          <div class="chip" id="shop-cap-chip">&#128230; <b id="shop-cap">3/3</b></div>
+          <div class="chip" id="shop-cap-chip" title="Fish Co. only delivers so many upgrades before your next flight — buy Cargo Crate for a bigger allowance">&#128230; <b id="shop-cap">3/3</b></div>
         </div>
       </div>
       <button class="big-btn" id="launch-btn">&#128640; Launch</button>
@@ -700,10 +697,6 @@
       <div class="shop-panel" id="panel-upgrades">
         <div class="shop-grid" id="shop-grid"></div>
       </div>
-    </div>
-    <div class="shop-foot">
-      <p class="small-note">&#128230; Fish Co. only delivers so many upgrades before your next flight &mdash; buy Cargo Crate for a bigger allowance</p>
-      <button class="reset-link" id="reset-btn">reset all progress</button>
     </div>
   </div>
 </div>
@@ -793,6 +786,7 @@
     <div class="set-section">
       <h3>&#128190; Save Data</h3>
       <div id="settings-save-buttons"></div>
+      <button class="reset-link" id="reset-btn">reset all progress</button>
     </div>
     <button class="big-btn" id="settings-close-btn">Done</button>
   </div>
