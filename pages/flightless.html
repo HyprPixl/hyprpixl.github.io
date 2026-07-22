@@ -113,6 +113,8 @@
     text-transform:uppercase; letter-spacing:1.6px;
   }
   #alt-wrap, #spd-wrap, #fuel-wrap, #burner-wrap{ display:none; }
+  #hud-wind{ color:#7fe3f5 !important; font-size:23px !important; }
+  #wind-wrap span{ text-transform:uppercase; }
   #fuel-bar-outer{
     width:110px; height:10px; margin:8px auto 3px;
     border:1px solid var(--border); border-radius:999px;
@@ -299,6 +301,8 @@
   .topline .chip.money b{ color:var(--cash); }
   .topline .chip.cap-out{ border-color:rgba(255,107,87,0.6); }
   .topline .chip.cap-out b{ color:#ff9a8a; }
+  .topline .chip.weather b{ color:var(--teal); }
+  .topline .chip.weather #shop-weather-arrow{ color:#7fe3f5; font-weight:800; }
 
   .section-label{
     color:var(--muted); font-size:10.5px; font-weight:700;
@@ -611,6 +615,7 @@
 
 <div id="hud">
   <div class="stat"><b id="hud-dist">0 m</b><span>distance</span></div>
+  <div class="stat" id="wind-wrap"><b id="hud-wind">&bull;</b><span id="hud-wind-label">conditions</span></div>
   <div class="stat" id="alt-wrap"><b id="hud-alt">0 m</b><span>altitude</span></div>
   <div class="stat" id="spd-wrap"><b id="hud-spd">0</b><span>speed m/s</span></div>
   <div class="stat" id="fuel-wrap"><div id="fuel-bar-outer"><div id="fuel-bar"></div></div><span>fuel</span></div>
@@ -688,6 +693,7 @@
           <div class="chip">&#128197; Day <b id="shop-day">1</b></div>
           <div class="chip">&#127942; Best <b id="shop-best">0 m</b></div>
           <div class="chip" id="shop-cap-chip" title="Fish Co. only delivers so many upgrades before your next flight — buy Cargo Crate for a bigger allowance">&#128230; <b id="shop-cap">3/3</b></div>
+          <div class="chip weather" id="shop-weather-chip" title=""><span id="shop-weather-arrow">&bull;</span> <b id="shop-weather">—</b></div>
         </div>
       </div>
       <button class="big-btn" id="launch-btn">&#128640; Launch</button>
@@ -1040,6 +1046,55 @@ function openVictoryPanel(){
   SFX.ding();
 }
 
+/* ════════════════ weather readout ════════════════ */
+// The daily modifier (state.dailyMod / dailyModFor(day)) sets wind, drag and
+// cash for the day. Surface it so the player can read conditions before and
+// during a flight. windX>0 is a tailwind (pushes the way you fly), windY>0 an
+// updraft. `describeWeather` turns a mod into an arrow, a label and an
+// effects hint used by both the shop forecast chip and the flight HUD.
+function describeWeather(mod){
+  if(!mod) return { arrow:'•', label:'—', hint:'' };
+  const wx = mod.windX || 0, wy = mod.windY || 0;
+  let arrow = '•';                                   // • = no wind
+  if(wx || wy){
+    if(wx && wy) arrow = wx > 0 ? (wy > 0 ? '↗' : '↘') : (wy > 0 ? '↖' : '↙');
+    else if(wx)  arrow = wx > 0 ? '→' : '←';   // → tailwind / ← headwind
+    else         arrow = wy > 0 ? '↑' : '↓';   // ↑ updraft / ↓ downdraft
+  }
+  const bits = [];
+  if(wx) bits.push(Math.abs(wx) + ' m/s ' + (wx > 0 ? 'tailwind' : 'headwind'));
+  if(wy) bits.push(Math.abs(wy) + ' m/s ' + (wy > 0 ? 'updraft' : 'downdraft'));
+  if(mod.dragMul && mod.dragMul !== 1)
+    bits.push((mod.dragMul < 1 ? '−' : '+') + Math.round(Math.abs(1 - mod.dragMul) * 100) + '% drag');
+  if(mod.cashMul && mod.cashMul !== 1)
+    bits.push('+' + Math.round((mod.cashMul - 1) * 100) + '% cash');
+  return { arrow, label: mod.label || 'Calm', hint: bits.join(' · ') || 'clear skies' };
+}
+function weatherFor(day){
+  try { return typeof dailyModFor === 'function' ? dailyModFor(day) : null; }
+  catch(_){ return null; }
+}
+// Shop forecast chip — today's conditions, before you commit to a launch.
+function updateShopWeather(){
+  const w = describeWeather(weatherFor(state.day));
+  const chip = document.getElementById('shop-weather-chip');
+  const arr = document.getElementById('shop-weather-arrow');
+  const lbl = document.getElementById('shop-weather');
+  if(arr) arr.textContent = w.arrow;
+  if(lbl) lbl.textContent = w.label;
+  if(chip) chip.title = 'Today: ' + w.label + (w.hint ? ' — ' + w.hint : '');
+}
+// Flight HUD — the conditions you're actually flying in (set at launch).
+function updateHudWeather(){
+  const w = describeWeather(state.dailyMod);
+  const arr = document.getElementById('hud-wind');
+  const lbl = document.getElementById('hud-wind-label');
+  const wrap = document.getElementById('wind-wrap');
+  if(arr) arr.textContent = w.arrow;
+  if(lbl) lbl.textContent = w.label;
+  if(wrap) wrap.title = w.hint;
+}
+
 /* ════════════════ launch / shop / results flow ════════════════ */
 function closeResults(){
   resultsEl.classList.remove('show');
@@ -1061,6 +1116,7 @@ function openShop(){
   closeDrawers();
   recompute();
   renderShop();
+  updateShopWeather();
   shopEl.classList.add('show');
 }
 
@@ -1072,6 +1128,7 @@ function startLaunch(){
   // seed today's weather (wind + ambient sky visuals — see flightless-data.js's
   // DAILY_MOD_TABLE and flightless-render.js's ambientMode())
   if(typeof dailyModFor === 'function') state.dailyMod = dailyModFor(state.day);
+  updateHudWeather();
   closeDrawers();
   introEl.classList.remove('show');
   shopEl.classList.remove('show');
