@@ -119,7 +119,7 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
       val:l=>`×${(1+0.35*l).toFixed(2)} cash earned` },
 
     // ── tier 3 ──
-    { id:'fuel',    icon:'⛽',    name:'Fuel Tank',    base:380,  mul:1.55, max:10, unlock:100, requires:[{id:'rocket',lvl:2}],
+    { id:'fuel',    icon:'⛽',    name:'Fuel Tank',    base:480,  mul:1.55, max:10, unlock:100, requires:[{id:'rocket',lvl:2}],
       desc:'More burn time for sustained climbs.',
       val:l=>`${(2+1.3*l).toFixed(1)} s of burn` },
     { id:'burner', icon:'\u{1F4A5}', name:'Afterburner', base:2800, mul:1, max:1, unlock:1000, requires:[{id:'rocket',lvl:4}], oneTime:true,
