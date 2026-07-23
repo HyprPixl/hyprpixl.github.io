@@ -890,7 +890,7 @@ const {
 const world = createWorld({
   sim, cam, state, SFX, save, fmtCash, hash01, clamp,
   LANDMARKS, OBSTACLE_TYPES,
-  popup: call('popup'), burst: call('burst'),
+  popup: call('popup'), burst: call('burst'), spawnMissile: call('spawnMissile'),
 });
 
 // Flight-sim physics — needs world's real check*() functions (already
@@ -925,6 +925,7 @@ const renderer = createRenderer({
 });
 bridge.popup = renderer.popup;
 bridge.burst = renderer.burst;
+bridge.spawnMissile = renderer.spawnMissile;
 bridge.gliderName = renderer.gliderName;
 
 // End-of-flight scoring/results screen — needs nothing bridged.
@@ -1331,6 +1332,7 @@ function loop(now){
 
     renderer.stepParticles(dt);
     renderer.stepSpeedLines(dt);
+    renderer.stepMissiles(dt);
   }
   // Always draw — paused state shows a frozen frame; renderer reads sim.paused
   // to optionally overlay a "PAUSED" indicator if it chooses.

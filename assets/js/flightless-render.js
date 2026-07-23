@@ -55,6 +55,94 @@ export function createRenderer(deps){
     // step ambient weather particles
     stepAmbientParticles(dt);
   }
+
+  /* ════════════════ homing missiles (Sky Cannon) ════════════════ */
+  // The cannon no longer instant-kills: it launches a self-guiding missile
+  // that arcs onto its target under a capped turn rate, trails fire + smoke,
+  // and detonates on contact — running the payload the gun handed it. Missiles
+  // live in world space and step on the same scaled sim clock as everything.
+  const missiles = [];
+  const MISSILE_SPEED = 300;   // m/s cruise
+  const MISSILE_TURN  = 8.5;   // rad/s max steering (tight homing)
+  const MISSILE_HITR  = 11;    // detonation radius, m
+  function spawnMissile(x, y, tx, ty, onHit){
+    const toT = Math.atan2(ty - y, tx - x);
+    // launch off-axis (alternating side) so the homing curve actually reads
+    const side = Math.random() < 0.5 ? 1 : -1;
+    const a0 = toT + side * (0.5 + Math.random() * 0.55);
+    const v0 = 130;
+    missiles.push({ x, y, vx:Math.cos(a0)*v0, vy:Math.sin(a0)*v0, tx, ty, onHit, life:2.4, t:0 });
+  }
+  function stepMissiles(dt){
+    if(sim.phase !== 'flight'){ if(missiles.length) missiles.length = 0; return; }
+    const rm = isReducedMotion();
+    for(let i = missiles.length - 1; i >= 0; i--){
+      const m = missiles[i];
+      m.life -= dt; m.t += dt;
+      // steer heading toward the target, capped turn rate
+      const desired = Math.atan2(m.ty - m.y, m.tx - m.x);
+      let cur = Math.atan2(m.vy, m.vx);
+      let d = desired - cur;
+      while(d >  Math.PI) d -= 2*Math.PI;
+      while(d < -Math.PI) d += 2*Math.PI;
+      cur += clamp(d, -MISSILE_TURN*dt, MISSILE_TURN*dt);
+      const sp = Math.min(MISSILE_SPEED, 130 + m.t*700);   // spool up to cruise
+      m.vx = Math.cos(cur)*sp; m.vy = Math.sin(cur)*sp;
+      m.x += m.vx*dt; m.y += m.vy*dt;
+      // exhaust: fire sparks + a puff of smoke off the tail
+      if(!rm){
+        const bx = m.x - Math.cos(cur)*1.3, by = m.y - Math.sin(cur)*1.3;
+        sim.particles.push({ x:bx, y:by, vx:(Math.random()-0.5)*4, vy:(Math.random()-0.5)*4,
+          life:0.25+Math.random()*0.22, color: Math.random()<0.5 ? '#ffd166' : '#ff7a3c',
+          size:0.12+Math.random()*0.16 });
+        if(Math.random() < 0.5) sim.particles.push({ x:bx, y:by, vx:0, vy:0.4,
+          life:0.5+Math.random()*0.3, color:'rgba(205,214,232,0.45)', size:0.22+Math.random()*0.12 });
+      }
+      // detonate on contact (or if it times out near the target)
+      if(Math.hypot(m.tx - m.x, m.ty - m.y) <= MISSILE_HITR || m.life <= 0){
+        try { m.onHit && m.onHit(); } catch(_){}
+        burst(m.tx, m.ty, 26, '#ffae42', 13);
+        burst(m.tx, m.ty, 12, '#fff2c0', 8);
+        missiles.splice(i, 1);
+      }
+    }
+  }
+  function drawMissiles(){
+    if(!missiles.length) return;
+    for(const m of missiles){
+      const sx = w2sX(m.x), sy = w2sY(m.y);
+      // screen Y is inverted vs world Y, so the screen-space heading flips vy
+      const ang = Math.atan2(-m.vy, m.vx);
+      const s = Math.max(cam.z * 1.05, 10);
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(ang);
+      // exhaust flame (flickers), streaming off the tail (local -x)
+      const fl = s * (1.5 + Math.random() * 0.9);
+      const g = ctx.createLinearGradient(-s*0.8, 0, -s*0.8 - fl, 0);
+      g.addColorStop(0,   'rgba(255,224,130,0.95)');
+      g.addColorStop(0.5, 'rgba(255,140,50,0.65)');
+      g.addColorStop(1,   'rgba(255,80,40,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(-s*0.8, -s*0.26); ctx.lineTo(-s*0.8 - fl, 0); ctx.lineTo(-s*0.8, s*0.26);
+      ctx.closePath(); ctx.fill();
+      // fins
+      ctx.fillStyle = '#8fa3ff';
+      ctx.beginPath(); ctx.moveTo(-s*0.5,-s*0.28); ctx.lineTo(-s*0.95,-s*0.58); ctx.lineTo(-s*0.55,-s*0.28); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-s*0.5, s*0.28); ctx.lineTo(-s*0.95, s*0.58); ctx.lineTo(-s*0.55, s*0.28); ctx.closePath(); ctx.fill();
+      // body
+      ctx.fillStyle = '#dfe6f4'; ctx.strokeStyle = '#2a3350'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(s*0.4, -s*0.3); ctx.lineTo(-s*0.8, -s*0.3);
+      ctx.lineTo(-s*0.8, s*0.3);  ctx.lineTo(s*0.4, s*0.3);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      // nose cone
+      ctx.fillStyle = '#ff6b57';
+      ctx.beginPath(); ctx.moveTo(s*1.15, 0); ctx.lineTo(s*0.4, -s*0.3); ctx.lineTo(s*0.4, s*0.3); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+  }
   /* ── speed streaks ──
      Short dashes anchored in WORLD space, seeded in the airspace ahead of the
      penguin, that fade in and out over ~half a second. Because they hold still
@@ -563,6 +651,7 @@ export function createRenderer(deps){
       ctx.fillRect(w2sX(pt.x)-s/2, w2sY(pt.y)-s/2, s, s);
     }
     ctx.globalAlpha = 1;
+    drawMissiles();
 
     if(sim.run){
       const px = w2sX(sim.run.x), py = w2sY(sim.run.y);
@@ -1204,7 +1293,7 @@ export function createRenderer(deps){
   }
 
   return {
-    burst, stepParticles, stepSpeedLines, popup,
+    burst, stepParticles, stepSpeedLines, stepMissiles, spawnMissile, popup,
     draw, drawRamp, gliderName, drawGlider, drawPenguin,
     drawFishIcon, drawStarIcon, drawCollectibles,
     drawBird, drawBalloon, drawPlane, drawObstacles,

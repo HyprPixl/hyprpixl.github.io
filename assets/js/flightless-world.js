@@ -11,6 +11,7 @@
 export function createWorld(deps){
   const { sim, cam, state, SFX, save, popup, burst, fmtCash,
           hash01, clamp, LANDMARKS, OBSTACLE_TYPES } = deps;
+  const spawnMissile = typeof deps.spawnMissile === 'function' ? deps.spawnMissile : null;
 
   /* ════════════════ collectibles ════════════════ */
   // Fish come in little arcs of 3–5 on a 1-D cell grid, banded inside the
@@ -166,17 +167,27 @@ export function createWorld(deps){
     }
     if(!best) return;
     const {i, o} = best;
+    // muzzle flash + launch whoosh at the penguin, aimed at the target
+    const aim = Math.atan2(o.y - sim.run.y, o.x - sim.run.x);
+    burst(sim.run.x, sim.run.y, 7, '#ffe28a', 6, aim);
+    SFX.blip(520, 0.12, 'sawtooth', 0.05);
     if(o.type.tough <= sim.st.gunLevel){
-      sim.run.obGone.add('o'+i);
-      sim.run.gunKills++;
-      // gun kills feed the combo chain
-      const m = comboMult();
-      const val = Math.round(o.type.cash * m);
-      sim.run.gunCash += val;
-      popup(`\u{1F4A5} ${o.type.id} down! +${fmtCash(val)}${sim.run.combo>1?` ×${sim.run.combo}`:''}`, 20);
-      SFX.boom();
-      cam.shake = Math.min(cam.shake+6, 16);
-      burst(o.x, o.y, 22, '#ffae42', 12);
+      // Defer the kill to the missile's detonation — the reward (and combo
+      // link) lands when it actually connects, not when you pull the trigger.
+      const key = 'o'+i, type = o.type, tx = o.x, ty = o.y;
+      const detonate = () => {
+        if(sim.run.obGone.has(key)) return;   // already downed by another shot
+        sim.run.obGone.add(key);
+        sim.run.gunKills++;
+        const m = comboMult();
+        const val = Math.round(type.cash * m);
+        sim.run.gunCash += val;
+        popup(`\u{1F4A5} ${type.id} down! +${fmtCash(val)}${sim.run.combo>1?` ×${sim.run.combo}`:''}`, 20);
+        SFX.boom();
+        cam.shake = Math.min(cam.shake+6, 16);
+      };
+      if(spawnMissile) spawnMissile(sim.run.x, sim.run.y, tx, ty, detonate);
+      else { detonate(); burst(tx, ty, 22, '#ffae42', 12); }   // fallback: instant
     } else {
       popup('TOO TOUGH', 16);
       SFX.blip(200, 0.1, 'square', 0.05);
