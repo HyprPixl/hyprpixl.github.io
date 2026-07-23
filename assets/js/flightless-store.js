@@ -183,6 +183,14 @@ export function createStore(deps){
       `<path d="M9 37 C 19 37, 27 26, 39 13" stroke="${IC.G}" stroke-width="2.6"/>`+
       `<path d="M28 30 L 36.5 21.5 L 40 25 L 31.5 33.5 Z" fill="rgba(95,212,232,0.2)" stroke="${IC.T}" stroke-width="2"/>`+
       `<line x1="31.5" y1="33.5" x2="28" y2="30" stroke="${IC.R}" stroke-width="2"/>`),
+    // Auto-Loader — a targeting reticle locked on
+    autogun: icon(
+      `<circle cx="24" cy="24" r="11" stroke="${IC.G}" stroke-width="2.4"/>`+
+      `<line x1="24" y1="6"  x2="24" y2="14" stroke="${IC.T}" stroke-width="2"/>`+
+      `<line x1="24" y1="34" x2="24" y2="42" stroke="${IC.T}" stroke-width="2"/>`+
+      `<line x1="6"  y1="24" x2="14" y2="24" stroke="${IC.T}" stroke-width="2"/>`+
+      `<line x1="34" y1="24" x2="42" y2="24" stroke="${IC.T}" stroke-width="2"/>`+
+      `<circle cx="24" cy="24" r="3" fill="${IC.R}"/>`),
   };
 
   // ── tree layout — one node PER LEVEL, branches scattered by rung ──
@@ -212,6 +220,7 @@ export function createStore(deps){
   place('struts',  1, 6, 12, 7,  1, 0);  // W1..W6  (row 7, off aero L4=col12)
   place('plating', 1, 6, 13, 6,  1, 0);  // L1..L6  (row 6, off struts L2=col13)
   place('gun',     1, 6, 15, 5,  1, 0);  // N1..N6  (row 5, off plating L3=col15)
+  LAYOUT['autogun:1'] = { col:14, row:5 }; // off gun L1 (left of the cannon row)
   place('rocket',  1, 10, 10, 4, 1, 0);  // R1..R10 (row 4, off aero L2=col10)
   LAYOUT['burner:1'] = { col:13, row:5 }; // off rocket L4=col13
   place('fuel',    1, 10, 11, 3, 1, 0);  // F1..F10 (row 3, off rocket L2=col11)

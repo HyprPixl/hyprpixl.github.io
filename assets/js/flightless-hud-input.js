@@ -138,6 +138,7 @@ export function createHudInput(deps){
   /* ════════════════ HUD ════════════════ */
   const ffBtn     = document.getElementById('ff-btn');
   const hudDist   = document.getElementById('hud-dist');
+  const hudDistSub = document.getElementById('hud-dist-sub');
   const hudAlt    = document.getElementById('hud-alt');
   const hudSpd    = document.getElementById('hud-spd');
   const altWrap   = document.getElementById('alt-wrap');
@@ -182,6 +183,17 @@ export function createHudInput(deps){
 
     // Standard stat readouts.
     hudDist.textContent = fmtDist(Math.max(0, run.dist));
+    // subline shows the record to beat — and flips to NEW BEST once you pass it
+    if(hudDistSub){
+      const best = state.best?.dist ?? 0;
+      if(run.dist > best && best > 0){
+        hudDistSub.textContent = '★ NEW BEST';
+        hudDistSub.classList.add('record');
+      } else {
+        hudDistSub.textContent = best > 0 ? 'best ' + fmtDist(best) : 'distance';
+        hudDistSub.classList.remove('record');
+      }
+    }
     if(state.perm.alti){
       altWrap.style.display = 'block';
       hudAlt.textContent = fmtDist(Math.max(0, run.y));

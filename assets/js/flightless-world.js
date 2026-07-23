@@ -20,6 +20,12 @@ export function createWorld(deps){
   // Stars only exist once you're genuinely high up, on a 2-D grid.
   const COIN_CELL = 140, COIN_MIN_ALT = 12, COIN_MAX_ALT = 3200, COIN_R = 9;
   const STAR_CELL = 260, STAR_MIN_ALT = 3200, STAR_R = 15;
+  // Fish value tiers — one band richer past each landmark boss (sorted by x),
+  // so the money scales with how deep out you can actually reach.
+  const BOSS_X = (LANDMARKS || []).map(l => l.x).sort((a,b) => a-b);
+  function fishTier(x){ let t = 0; for(const bx of BOSS_X) if(x >= bx) t++; return Math.min(t, 3); }
+  const FISH_BASE = [5, 14, 34, 80];   // per-tier base cash
+  const FISH_JIT  = [4, 8,  16, 30];   // per-tier random jitter
   // how high anything worth placing can sit at distance x: hugging the ice off
   // the ramp, opening up as flights get longer
   const corridorTop = x => clamp(25 + x*0.55, 60, COIN_MAX_ALT);
@@ -75,7 +81,12 @@ export function createWorld(deps){
         if(Math.hypot(sim.run.x-c.x, sim.run.y-c.y) < COIN_R){
           sim.run.collected.add(key);
           const m = comboMult();
-          const val = Math.round((10 + Math.round(hash01(i*3+k*7+1)*15)) * (c.gold?6:1) * m);
+          // Fish pay by tier — one step richer past each landmark boss — so a
+          // near-ramp shoal is small change and the big money is deep out.
+          // Gold is only ×3 now (was ×6): a golden line no longer prints cash.
+          const t = fishTier(c.x);
+          const base = FISH_BASE[t] + Math.round(hash01(i*3+k*7+1)*FISH_JIT[t]);
+          const val = Math.round(base * (c.gold ? 3 : 1) * m);
           sim.run.coinCash += val; sim.run.coinCount++;
           const tag = sim.run.combo > 1 ? ` ×${sim.run.combo}` : '';
           if(c.gold){

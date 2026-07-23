@@ -93,7 +93,7 @@ function applyMigrations(s){
 // Called after migrations so every field is in its post-migration shape.
 
 const KNOWN_LVL_KEYS   = new Set(['ramp','aero','wings','rocket','fuel','sling','bounce','sponsor','gun','struts','plating','cargo','regen']);
-const KNOWN_PERM_KEYS  = new Set(['speedo','alti','burner','tank','awards','designer']);
+const KNOWN_PERM_KEYS  = new Set(['speedo','alti','burner','tank','awards','designer','autogun']);
 const KNOWN_BEST_KEYS  = new Set(['dist','alt','spd']);
 const KNOWN_LMHP_KEYS  = new Set(['snowman','iceberg','wall']);
 const KNOWN_EVERDID_KEYS = new Set(['fish','ring','skim','bounce','combo','star','gun','smash','loop']);

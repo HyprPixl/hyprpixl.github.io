@@ -115,6 +115,7 @@
   #alt-wrap, #spd-wrap, #fuel-wrap, #burner-wrap{ display:none; }
   #hud-wind{ color:#7fe3f5 !important; font-size:23px !important; }
   #wind-wrap span{ text-transform:uppercase; }
+  #hud-dist-sub.record{ color:#ffd166; }
   #fuel-bar-outer{
     width:110px; height:10px; margin:8px auto 3px;
     border:1px solid var(--border); border-radius:999px;
@@ -614,7 +615,7 @@
 <button id="settings-btn" title="settings">&#9881;</button>
 
 <div id="hud">
-  <div class="stat"><b id="hud-dist">0 m</b><span>distance</span></div>
+  <div class="stat"><b id="hud-dist">0 m</b><span id="hud-dist-sub">distance</span></div>
   <div class="stat" id="wind-wrap"><b id="hud-wind">&bull;</b><span id="hud-wind-label">conditions</span></div>
   <div class="stat" id="alt-wrap"><b id="hud-alt">0 m</b><span>altitude</span></div>
   <div class="stat" id="spd-wrap"><b id="hud-spd">0</b><span>speed m/s</span></div>
@@ -1333,6 +1334,8 @@ function loop(now){
     renderer.stepParticles(dt);
     renderer.stepSpeedLines(dt);
     renderer.stepMissiles(dt);
+    // Auto-Loader: the cannon fires itself (fireGun gates phase/cooldown/range)
+    if(state.perm.autogun) world.fireGun();
   }
   // Always draw — paused state shows a frozen frame; renderer reads sim.paused
   // to optionally overlay a "PAUSED" indicator if it chooses.

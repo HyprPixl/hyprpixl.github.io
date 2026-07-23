@@ -137,6 +137,9 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
       val:l=>{ if(l===0) return 'not installed';
                const tier = l>=5?'planes':l>=3?'balloons':'birds';
                return `range ${260+90*l}m · downs ${tier}`; } },
+    { id:'autogun', icon:'\u{1F3AF}', name:'Auto-Loader',  base:5000, mul:1, max:1, unlock:2500, requires:[{id:'gun',lvl:1}], oneTime:true,
+      desc:'The Sky Cannon auto-targets and fires on its own — no need to press C.',
+      val:l=> l===0 ? 'manual fire only' : 'auto-firing' },
     // Fuel Regen: mid-late-game payoff for rocket-heavy builds — passively
     // refills the tank while gliding (not thrusting). See physics.js's
     // regenRate stat and the "cool down" branch of stepFlight.

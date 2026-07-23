@@ -754,7 +754,19 @@ export function createRenderer(deps){
     stepDebris(dtReal);
   }
 
-  function drawFishIcon(x, y, s, gold){
+  // Fish come in tiers by how far out they swim — one step richer past each
+  // landmark boss (see world.js's matching fishTier). Non-gold fish take the
+  // tier's colour so the zone reads at a glance; gold fish stay gold.
+  const FISH_TINT = [
+    { body:'#ffb63b', tail:'#f09b1f', belly:'#ffe08f' },  // 0 · starting waters (orange)
+    { body:'#5fd0e8', tail:'#3a9fc0', belly:'#c8eef8' },  // 1 · past the Snowman (teal)
+    { body:'#b48cff', tail:'#8a5ed0', belly:'#e6dcff' },  // 2 · past the Iceberg (violet)
+    { body:'#ff7a6b', tail:'#d94b3a', belly:'#ffc9c0' },  // 3 · past the Wall (crimson)
+  ];
+  const _bossX = (LANDMARKS || []).map(l => l.x).sort((a,b) => a-b);
+  function fishTier(x){ let t = 0; for(const bx of _bossX) if(x >= bx) t++; return Math.min(t, FISH_TINT.length-1); }
+  function drawFishIcon(x, y, s, gold, tier){
+    const tint = FISH_TINT[Math.min(tier||0, FISH_TINT.length-1)];
     ctx.save();
     ctx.translate(x, y + Math.sin(sim.timeSim*3 + x*0.05)*s*0.2);
     // soft glow so it reads as a pickup against any sky
@@ -767,7 +779,7 @@ export function createRenderer(deps){
     ctx.fillStyle = 'rgba(255,214,90,0.22)';
     ctx.beginPath(); ctx.arc(0, 0, s*1.9, 0, 7); ctx.fill();
     // forked tail
-    ctx.fillStyle = gold ? '#ffce2e' : '#f09b1f';
+    ctx.fillStyle = gold ? '#ffce2e' : tint.tail;
     ctx.beginPath();
     ctx.moveTo(-s*0.65, 0);
     ctx.lineTo(-s*1.25, -s*0.5);
@@ -780,10 +792,10 @@ export function createRenderer(deps){
     ctx.quadraticCurveTo(s*0.05, -s*0.95, s*0.35, -s*0.4);
     ctx.closePath(); ctx.fill();
     // body
-    ctx.fillStyle = gold ? '#ffe14d' : '#ffb63b';
+    ctx.fillStyle = gold ? '#ffe14d' : tint.body;
     ctx.beginPath(); ctx.ellipse(0, 0, s, s*0.55, 0, 0, 7); ctx.fill();
     // belly
-    ctx.fillStyle = gold ? '#fff6c0' : '#ffe08f';
+    ctx.fillStyle = gold ? '#fff6c0' : tint.belly;
     ctx.beginPath(); ctx.ellipse(s*0.08, s*0.18, s*0.7, s*0.28, 0, 0, 7); ctx.fill();
     // eye
     ctx.fillStyle = '#fff';
@@ -819,7 +831,7 @@ export function createRenderer(deps){
         const c = cl[k];
         const sx=w2sX(c.x), sy=w2sY(c.y);
         if(sx<-60||sx>sim.W+60||sy<-60||sy>sim.Hpx+60) continue;
-        drawFishIcon(sx, sy, clamp(COIN_R*cam.z*0.6, 5, 11), c.gold);
+        drawFishIcon(sx, sy, clamp(COIN_R*cam.z*0.6, 5, 11), c.gold, fishTier(c.x));
       }
     }
     const si0 = Math.floor((cam.x - sim.W/cam.z)/STAR_CELL)-1, si1 = Math.ceil((cam.x + sim.W/cam.z)/STAR_CELL)+1;
