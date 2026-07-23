@@ -64,7 +64,7 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
   const UPGRADES = [
     // ── roots (no prerequisites) — ramp is deliberately the cheapest, the
     // obvious first buy in a ramp game, not a shop-capacity meta-upgrade ──
-    { id:'ramp',    icon:'\u{1F6DD}', name:'Ramp Track',   base:65,  mul:1.7, max:12, unlock:0, requires:[],
+    { id:'ramp',    icon:'\u{1F6DD}', name:'Ramp Track',   base:45,  mul:1.7, max:12, unlock:0, requires:[],
       desc:'More track to build speed on. Reshape it in the designer below.',
       val:l=>{ const d=derive({ramp:l}); const r=buildRamp(d.rampLen);
                return `${Math.round(d.rampLen)} m · ${Math.round(r.H)} m tall · ~${Math.round(rampExitEst(d, r))} m/s exit`; } },
@@ -94,7 +94,7 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
     { id:'alti',   icon:'\u{1F4E1}', name:'Altimeter',   base:220, mul:1, max:1, unlock:100, requires:['speedo'], oneTime:true,
       desc:'See your altitude — and get paid for peak height.',
       val:l=> l===0 ? 'not installed' : 'installed' },
-    { id:'aero',    icon:'\u{1F9CA}', name:'Slick Suit',   base:140,  mul:1.6, max:10, unlock:0, requires:[{id:'wings',lvl:3}],
+    { id:'aero',    icon:'\u{1F9CA}', name:'Slick Suit',   base:180,  mul:1.6, max:10, unlock:0, requires:[{id:'wings',lvl:3}],
       desc:'Waxed feathers cut drag on the ramp, in the air, and on the ice.',
       val:l=>`dives to ~${Math.round(derive({aero:l}).vDive)} m/s` },
     { id:'bounce',  icon:'\u{1F3C0}', name:'Rubber Belly', base:450, mul:1.55, max:6, unlock:0, requires:[{id:'ramp',lvl:4}],
@@ -119,7 +119,7 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
       val:l=>`×${(1+0.35*l).toFixed(2)} cash earned` },
 
     // ── tier 3 ──
-    { id:'fuel',    icon:'⛽',    name:'Fuel Tank',    base:220,  mul:1.55, max:10, unlock:100, requires:[{id:'rocket',lvl:2}],
+    { id:'fuel',    icon:'⛽',    name:'Fuel Tank',    base:380,  mul:1.55, max:10, unlock:100, requires:[{id:'rocket',lvl:2}],
       desc:'More burn time for sustained climbs.',
       val:l=>`${(2+1.3*l).toFixed(1)} s of burn` },
     { id:'burner', icon:'\u{1F4A5}', name:'Afterburner', base:2800, mul:1, max:1, unlock:1000, requires:[{id:'rocket',lvl:4}], oneTime:true,
