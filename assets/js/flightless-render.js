@@ -846,14 +846,63 @@ export function createRenderer(deps){
     }
   }
 
+  // Seabirds — a plump little gull that flaps, bobs, and faces the oncoming
+  // penguin (beak to the left). Back colour varies by seed for some flock
+  // variety; a white belly and orange beak keep it readable against any sky.
+  const BIRD_BACKS = ['#5b6b7e','#7a5a45','#4d6b54','#6a4a68','#4a5b8a'];
+  function birdWing(s, lift, scale){
+    // shoulder at the top-front of the body; tip sweeps up/down with `lift`
+    const shx = -s*0.05, shy = -s*0.18;
+    const tipx = s*0.42*scale, tipy = -s*0.18 - lift*s*1.15*scale;
+    const trx = s*0.12, trY = -s*0.02;
+    ctx.beginPath();
+    ctx.moveTo(shx, shy);
+    ctx.quadraticCurveTo((shx+tipx)/2 - s*0.12, tipy - s*0.12, tipx, tipy);
+    ctx.quadraticCurveTo(tipx - s*0.18, trY - s*0.12, trx, trY);
+    ctx.closePath();
+  }
   function drawBird(x, y, s, seed){
     ctx.save();
-    ctx.translate(x, y);
-    const flap = Math.sin(sim.timeSim*6 + seed)*0.5 + 0.5;
-    ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = Math.max(1.5, s*0.18);
+    ctx.translate(x, y + Math.sin(sim.timeSim*2.5 + seed)*s*0.12);   // gentle bob
+    const flap = Math.sin(sim.timeSim*8 + seed*2.3);                  // -1..1 wingbeat
+    const back = BIRD_BACKS[Math.floor(hash01(seed*3+1)*BIRD_BACKS.length)];
+
+    // far wing (behind body): fainter, opposite lift so the pair reads as 3D
+    ctx.fillStyle = back; ctx.globalAlpha = 0.5;
+    birdWing(s, -flap*0.55, 0.9); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // tail fan (trailing edge, right) — kept low so it reads as a tail
+    ctx.fillStyle = back;
     ctx.beginPath();
-    ctx.moveTo(-s, -flap*s*0.6); ctx.lineTo(0, 0); ctx.lineTo(s, -flap*s*0.6);
-    ctx.stroke();
+    ctx.moveTo(s*0.5, -s*0.05); ctx.lineTo(s*1.28, -s*0.16);
+    ctx.lineTo(s*1.24, s*0.14); ctx.lineTo(s*0.5, s*0.2);
+    ctx.closePath(); ctx.fill();
+
+    // body
+    ctx.fillStyle = back;
+    ctx.beginPath(); ctx.ellipse(0, 0, s*0.9, s*0.58, 0, 0, 7); ctx.fill();
+    // white belly
+    ctx.fillStyle = '#eef3fa';
+    ctx.beginPath(); ctx.ellipse(-s*0.12, s*0.2, s*0.62, s*0.36, 0, 0, 7); ctx.fill();
+    // head
+    ctx.fillStyle = back;
+    ctx.beginPath(); ctx.arc(-s*0.72, -s*0.2, s*0.42, 0, 7); ctx.fill();
+    // beak (orange, pointing at the penguin)
+    ctx.fillStyle = '#ff9d2e';
+    ctx.beginPath(); ctx.moveTo(-s*1.06, -s*0.24); ctx.lineTo(-s*1.5, -s*0.09); ctx.lineTo(-s*1.04, 0.0); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#dd7a12';
+    ctx.beginPath(); ctx.moveTo(-s*1.04, 0.0); ctx.lineTo(-s*1.5, -s*0.09); ctx.lineTo(-s*1.22, s*0.03); ctx.closePath(); ctx.fill();
+    // eye
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-s*0.82, -s*0.28, s*0.13, 0, 7); ctx.fill();
+    ctx.fillStyle = '#141210'; ctx.beginPath(); ctx.arc(-s*0.84, -s*0.28, s*0.07, 0, 7); ctx.fill();
+
+    // near wing (front): the animated one, with a feather crease
+    ctx.fillStyle = back;
+    birdWing(s, flap, 1.0); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = Math.max(1, s*0.06);
+    birdWing(s, flap, 1.0); ctx.stroke();
+
     ctx.restore();
   }
   function drawBalloon(x, y, s, seed){
