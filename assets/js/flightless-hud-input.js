@@ -155,6 +155,7 @@ export function createHudInput(deps){
   const spdWrap   = document.getElementById('spd-wrap');
   const fuelWrap  = document.getElementById('fuel-wrap');
   const fuelBar   = document.getElementById('fuel-bar');
+  const HEAT_MAX_HUD = 3.0;   // mirrors physics HEAT_MAX (overheat threshold)
   const burnerWrap= document.getElementById('burner-wrap');
   const hudBurner = document.getElementById('hud-burner');
 
@@ -215,6 +216,18 @@ export function createHudInput(deps){
     if(st.fuelMax > 0){
       fuelWrap.style.display = 'block';
       fuelBar.style.width = (run.fuel/st.fuelMax*100)+'%';
+      // Bar WIDTH is fuel; bar COLOUR is heat: it warms from amber toward red
+      // as the rocket nears overheat, then flashes once it actually overheats.
+      const heatR = Math.min(1, (run.heat || 0) / HEAT_MAX_HUD);
+      if(run.overheated){
+        fuelBar.style.background = '';         // hand the colour to the flash animation
+        fuelBar.classList.add('overheat');
+      } else {
+        fuelBar.classList.remove('overheat');
+        fuelBar.style.background = heatR > 0.03
+          ? `linear-gradient(90deg, hsl(${(40-40*heatR)|0},100%,48%), hsl(${(52-52*heatR)|0},100%,55%))`
+          : '';                                // revert to the default CSS gradient
+      }
     } else fuelWrap.style.display = 'none';
     if(state.perm.burner){
       burnerWrap.style.display = 'block';

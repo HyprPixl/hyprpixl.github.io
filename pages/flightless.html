@@ -121,7 +121,9 @@
     border:1px solid var(--border); border-radius:999px;
     background:rgba(6,9,26,0.8); overflow:hidden;
   }
-  #fuel-bar{ height:100%; width:100%; border-radius:999px; background:linear-gradient(90deg,#ff5e00,#ffd000); }
+  #fuel-bar{ height:100%; width:100%; border-radius:999px; background:linear-gradient(90deg,#ff5e00,#ffd000); transition:background .2s linear; }
+  #fuel-bar.overheat{ animation:fuel-overheat 0.38s steps(1,end) infinite; transition:none; }
+  @keyframes fuel-overheat{ 0%,49%{ background:#ff2200; } 50%,100%{ background:#ffd23a; } }
   #burner-wrap b{ font-size:14px !important; padding-top:4px; color:var(--yellow) !important; }
   #burner-wrap b.spent{ color:#5c66a0 !important; }
   #hint{
@@ -1404,6 +1406,8 @@ function loop(now){
     renderer.stepParticles(dt);
     renderer.stepSpeedLines(dt);
     renderer.stepMissiles(dt);
+    // birds chase the penguin once it's near
+    if(sim.phase==='flight' && sim.run && !sim.run.done) world.stepBirds(dt);
     // Auto-Loader: the cannon fires itself (fireGun gates phase/cooldown/range)
     if(state.perm.autogun) world.fireGun();
   }

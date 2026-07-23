@@ -50,7 +50,7 @@ export function createPhysics(deps){
       // level 5→~47 m/s²; level 10→~61 m/s² (vs 90 with old linear formula).
       thrust: L.rocket ? 10 + 8*L.rocket / (1 + 0.055*L.rocket) : 0,
       fuelMax:L.rocket ? 2 + 1.3*L.fuel : 0,
-      regenRate: 0.12*L.regen,      // s of burn refilled per second spent gliding (not thrusting)
+      regenRate: L.regen ? 0.05 + 0.10*(L.regen-1) : 0,   // burn refilled per s gliding; weak at Lv.1
       sling,
       rest:   L.bounce ? 0.12 + 0.09*L.bounce : 0,
       mult:   1 + 0.35*L.sponsor,
@@ -131,7 +131,7 @@ export function createPhysics(deps){
     sim.run = {
       x:start.x, y:start.y, vx:0, vy:0,
       head:start.th, rampS:0, rampV:sim.st.rampV0,
-      fuel:sim.st.fuelMax, sliding:false, done:false,
+      fuel:sim.st.fuelMax, sliding:false, done:false, regenCd:0,
       dist:0, maxAlt:0, maxSpd:0, t:0,          // records only count once airborne
       thrusting:false, tumble:0, stalled:false,
       burnerUsed:false, tankUsed:false,
@@ -193,6 +193,7 @@ export function createPhysics(deps){
   const HEAT_MAX    = 3.0;      // total seconds of sustained burn before penalty
   const HEAT_RESUME = 1.5;      // hysteresis: penalty clears only once heat < this
   const HEAT_PENALTY = 0.3;     // thrust fraction when overheated
+  const REGEN_COOLDOWN = 1.0;   // seconds after the tank runs dry before regen resumes
 
   // low-altitude tracking: time spent airborne below this height (metres)
   const LOW_ALT_M = 50;
@@ -347,6 +348,8 @@ export function createPhysics(deps){
     sim.run.thrusting = input.boost && sim.st.thrust>0 && sim.run.fuel>0;
     if(sim.run.thrusting){
       sim.run.fuel = Math.max(0, sim.run.fuel - h);
+      // running the tank dry arms a cooldown before Fuel Regen may kick back in
+      if(sim.run.fuel <= 0) sim.run.regenCd = REGEN_COOLDOWN;
       // ── overheat ── heat climbs while thrusting; cools when not
       sim.run.heat = Math.min(sim.run.heat + HEAT_RISE*h, HEAT_MAX*1.5);
       if(!sim.run.overheated && sim.run.heat >= HEAT_MAX){
@@ -366,10 +369,21 @@ export function createPhysics(deps){
       if(sim.run.overheated && sim.run.heat < HEAT_RESUME){
         sim.run.overheated = false;
       }
-      // Fuel Regen: slowly refills the tank while gliding, capped at fuelMax
+      // Fuel Regen: slowly refills the tank while gliding, capped at fuelMax —
+      // but only after the empty-tank cooldown has elapsed.
       if(sim.st.regenRate > 0 && sim.st.fuelMax > 0){
-        sim.run.fuel = Math.min(sim.st.fuelMax, sim.run.fuel + sim.st.regenRate*h);
+        sim.run.regenCd = Math.max(0, (sim.run.regenCd || 0) - h);
+        if(sim.run.regenCd <= 0)
+          sim.run.fuel = Math.min(sim.st.fuelMax, sim.run.fuel + sim.st.regenRate*h);
       }
+    }
+    // overheat smoke — grey puffs pour off the tail while the rocket runs hot
+    // (whether still burning or cooling back down), so the meltdown reads.
+    if(sim.run.overheated && Math.random() < h*75){
+      const bx = sim.run.x - Math.cos(sim.run.head)*1.7;
+      const by = sim.run.y - Math.sin(sim.run.head)*1.7;
+      const grey = Math.random() < 0.5 ? 'rgba(60,64,76,0.75)' : 'rgba(122,126,142,0.6)';
+      burst(bx, by, 1, grey, 2.0, sim.run.head + Math.PI);
     }
     SFX.setThrust(sim.run.thrusting);
 

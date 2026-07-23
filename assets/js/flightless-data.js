@@ -144,8 +144,8 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
     // refills the tank while gliding (not thrusting). See physics.js's
     // regenRate stat and the "cool down" branch of stepFlight.
     { id:'regen',   icon:'\u{267B}\u{FE0F}', name:'Fuel Regen',  base:900, mul:1.6, max:5, unlock:1000, requires:[{id:'fuel',lvl:4},{id:'wings',lvl:3}],
-      desc:'Slowly refills the tank while gliding — coast to keep the rocket fed.',
-      val:l=> l===0 ? 'no regen' : `${(0.12*l).toFixed(2)} s of burn / s gliding` },
+      desc:'Slowly refills the tank while gliding (after a short pause once it runs dry) — coast to keep the rocket fed.',
+      val:l=> l===0 ? 'no regen' : `${(0.05 + 0.10*(l-1)).toFixed(2)} s of burn / s gliding` },
 
     // ── tier 5 (deepest) ──
     { id:'tank',   icon:'\u{1F6E2}', name:'Reserve Tank', base:6500, mul:1, max:1, unlock:2500, requires:[{id:'regen',lvl:2}], oneTime:true,

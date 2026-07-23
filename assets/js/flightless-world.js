@@ -126,7 +126,14 @@ export function createWorld(deps){
   // Birds, balloons and planes share one x-cell grid; each cell deterministically
   // rolls a type then an existence chance, same trick as the coin/star fields.
   const OBST_CELL = 260;
-  function obstaclePos(i){
+  // Birds actively fly at the penguin once it's near: each one accumulates a
+  // homing offset (sim.run.birdHoming[i]) that stepBirds() nudges toward the
+  // penguin every frame. obstaclePos() adds that offset on top of the fixed
+  // spawn point, so rendering, collision and the cannon all track the moved
+  // bird from one place. Balloons and planes stay put (scenery-paced hazards).
+  const BIRD_AGGRO = 460;   // m — birds within this of the penguin give chase
+  const BIRD_SPEED = 60;    // m/s closing speed
+  function obstacleBase(i){
     if(i < 0) return null;
     const x = i*OBST_CELL + 30 + hash01(i*7+5)*(OBST_CELL-60);
     // keep obstacles inside the reachable corridor at this distance — a plane
@@ -141,6 +148,33 @@ export function createWorld(deps){
     if(hash01(i*19+37) < type.skip) return null;
     const top = Math.min(type.maxAlt, corr*(type.id==='plane'?2:1));
     return { type, x, y: type.minAlt + Math.pow(hash01(i*23+41), 1.4)*(top-type.minAlt) };
+  }
+  function obstaclePos(i){
+    const o = obstacleBase(i);
+    if(!o) return o;
+    const off = o.type.id === 'bird' && sim.run && sim.run.birdHoming
+      ? sim.run.birdHoming[i] : null;
+    return off ? { type:o.type, x:o.x + off.dx, y:o.y + off.dy } : o;
+  }
+  // Advance every nearby, still-alive bird toward the penguin.
+  function stepBirds(dt){
+    if(!sim.run) return;
+    if(!sim.run.birdHoming) sim.run.birdHoming = {};
+    const px = sim.run.x, py = sim.run.y;
+    const i0 = Math.floor((px - 80)/OBST_CELL), i1 = Math.ceil((px + BIRD_AGGRO)/OBST_CELL);
+    for(let i=i0;i<=i1;i++){
+      if(sim.run.obGone.has('o'+i)) continue;
+      const base = obstacleBase(i);
+      if(!base || base.type.id !== 'bird') continue;
+      const off = sim.run.birdHoming[i] || (sim.run.birdHoming[i] = { dx:0, dy:0 });
+      const bx = base.x + off.dx, by = base.y + off.dy;
+      const d = Math.hypot(px - bx, py - by);
+      if(d < BIRD_AGGRO && d > 1){
+        const step = Math.min(BIRD_SPEED*dt, d);
+        off.dx += (px - bx)/d * step;
+        off.dy += (py - by)/d * step;
+      }
+    }
   }
   function checkObstacles(){
     const oi = Math.round(sim.run.x/OBST_CELL);
@@ -489,7 +523,7 @@ export function createWorld(deps){
 
   return {
     coinCluster, comboMult, starPos, checkCollectibles,
-    obstaclePos, checkObstacles, fireGun,
+    obstaclePos, checkObstacles, fireGun, stepBirds,
     ringPos, checkRings,
     checkLandmarks,
     pickupPos, checkPickups, tickCooldowns,
