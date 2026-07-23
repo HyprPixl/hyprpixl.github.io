@@ -201,7 +201,7 @@ export function createData({ state, derive, buildRamp, rampExitEst, gliderName, 
 
   // ─── OBSTACLE_TYPES ───────────────────────────────────────────────────────
   const OBSTACLE_TYPES = [
-    { id:'bird',    tough:1, cash:40,  minAlt:25,   maxAlt:1400, r:16, skip:0.3 },
+    { id:'bird',    tough:1, cash:40,  minAlt:25,   maxAlt:1400, r:4,  skip:0.3 },
     { id:'balloon', tough:3, cash:150, minAlt:600,  maxAlt:3200, r:28, skip:0.45 },
     { id:'plane',   tough:5, cash:500, minAlt:1800, maxAlt:6000, r:36, skip:0.55 },
   ];

@@ -182,7 +182,7 @@ export function createPhysics(deps){
   // After the belly-slide stops, linger this long (sim-seconds; the slide
   // runs at ~2.5× time-scale so this is ~1s of real time) with the penguin
   // sitting on the ice before the results panel pops up.
-  const SETTLE_TIME = 2.5;
+  const SETTLE_TIME = 5.0;
 
   // overheat: sustained rocket use risks a melt-down.
   // heat climbs at 1/s while thrusting, cools at HEAT_COOL/s otherwise.

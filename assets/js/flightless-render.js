@@ -500,7 +500,7 @@ export function createRenderer(deps){
       // visually static right when a flight is at its most dramatic. Base
       // (60) is low enough that near-zero speed/altitude is already past
       // the ceiling and clamps there, guaranteeing a tight start every run.
-      tz = clamp(1000/(60 + 2.5*spCam + 0.2*cam.yS), 0.15, 14);
+      tz = clamp(1200/(56 + 3.8*spCam + 0.25*cam.yS), 0.08, 22);
       tx = p.x + cam.vxS*0.35;
       ty = Math.max(0, p.y - (sim.Hpx*0.30)/tz);
     }

@@ -132,6 +132,41 @@
     padding:8px 18px; pointer-events:none; display:none;
     backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
   }
+  /* ── pre-launch panel (perched at the top of the ramp) ── */
+  #launch-panel{
+    position:absolute; bottom:20px; left:50%; transform:translateX(-50%) translateY(12px);
+    z-index:16; width:max-content; max-width:94vw;
+    display:none; flex-direction:column; align-items:center; gap:12px;
+    opacity:0; transition:opacity .25s ease, transform .25s ease;
+  }
+  #launch-panel.show{ display:flex; opacity:1; transform:translateX(-50%) translateY(0); }
+  #launch-missions{
+    min-width:260px; max-width:min(460px,92vw);
+    background:var(--glass); border:1px solid var(--border); border-radius:16px;
+    padding:10px 16px 12px; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    box-shadow:0 10px 30px rgba(4,6,20,0.45);
+  }
+  #launch-missions .lm-title{
+    color:var(--yellow); font-size:11px; font-weight:800; letter-spacing:1.5px;
+    text-transform:uppercase; text-align:center; margin-bottom:7px;
+  }
+  #launch-missions .lm-row{
+    display:flex; justify-content:space-between; gap:16px; align-items:baseline;
+    font-size:13px; color:var(--text); padding:3px 0;
+    border-top:1px solid rgba(148,164,224,0.14);
+  }
+  #launch-missions .lm-row:first-of-type{ border-top:none; }
+  #launch-missions .lm-row b{ color:var(--cash); font-variant-numeric:tabular-nums; }
+  #launch-go{
+    pointer-events:auto; cursor:pointer;
+    padding:12px 34px; font-size:16px; font-weight:900; letter-spacing:1.5px;
+    text-transform:uppercase; color:var(--btn-ink);
+    background:var(--btn-grad); border:none; border-radius:14px;
+    box-shadow:0 5px 0 var(--btn-lip), 0 12px 26px rgba(255,150,40,0.3);
+    text-shadow:0 1px 0 rgba(255,255,255,0.35);
+    animation:btn-glow 2.4s ease-in-out infinite;
+  }
+  #launch-go:active{ transform:translateY(3px); box-shadow:0 2px 0 var(--btn-lip); }
   #ff-btn{
     position:absolute; bottom:14px; right:14px; z-index:14; display:none;
     background:var(--glass); color:var(--text);
@@ -623,6 +658,10 @@
   <div class="stat" id="burner-wrap"><b id="hud-burner">&#128165; READY</b><span>afterburner [X]</span></div>
 </div>
 <div id="hint"></div>
+<div id="launch-panel">
+  <div id="launch-missions"></div>
+  <button id="launch-go">&#128640; press SPACE to launch</button>
+</div>
 <button id="ff-btn">&#9193; hold</button>
 <div id="popup-layer"></div>
 
@@ -727,7 +766,7 @@
       <div class="res-row total"><span class="val">TOTAL</span><span class="cash" id="cash-total">$0</span></div>
     </div>
     <button class="big-btn" id="continue-btn">Continue</button>
-    <p class="small-note">press ENTER</p>
+    <p class="small-note">press SPACE</p>
   </div>
 </div>
 
@@ -940,7 +979,7 @@ bridge.finishRun = results.finishRun;
 // function declarations, so referencing them here by name is fine).
 const hudInput = createHudInput({
   sim, state, input, SFX, fmtDist,
-  startLaunch, closeResults,
+  startLaunch, closeResults, releaseLaunch,
   skipSlide: physics.skipSlide,
   fireAfterburner: physics.fireAfterburner,
   fireGun: world.fireGun,
@@ -1122,6 +1161,10 @@ function openShop(){
   shopEl.classList.add('show');
 }
 
+// startLaunch now sets the penguin PERCHED at the top of the ramp and waits:
+// the camera snaps in close, today's contracts are listed at the bottom, and
+// nothing moves until the player hits SPACE (releaseLaunch), which drops the
+// gate and starts the slide.
 function startLaunch(){
   SFX.ensure();
   // Kick off background music on first user gesture (defensive: may not exist)
@@ -1135,25 +1178,52 @@ function startLaunch(){
   introEl.classList.remove('show');
   shopEl.classList.remove('show');
   physics.newRun();
-  sim.phase = 'ramp';
+  sim.phase = 'perch';        // wait at the top of the ramp for SPACE
   sim.paused = false;
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('ff-btn').style.display = 'block';
+  document.getElementById('touch').classList.add('flying');
+  document.getElementById('t-burner').classList.toggle('hidden', !state.perm.burner);
+  document.getElementById('t-gun').classList.toggle('hidden', !state.lvl.gun);
+  showLaunchPrompt();
+  hudInput.renderHUD();       // prime the HUD (dist 0 / best / wind) while perched
+}
+
+// Drop the gate: leave the perch and start the ramp slide.
+function releaseLaunch(){
+  if(sim.phase !== 'perch') return;
+  hideLaunchPrompt();
+  sim.phase = 'ramp';
   if(sim.st.sling > 0){
     renderer.popup(`\u{1F3AF} CATAPULT +${sim.st.sling} m/s!`, 24);
     SFX.boom();
     cam.shake = Math.min(12, 4 + sim.st.sling*0.04);
     const p0 = physics.rampPoint(0);
     renderer.burst(p0.x, p0.y, 14, '#ffe066', 7, p0.th);
+  } else if(typeof SFX.launch === 'function'){
+    SFX.launch();
   }
-  document.getElementById('hud').style.display = 'flex';
-  document.getElementById('ff-btn').style.display = 'block';
-  document.getElementById('touch').classList.add('flying');
-  document.getElementById('t-burner').classList.toggle('hidden', !state.perm.burner);
-  document.getElementById('t-gun').classList.toggle('hidden', !state.lvl.gun);
 }
+
+// The pre-launch panel: today's contracts + a SPACE prompt, shown while perched.
+function showLaunchPrompt(){
+  const panel = document.getElementById('launch-panel');
+  const list  = document.getElementById('launch-missions');
+  if(list){
+    const cs = sim.run?.contracts || [];
+    list.innerHTML = cs.length
+      ? '<div class="lm-title">&#128203; Today\'s Contracts</div>' +
+        cs.map(c => `<div class="lm-row"><span>${c.text}</span><b>+${fmtCash(c.reward)}</b></div>`).join('')
+      : '<div class="lm-title">&#128038; No contracts today — just fly.</div>';
+  }
+  if(panel) panel.classList.add('show');
+}
+function hideLaunchPrompt(){ document.getElementById('launch-panel')?.classList.remove('show'); }
 
 document.getElementById('intro-launch-btn').addEventListener('click', startLaunch);
 document.getElementById('launch-btn').addEventListener('click', startLaunch);
 document.getElementById('continue-btn').addEventListener('click', closeResults);
+document.getElementById('launch-go').addEventListener('click', releaseLaunch);
 
 // Victory panel buttons
 document.getElementById('victory-btn').addEventListener('click', () => {

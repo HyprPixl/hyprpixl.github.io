@@ -11,6 +11,7 @@ export function createHudInput(deps){
     sim, state, input, SFX, fmtDist,
     startLaunch, closeResults, skipSlide, fireAfterburner, fireGun,
   } = deps;
+  const releaseLaunch = typeof deps.releaseLaunch === 'function' ? deps.releaseLaunch : () => {};
 
   /* ════════════════ sim.paused contract ════════════════ */
   // Set here; the HTML main loop reads it to freeze sim stepping.
@@ -112,7 +113,15 @@ export function createHudInput(deps){
     switch(e.code){
       case 'ArrowUp': case 'KeyW': case 'ArrowLeft': case 'KeyA': input.up=true; e.preventDefault(); break;
       case 'ArrowDown': case 'KeyS': case 'ArrowRight': case 'KeyD': input.down=true; e.preventDefault(); break;
-      case 'Space': input.boost=true; e.preventDefault(); break;
+      case 'Space':
+        e.preventDefault();
+        if(sim.paused) break;
+        // SPACE is the action key: launch off the perch, continue past the
+        // results, otherwise it's the in-flight rocket boost.
+        if(sim.phase==='perch') releaseLaunch();
+        else if(sim.phase==='results') closeResults();
+        else input.boost=true;
+        break;
       case 'KeyF': input.ff=true; break;
       case 'KeyX': fireAfterburner(); break;
       case 'KeyC': fireGun(); break;
@@ -121,6 +130,7 @@ export function createHudInput(deps){
         if(sim.paused) break; // eat Enter while paused, don't advance menus
         if(introEl.classList.contains('show')) startLaunch();
         else if(sim.phase==='shop' && shopEl.classList.contains('show')) startLaunch();
+        else if(sim.phase==='perch') releaseLaunch();
         else if(sim.phase==='results') closeResults();
         else if(sim.phase==='flight' && sim.run && sim.run.sliding) skipSlide();
         break;
