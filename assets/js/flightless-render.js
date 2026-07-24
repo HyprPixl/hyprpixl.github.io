@@ -589,13 +589,56 @@ export function createRenderer(deps){
     drawPickups();
     drawObstacles();
 
-    // ground
+    // ── ice sheet ──
     const gy = w2sY(0);
     if(gy < sim.Hpx+20){
-      const gg = ctx.createLinearGradient(0,gy,0,gy+90);
-      gg.addColorStop(0,'#eaf6ff'); gg.addColorStop(0.12,'#bcd9ee'); gg.addColorStop(1,'#5d7f9c');
+      const groundH = sim.Hpx - gy + 20;
+      // polished-ice gradient: bright sky-lit rim at the horizon, deepening to teal
+      const gg = ctx.createLinearGradient(0, gy, 0, sim.Hpx);
+      gg.addColorStop(0,    '#eaf6ff');
+      gg.addColorStop(0.05, '#d3ebfb');
+      gg.addColorStop(0.20, '#a6cbe7');
+      gg.addColorStop(0.55, '#79a6c8');
+      gg.addColorStop(1,    '#48697f');
       ctx.fillStyle = gg;
-      ctx.fillRect(-10, gy, sim.W+20, sim.Hpx-gy+20);
+      ctx.fillRect(-10, gy, sim.W+20, groundH);
+      // horizon specular band — light glancing off the polished surface
+      const sheen = ctx.createLinearGradient(0, gy, 0, gy+16);
+      sheen.addColorStop(0, 'rgba(255,255,255,0.5)');
+      sheen.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = sheen;
+      ctx.fillRect(-10, gy, sim.W+20, 16);
+      // sun glare smeared down the ice directly under the sun
+      {
+        const gx = sim.W*0.78, gw = 42 + 26*sky.space, gh = Math.min(180, groundH);
+        const glare = ctx.createLinearGradient(0, gy, 0, gy+gh);
+        glare.addColorStop(0,   `rgba(255,248,214,${(0.5-0.2*sky.space).toFixed(3)})`);
+        glare.addColorStop(0.5, 'rgba(255,244,196,0.14)');
+        glare.addColorStop(1,   'rgba(255,244,196,0)');
+        ctx.fillStyle = glare;
+        ctx.beginPath();
+        ctx.moveTo(gx-gw*0.3, gy); ctx.lineTo(gx+gw*0.3, gy);
+        ctx.lineTo(gx+gw, gy+gh); ctx.lineTo(gx-gw, gy+gh);
+        ctx.closePath(); ctx.fill();
+      }
+      // ── reflection of the penguin on the ice (fades as it climbs) ──
+      if(sim.run){
+        const py = w2sY(sim.run.y);
+        const fade = clamp(1 - sim.run.y/140, 0, 1);
+        const refY = 2*gy - py;
+        if(fade > 0.03 && refY > gy - 8){
+          const px = w2sX(sim.run.x);
+          const s  = Math.max(cam.z*1.3, 13);
+          const wob = Math.sin(sim.timeSim*3 + sim.run.x*0.04)*1.6;   // ice shimmer
+          ctx.save();
+          ctx.beginPath(); ctx.rect(-10, gy, sim.W+20, groundH); ctx.clip();
+          ctx.globalAlpha = 0.32*fade;
+          ctx.translate(px+wob, refY);
+          ctx.scale(1, -1);   // mirror across the ice line
+          drawPenguin(0, 0, sim.run.head + sim.run.tumble, s);
+          ctx.restore();
+        }
+      }
       // distance markers
       const step = cam.z>6 ? 50 : cam.z>2.2 ? 250 : cam.z>0.9 ? 1000 : 5000;
       const m0 = Math.max(0, Math.floor((cam.x - sim.W/cam.z)/step)*step);
@@ -609,17 +652,21 @@ export function createRenderer(deps){
         ctx.beginPath(); ctx.moveTo(sx, gy); ctx.lineTo(sx, gy+8); ctx.stroke();
         ctx.fillText(m>=1000 ? (m/1000)+'km' : m+'m', sx, gy+22);
       }
-      // ice sheen streaks
-      ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+      // frosted sheen streaks — long, faint, drifting reflective bands
       ctx.lineWidth = 1;
       const iceStep = 26;
       const c0 = Math.floor((cam.x - sim.W/cam.z)/iceStep), c1 = Math.ceil((cam.x + sim.W/cam.z)/iceStep);
       for(let i=c0;i<=c1;i++){
-        if(hash01(i*11+3) < 0.55) continue;
+        if(hash01(i*11+3) < 0.5) continue;
         const sx = w2sX(i*iceStep + hash01(i*5+1)*iceStep);
-        const ln = (10+hash01(i*9+6)*40)*clamp(cam.z*0.4, 0.5, 3);
-        const yo = 8 + hash01(i*17+9)*46;
-        ctx.beginPath(); ctx.moveTo(sx, gy+yo); ctx.lineTo(sx+ln, gy+yo*1.04); ctx.stroke();
+        const yo = 6 + hash01(i*17+9)*Math.min(70, groundH*0.6);
+        const ln = (14+hash01(i*9+6)*54)*clamp(cam.z*0.4, 0.5, 3);
+        // brighter near the horizon, cooler/darker deeper into the sheet
+        const near = clamp(1 - yo/70, 0, 1);
+        ctx.strokeStyle = hash01(i*7+2) < 0.35
+          ? `rgba(120,150,180,${(0.10+0.05*near).toFixed(3)})`     // faint crack
+          : `rgba(255,255,255,${(0.10+0.18*near).toFixed(3)})`;   // sheen
+        ctx.beginPath(); ctx.moveTo(sx, gy+yo); ctx.lineTo(sx+ln, gy+yo*1.02); ctx.stroke();
       }
     }
 
@@ -905,31 +952,84 @@ export function createRenderer(deps){
 
     ctx.restore();
   }
+  // Hot-air balloon: a teardrop envelope with curved gore seams, a highlight,
+  // a neck ring, ropes and a wicker basket; bobs gently on the breeze.
   function drawBalloon(x, y, s, seed){
     ctx.save();
-    ctx.translate(x, y);
-    const hue = Math.floor(hash01(seed)*300);
-    ctx.fillStyle = `hsl(${hue},70%,55%)`;
-    ctx.beginPath(); ctx.ellipse(0, -s*0.3, s, s*1.15, 0, 0, 7); ctx.fill();
-    ctx.strokeStyle = '#4a3418'; ctx.lineWidth = Math.max(1, s*0.06);
+    ctx.translate(x, y + Math.sin(sim.timeSim*1.4 + seed)*s*0.06);
+    const hue = Math.floor(hash01(seed)*360);
+    const main = `hsl(${hue},64%,56%)`, dark = `hsl(${hue},60%,40%)`, lite = `hsl(${hue},72%,74%)`;
+    // envelope (teardrop, pinched at the neck)
+    ctx.fillStyle = main;
     ctx.beginPath();
-    ctx.moveTo(-s*0.5, s*0.6); ctx.lineTo(-s*0.28, s*1.1);
-    ctx.moveTo(s*0.5, s*0.6); ctx.lineTo(s*0.28, s*1.1);
+    ctx.moveTo(0, s*0.98);
+    ctx.bezierCurveTo(-s*0.92, s*0.48, -s*1.02, -s*0.62, 0, -s*1.06);
+    ctx.bezierCurveTo(s*1.02, -s*0.62, s*0.92, s*0.48, 0, s*0.98);
+    ctx.closePath(); ctx.fill();
+    // gore seams
+    ctx.strokeStyle = dark; ctx.lineWidth = Math.max(1, s*0.045);
+    for(const off of [-0.62,-0.22,0.22,0.62]){
+      ctx.beginPath(); ctx.moveTo(0, -s*1.04);
+      ctx.quadraticCurveTo(s*off*1.72, 0, 0, s*0.9); ctx.stroke();
+    }
+    // highlight crescent
+    ctx.fillStyle = lite; ctx.globalAlpha = 0.5;
+    ctx.beginPath(); ctx.ellipse(-s*0.34, -s*0.5, s*0.24, s*0.5, -0.3, 0, 7); ctx.fill();
+    ctx.globalAlpha = 1;
+    // neck ring
+    ctx.fillStyle = dark;
+    ctx.beginPath(); ctx.ellipse(0, s*0.96, s*0.18, s*0.08, 0, 0, 7); ctx.fill();
+    // ropes + basket
+    ctx.strokeStyle = 'rgba(60,45,25,0.85)'; ctx.lineWidth = Math.max(1, s*0.04);
+    ctx.beginPath();
+    ctx.moveTo(-s*0.15, s*1.0); ctx.lineTo(-s*0.22, s*1.48);
+    ctx.moveTo(s*0.15, s*1.0);  ctx.lineTo(s*0.22, s*1.48);
     ctx.stroke();
-    ctx.fillStyle = '#5c4326';
-    ctx.fillRect(-s*0.3, s*1.05, s*0.6, s*0.35);
+    ctx.fillStyle = '#7a5528';
+    ctx.beginPath();
+    ctx.moveTo(-s*0.24, s*1.46); ctx.lineTo(s*0.24, s*1.46);
+    ctx.lineTo(s*0.18, s*1.8); ctx.lineTo(-s*0.18, s*1.8); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#54371c'; ctx.lineWidth = 1; ctx.stroke();
     ctx.restore();
   }
+  // Little prop plane, nose to the left (facing the oncoming penguin): tail
+  // fin, two wings, a red cheat line, a glass cockpit and a spinning prop.
   function drawPlane(x, y, s, seed){
     ctx.save();
-    ctx.translate(x, y);
-    ctx.fillStyle = '#d8dee8';
-    ctx.beginPath(); ctx.ellipse(0, 0, s*1.3, s*0.4, 0, 0, 7); ctx.fill();
-    ctx.fillStyle = '#b7c0d1';
-    ctx.beginPath(); ctx.moveTo(-s*0.2,-s*0.15); ctx.lineTo(-s*1.1,-s*0.75); ctx.lineTo(-s*0.75,-s*0.15); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(-s*0.2,s*0.15); ctx.lineTo(-s*1.1,s*0.75); ctx.lineTo(-s*0.75,s*0.15); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#e63946';
-    ctx.beginPath(); ctx.moveTo(s*1.0,0); ctx.lineTo(s*1.5,-s*0.3); ctx.lineTo(s*1.5,s*0.3); ctx.closePath(); ctx.fill();
+    ctx.translate(x, y + Math.sin(sim.timeSim*2 + seed)*s*0.05);
+    const body='#e2e8f2', shade='#b7c1d3', accent='#e6544e';
+    // tail fin + stabiliser (back/right)
+    ctx.fillStyle = shade;
+    ctx.beginPath(); ctx.moveTo(s*0.95,-s*0.08); ctx.lineTo(s*1.34,-s*0.56); ctx.lineTo(s*1.28,-s*0.02); ctx.lineTo(s*0.95,s*0.06); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(s*1.0,0); ctx.lineTo(s*1.36,s*0.04); ctx.lineTo(s*1.04,s*0.2); ctx.closePath(); ctx.fill();
+    // far wing (up-behind, faded)
+    ctx.globalAlpha = 0.75;
+    ctx.beginPath(); ctx.moveTo(-s*0.1,-s*0.04); ctx.lineTo(s*0.52,-s*0.52); ctx.lineTo(s*0.6,-s*0.08); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
+    // fuselage
+    ctx.fillStyle = body;
+    ctx.beginPath(); ctx.ellipse(0, 0, s*1.12, s*0.34, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = shade;                                  // nose cone
+    ctx.beginPath(); ctx.ellipse(-s*0.98, 0, s*0.2, s*0.3, 0, 0, 7); ctx.fill();
+    // red cheat line
+    ctx.fillStyle = accent; ctx.fillRect(-s*0.55, -s*0.06, s*1.35, s*0.09);
+    // cockpit glass
+    ctx.fillStyle = '#7fd0e8';
+    ctx.beginPath(); ctx.ellipse(-s*0.32, -s*0.13, s*0.26, s*0.13, -0.12, 0, 7); ctx.fill();
+    // near wing (front, below)
+    ctx.fillStyle = body;
+    ctx.beginPath(); ctx.moveTo(0,s*0.06); ctx.lineTo(s*0.5,s*0.56); ctx.lineTo(s*0.64,s*0.1); ctx.closePath(); ctx.fill();
+    // spinning propeller at the nose
+    ctx.save();
+    ctx.translate(-s*1.16, 0);
+    const pr = s*0.52, spin = sim.timeSim*38 + seed;
+    ctx.fillStyle = 'rgba(200,206,222,0.16)';
+    ctx.beginPath(); ctx.arc(0, 0, pr, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(38,42,58,0.55)'; ctx.lineWidth = Math.max(1.5, s*0.1);
+    const bl = pr*Math.abs(Math.cos(spin)) + s*0.06;
+    ctx.beginPath(); ctx.moveTo(0,-bl); ctx.lineTo(0, bl); ctx.stroke();
+    ctx.fillStyle = '#333a4a'; ctx.beginPath(); ctx.arc(0, 0, s*0.1, 0, 7); ctx.fill();
+    ctx.restore();
     ctx.restore();
   }
   function drawObstacles(){
