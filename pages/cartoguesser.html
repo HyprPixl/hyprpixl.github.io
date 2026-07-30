@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>CartoGuesser - Cyberpunk Map Guessing Game</title>
 
 <!-- Leaflet -->
@@ -12,11 +12,10 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
   integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
 
-<!-- Optional small helper for nicer mobile taps -->
 <meta name="theme-color" content="#000000"/>
 
 <!-- Fonts -->
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 
 <style>
   :root{
@@ -30,610 +29,1132 @@
     --warn:#eab308;
     --orange:#f97316;
     --bad:#ef4444;
+    --line: rgba(0,255,240,0.28);
+    --line-strong: rgba(0,255,240,0.5);
   }
   *{box-sizing:border-box}
-  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text);
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; }
   #app { height: 100%; position: relative; overflow: hidden; }
-  #map { height: 100%; width: 100%; background: #000; }
+  #map { height: 100%; width: 100%; background: #000; cursor: default; }
+  #map.is-playing { cursor: crosshair; }
+
+  .leaflet-container { background:#000; outline:1px solid rgba(0,255,240,0.12); }
+  .leaflet-control-attribution{ display:none }
+  .leaflet-control-zoom{ margin: 12px 12px 0 0 !important; border:none !important }
   .leaflet-control-zoom a {
-    color: var(--text);
-    background: #04060a;
-    border-color: rgba(0,255,240,0.35);
-    box-shadow: 0 0 8px rgba(0,255,240,0.15);
-  }
-  .leaflet-control-zoom a:hover {
-    color: var(--accent);
-  }
-
-  /* Cyberpunk panel */
-  .hud {
-    position: absolute; bottom: 12px; left: 12px; z-index: 9999;
-    background: linear-gradient(180deg, rgba(10,10,15,0.9), rgba(5,5,10,0.9));
-    border: 1px solid rgba(0,255,240,0.35);
-    padding: 8px 10px;
-    width: min(320px, calc(100vw - 24px));
-    border-radius: 12px;
+    color: var(--text); background: rgba(4,6,10,0.85);
+    border: 1px solid var(--line); border-radius: 8px !important; margin-bottom: 4px;
     backdrop-filter: blur(4px);
-    box-shadow:
-      0 0 12px rgba(0,255,240,0.2),
-      inset 0 0 12px rgba(255,0,234,0.15);
   }
-  .hud h1{
-    margin: 0 0 10px 0; font: 700 18px Orbitron, monospace; letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--accent);
-    text-shadow: 0 0 12px rgba(0,255,240,0.6), 0 0 18px rgba(255,0,234,0.25);
-  }
-  .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-  .row + .row{ margin-top: 8px }
-  select, button{
-    background: #04060a; color: var(--text);
-    border: 1px solid rgba(0,255,240,0.35);
-    padding: 8px 10px; border-radius: 10px;
-    font: 600 13px Inter, system-ui;
-    outline: none;
-    box-shadow: 0 0 8px rgba(0,255,240,0.15);
-  }
-  button{
-    cursor: pointer;
-    transition: transform .06s ease, box-shadow .2s ease;
-  }
-  button:hover{ transform: translateY(-1px); box-shadow: 0 0 14px rgba(255,0,234,0.25), 0 0 10px rgba(0,255,240,0.25) }
-  button:active{ transform: translateY(0) scale(0.98) }
+  .leaflet-control-zoom a:hover { color: var(--accent); border-color: var(--line-strong) }
 
-  .flagbox{
-    display:flex; align-items:center; gap:10px;
-    background: #020407; border: 1px dashed rgba(255,0,234,0.35);
-    padding: 10px; border-radius: 12px; width: 100%;
+  /* ============ HUD ============ */
+  .hud{
+    position:absolute; left:12px; bottom:12px; z-index:900;
+    width: min(360px, calc(100vw - 24px));
+    background: linear-gradient(180deg, rgba(10,10,16,0.94), rgba(4,4,9,0.94));
+    border:1px solid var(--line);
+    border-radius:14px;
+    box-shadow: 0 0 20px rgba(0,255,240,0.14), 0 8px 30px rgba(0,0,0,0.6);
+    backdrop-filter: blur(8px);
+    display:flex; flex-direction:column;
   }
-  .flag{ font-size: 28px; line-height: 1 }
-  .name{
-    font: 700 18px Inter, system-ui; letter-spacing: .02em;
-    text-shadow: 0 0 10px rgba(0,255,240,0.35);
+  .hud-bar{
+    display:flex; align-items:center; gap:8px;
+    padding:8px 10px; border-bottom:1px solid rgba(0,255,240,0.14);
   }
-  .muted{ color: var(--muted); font-size: 12px; opacity: .9 }
-  .statline{ display:flex; gap:10px; align-items:center; font-size: 12px; color: var(--muted) }
-  .chip{ border:1px solid rgba(0,255,240,0.3); padding:2px 6px; border-radius: 999px; }
-  .legend{ display:flex; gap:6px; flex-wrap:wrap; font-size:12px; }
-  .dot{ width:10px; height:10px; border-radius:50% }
-  .legend .item{display:flex; align-items:center; gap:6px}
-  .sep{ flex:1 1 auto }
-  .msg{ font-size: 12px; color:#c7f9ff }
-  .blink{ animation: blink 0.8s linear 1 }
-  @keyframes blink {
-    0%,100%{opacity:1} 50%{opacity:.35}
+  .hud-title{
+    font: 700 13px Orbitron, monospace; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--accent); text-shadow:0 0 10px rgba(0,255,240,.5);
+    flex:1 1 auto; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
+  .icon-btn{
+    width:24px; height:24px; flex:0 0 auto; display:grid; place-items:center;
+    background:transparent; border:1px solid var(--line); border-radius:7px;
+    color:var(--muted); font:600 12px Inter, system-ui; cursor:pointer; padding:0;
+    transition: color .15s ease, border-color .15s ease, background .15s ease;
+  }
+  .icon-btn:hover{ color:var(--accent); border-color:var(--line-strong); background:rgba(0,255,240,.07) }
+  .icon-btn[aria-pressed="true"]{ color:var(--accent); border-color:var(--line-strong); background:rgba(0,255,240,.12) }
 
-  /* Leaflet dark neon map look */
-  .leaflet-container {
-    background: #000;
-    outline: 1px solid rgba(0,255,240,0.15);
-    box-shadow: inset 0 0 40px rgba(255,0,234,0.07);
+  .hud-body{ padding:10px; display:flex; flex-direction:column; gap:10px }
+  .hud.collapsed .hud-body{ display:none }
+
+  /* target card */
+  .target{
+    display:flex; align-items:center; gap:12px;
+    background:linear-gradient(135deg, rgba(0,255,240,.06), rgba(255,0,234,.05));
+    border:1px solid rgba(255,0,234,0.28);
+    border-radius:12px; padding:10px 12px; min-height:64px;
   }
-  .leaflet-control-attribution{ display:none } /* ultra clean */
+  .target .flag{ font-size:34px; line-height:1; filter: drop-shadow(0 0 6px rgba(0,255,240,.35)) }
+  .target .meta{ min-width:0; flex:1 1 auto }
+  .target .label{ font:600 10px Inter, system-ui; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); opacity:.75 }
+  .target .name{
+    font:700 20px Inter, system-ui; line-height:1.2; margin-top:1px;
+    text-shadow:0 0 12px rgba(0,255,240,.3);
+    overflow-wrap:anywhere;
+  }
+  .target.flash-good{ animation: pulseGood .5s ease 1 }
+  .target.flash-bad{ animation: shake .35s ease 1 }
+  @keyframes pulseGood{ 0%{box-shadow:0 0 0 0 rgba(34,197,94,.55)} 100%{box-shadow:0 0 0 16px rgba(34,197,94,0)} }
+  @keyframes shake{ 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
+
+  .pips{ display:flex; gap:5px; margin-top:6px; align-items:center }
+  .pips[hidden]{ display:none }
+  .pip{ width:9px; height:9px; border-radius:50%; border:1px solid var(--line); background:transparent; transition: background .2s ease, border-color .2s ease }
+  .pip.used{ border-color:transparent }
+  .pips .tries{ font-size:11px; color:var(--muted); margin-left:4px }
+
+  /* progress */
+  .progress{ height:6px; border-radius:999px; background:rgba(0,255,240,.1); overflow:hidden; display:flex }
+  .progress i{ display:block; height:100%; width:0; transition: width .35s ease }
+  .progress .p-good{ background:var(--good) }
+  .progress .p-bad{ background:var(--bad) }
+
+  .stats{ display:flex; align-items:center; gap:6px; font:600 12px Inter, system-ui }
+  .stat{ display:flex; align-items:center; gap:5px; padding:3px 8px; border-radius:999px;
+    border:1px solid rgba(0,255,240,.18); background:rgba(0,255,240,.04); color:var(--text); white-space:nowrap }
+  .stat span{ color:var(--muted); font-weight:600; font-size:11px }
+  .stat.good b{ color:var(--good) } .stat.bad b{ color:var(--bad) }
+  .stat b{ font-variant-numeric: tabular-nums }
+  .stats .grow{ flex:1 1 auto }
+
+  /* controls */
+  .controls{ display:flex; gap:6px }
+  .btn{
+    background:rgba(4,6,10,.9); color:var(--text);
+    border:1px solid var(--line); padding:8px 12px; border-radius:10px;
+    font:700 13px Inter, system-ui; cursor:pointer; outline:none;
+    transition: transform .06s ease, box-shadow .18s ease, border-color .18s ease, opacity .18s ease;
+    white-space:nowrap;
+  }
+  .btn:hover:not(:disabled){ border-color:var(--line-strong); box-shadow:0 0 12px rgba(0,255,240,.22) }
+  .btn:active:not(:disabled){ transform:translateY(1px) }
+  .btn:focus-visible{ border-color:var(--accent); box-shadow:0 0 0 2px rgba(0,255,240,.3) }
+  .btn:disabled{ opacity:.4; cursor:not-allowed }
+  .btn.primary{ background:linear-gradient(180deg, rgba(0,255,240,.2), rgba(0,255,240,.08)); border-color:var(--line-strong); color:#eaffff }
+  .btn.wide{ flex:1 1 auto; text-align:left; display:flex; align-items:center; gap:6px; min-width:0 }
+  .btn.wide .sel{ flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; color:var(--muted) }
+  .btn.wide .caret{ opacity:.6; font-size:10px }
+
+  .msg{ font-size:12px; line-height:1.4; color:#bfefff; min-height:16px }
+  .msg.warn{ color:var(--warn) } .msg.bad{ color:#ffb4b4 } .msg.good{ color:#9df5bb }
+
+  /* ============ Region picker ============ */
+  .picker{
+    position:absolute; left:0; bottom:calc(100% + 8px); z-index:950;
+    width: min(380px, calc(100vw - 24px));
+    max-height: min(60vh, 460px); display:flex; flex-direction:column;
+    background:linear-gradient(180deg, rgba(10,10,16,0.97), rgba(4,4,9,0.97));
+    border:1px solid var(--line-strong); border-radius:14px;
+    box-shadow:0 0 24px rgba(0,255,240,.18), 0 10px 40px rgba(0,0,0,.7);
+    backdrop-filter: blur(10px);
+  }
+  .picker[hidden]{ display:none }
+  .picker-head, .picker-foot{ display:flex; align-items:center; gap:8px; padding:9px 10px; flex-wrap:wrap }
+  .picker-head{ border-bottom:1px solid rgba(0,255,240,.14) }
+  .picker-foot{ border-top:1px solid rgba(0,255,240,.14) }
+  .picker-head h2{ margin:0; font:700 12px Orbitron, monospace; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); flex:1 1 auto; min-width:0 }
+  .picker-body{ overflow-y:auto; padding:6px 10px 10px; scrollbar-width:thin; scrollbar-color:var(--line) transparent }
+  .picker-body::-webkit-scrollbar{ width:8px }
+  .picker-body::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px }
+  .mini{
+    background:transparent; border:1px solid var(--line); color:var(--muted);
+    border-radius:8px; padding:4px 9px; font:600 11px Inter, system-ui; cursor:pointer;
+    flex:0 0 auto; white-space:nowrap;
+  }
+  .mini:hover{ color:var(--accent); border-color:var(--line-strong) }
+
+  .cont{ margin-top:8px }
+  .cont-head{
+    display:flex; align-items:center; gap:8px; width:100%; text-align:left;
+    background:transparent; border:0; border-bottom:1px dashed rgba(0,255,240,.18);
+    padding:2px 0 5px; color:var(--text); cursor:pointer;
+    font:700 11px Orbitron, monospace; letter-spacing:.1em; text-transform:uppercase;
+  }
+  .cont-head:hover{ color:var(--accent) }
+  .cont-head .box{
+    width:13px; height:13px; flex:0 0 auto; border:1px solid var(--line-strong); border-radius:4px;
+    display:grid; place-items:center; font-size:10px; line-height:1; color:#04060a; background:transparent;
+  }
+  .cont-head[data-state="all"] .box{ background:var(--accent) }
+  .cont-head[data-state="all"] .box::after{ content:"✓" }
+  .cont-head[data-state="some"] .box::after{ content:""; width:7px; height:2px; background:var(--accent); display:block }
+  .cont-head .count{ margin-left:auto; font:600 10px Inter, system-ui; letter-spacing:0; color:var(--muted); opacity:.7 }
+
+  .subs{ display:flex; flex-wrap:wrap; gap:5px; padding:7px 0 2px }
+  .sub{
+    display:inline-flex; align-items:center; gap:6px;
+    background:rgba(0,255,240,.04); border:1px solid rgba(0,255,240,.2);
+    color:var(--text); border-radius:999px; padding:5px 10px;
+    font:600 12px Inter, system-ui; cursor:pointer; user-select:none;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .sub:hover{ border-color:var(--line-strong); background:rgba(0,255,240,.1) }
+  .sub .n{ font-size:10px; color:var(--muted); opacity:.7; font-variant-numeric:tabular-nums }
+  .sub[aria-pressed="true"]{
+    background:linear-gradient(180deg, rgba(0,255,240,.28), rgba(0,255,240,.12));
+    border-color:var(--accent); color:#eaffff; box-shadow:0 0 10px rgba(0,255,240,.25);
+  }
+  .sub[aria-pressed="true"] .n{ color:#bffbff; opacity:.9 }
+  .picker-foot .summary{ flex:1 1 auto; font:600 12px Inter, system-ui; color:var(--muted) }
+
+  /* ============ Help ============ */
+  .help{
+    position:absolute; left:0; bottom:calc(100% + 8px); z-index:940;
+    width:min(380px, calc(100vw - 24px)); padding:10px 12px;
+    background:rgba(6,6,12,.97); border:1px solid var(--line); border-radius:14px;
+    box-shadow:0 10px 40px rgba(0,0,0,.7); backdrop-filter:blur(10px);
+    font-size:12px; line-height:1.6; color:var(--muted);
+  }
+  .help[hidden]{ display:none }
+  .help h3{ margin:0 0 6px; font:700 11px Orbitron, monospace; letter-spacing:.12em; text-transform:uppercase; color:var(--accent) }
+  .help .legend{ display:flex; flex-wrap:wrap; gap:10px; margin:4px 0 8px }
+  .help .item{ display:flex; align-items:center; gap:6px; color:var(--text) }
+  .dot{ width:10px; height:10px; border-radius:50%; flex:0 0 auto }
+  .help kbd{
+    display:inline-block; min-width:18px; text-align:center; padding:1px 5px; margin-right:2px;
+    border:1px solid var(--line); border-radius:5px; background:rgba(0,255,240,.06);
+    font:600 11px ui-monospace, monospace; color:var(--text);
+  }
+  .help .keys{ display:grid; grid-template-columns:auto 1fr; gap:3px 10px; align-items:center }
+
+  /* toast for tiny screens / big announcements */
+  @media (max-width: 420px){
+    .hud{ left:8px; right:8px; bottom:8px; width:auto }
+    .target .name{ font-size:18px }
+    .picker, .help{ left:0; width:100% }
+    /* pinch to zoom on touch; the buttons would sit under the picker anyway */
+    .leaflet-control-zoom{ display:none }
+  }
+  @media (max-height: 520px){
+    .picker{ max-height:52vh }
+  }
 </style>
 </head>
 <body>
 <div id="app">
   <div id="map"></div>
-  <div class="hud">
-    <h1>CartoGuesser</h1>
 
-    <div class="row">
-      <div class="flagbox" style="flex:1">
-        <div class="flag" id="flag">🏳️</div>
-        <div>
-          <div class="name" id="countryName">—</div>
-          <div class="muted" id="attemptsLabel">Attempts: 0 / 3</div>
+  <div class="hud" id="hud">
+    <div class="hud-bar">
+      <div class="hud-title">CartoGuesser</div>
+      <button class="icon-btn" id="focusBtn" title="Recenter on the selected regions (F)" aria-label="Recenter map">⤢</button>
+      <button class="icon-btn" id="helpBtn" title="Legend &amp; shortcuts (?)" aria-pressed="false" aria-label="Help">?</button>
+      <button class="icon-btn" id="collapseBtn" title="Collapse panel" aria-label="Collapse panel">–</button>
+    </div>
+
+    <div class="hud-body" id="hudBody">
+      <div class="target" id="target">
+        <div class="flag" id="flag">🌍</div>
+        <div class="meta">
+          <div class="label" id="targetLabel">Ready</div>
+          <div class="name" id="countryName">Pick your regions</div>
+          <div class="pips" id="pips" hidden>
+            <span class="pip"></span><span class="pip"></span><span class="pip"></span>
+            <span class="tries" id="triesLabel">3 tries</span>
+          </div>
         </div>
       </div>
+
+      <div class="progress" id="progress" aria-hidden="true">
+        <i class="p-good" id="barGood"></i><i class="p-bad" id="barBad"></i>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><span>◷</span><b id="elapsedTime">0.0s</b></div>
+        <div class="stat good"><span>✓</span><b id="cleared">0</b></div>
+        <div class="stat bad"><span>✗</span><b id="missed">0</b></div>
+        <div class="grow"></div>
+        <div class="stat"><span>left</span><b id="remaining">—</b></div>
+      </div>
+
+      <div class="controls">
+        <button class="btn wide" id="regionBtn" aria-expanded="false" aria-controls="picker" title="Choose regions (R)">
+          🌍 <span class="sel" id="regionSummary">No regions</span> <span class="caret">▲</span>
+        </button>
+        <button class="btn primary" id="startBtn" title="Start a round (Enter)">Start</button>
+        <button class="btn" id="skipBtn" title="Give up on this country (S)" disabled>Skip</button>
+      </div>
+
+      <div class="msg" id="msg">Loading map data…</div>
     </div>
 
-    <div class="row">
-      <select id="region" multiple title="Ctrl/Cmd+click to select multiple regions">
-        <option value="world">🌍 World</option>
-        <optgroup label="Africa">
-          <option value="africa.north">North Africa</option>
-          <option value="africa.west">West Africa</option>
-          <option value="africa.east">East Africa</option>
-          <option value="africa.central">Central Africa</option>
-          <option value="africa.southern">Southern Africa</option>
-        </optgroup>
-        <optgroup label="Americas">
-          <option value="americas.north">North America</option>
-          <option value="americas.central">Central America</option>
-          <option value="americas.caribbean">Caribbean</option>
-          <option value="americas.south">South America</option>
-        </optgroup>
-        <optgroup label="Europe">
-          <option value="europe.northern">Northern Europe</option>
-          <option value="europe.western">Western Europe</option>
-          <option value="europe.eastern">Eastern Europe</option>
-          <option value="europe.southern">Southern Europe</option>
-          <option value="europe.central">Central Europe</option>
-          <option value="europe.balkans">Balkans</option>
-          <option value="europe.british_isles">British Isles</option>
-          <option value="europe.baltics">Baltics</option>
-        </optgroup>
-        <optgroup label="Asia">
-          <option value="asia.middle_east">Middle East</option>
-          <option value="asia.central">Central Asia</option>
-          <option value="asia.south">South Asia</option>
-          <option value="asia.southeast">Southeast Asia</option>
-          <option value="asia.east">East Asia</option>
-        </optgroup>
-        <optgroup label="Oceania">
-          <option value="oceania.australia_new_zealand">Australia &amp; New Zealand</option>
-          <option value="oceania.melanesia">Melanesia</option>
-          <option value="oceania.micronesia">Micronesia</option>
-          <option value="oceania.polynesia">Polynesia</option>
-        </optgroup>
-      </select>
-      <button id="startBtn">Start</button>
-      <button id="skipBtn" title="Mark incorrect and move on">Skip ⏭</button>
-    </div>
-
-    <div class="row statline">
-      <div class="chip">Remaining: <span id="remaining">—</span></div>
-      <div class="chip">Cleared: <span id="cleared">0</span></div>
-      <div class="chip">Time: <span id="elapsedTime">0.0s</span></div>
-      <div class="sep"></div>
-      <div class="legend">
-        <span class="item"><span class="dot" style="background:var(--good)"></span>1st</span>
-        <span class="item"><span class="dot" style="background:var(--warn)"></span>2nd</span>
-        <span class="item"><span class="dot" style="background:var(--orange)"></span>3rd</span>
-        <span class="item"><span class="dot" style="background:var(--bad)"></span>Miss (3)</span>
+    <!-- Popovers anchored to the HUD -->
+    <div class="picker" id="picker" hidden role="dialog" aria-label="Region selection">
+      <div class="picker-head">
+        <h2>Regions</h2>
+        <button class="mini" id="selectAll">Whole world</button>
+        <button class="mini" id="selectNone">Clear</button>
+      </div>
+      <div class="picker-body" id="pickerBody"></div>
+      <div class="picker-foot">
+        <span class="summary" id="pickerCount">0 countries</span>
+        <button class="mini" id="pickerDone">Done</button>
       </div>
     </div>
-    <div class="row">
-      <div class="msg" id="msg">Pick a region and hit Start.</div>
+
+    <div class="help" id="help" hidden>
+      <h3>How scoring works</h3>
+      <div class="legend">
+        <span class="item"><span class="dot" style="background:var(--good)"></span>1st try</span>
+        <span class="item"><span class="dot" style="background:var(--warn)"></span>2nd try</span>
+        <span class="item"><span class="dot" style="background:var(--orange)"></span>3rd try</span>
+        <span class="item"><span class="dot" style="background:var(--bad)"></span>Missed</span>
+      </div>
+      <h3>Shortcuts</h3>
+      <div class="keys">
+        <div><kbd>Enter</kbd></div><div>Start / restart a round</div>
+        <div><kbd>S</kbd></div><div>Skip the current country</div>
+        <div><kbd>R</kbd></div><div>Open the region picker</div>
+        <div><kbd>F</kbd></div><div>Recenter the map on your regions</div>
+        <div><kbd>Esc</kbd></div><div>Close popovers / stop the round</div>
+      </div>
     </div>
   </div>
 </div>
 
 <script>
-/* =========================
-   Region definitions using ISO 3166-1 alpha-3 codes.
-   Structure: continent -> subregion -> [ISO3...]
-========================= */
-const REGIONS = {
-  world: null,
-  africa: {
-    north: ['DZA','EGY','LBY','MAR','SDN','TUN','ESH'],
-    west: ['BEN','BFA','CPV','CIV','GMB','GHA','GIN','GNB','LBR','MLI','MRT','NER','NGA','SEN','SLE','TGO'],
-    east: ['BDI','COM','DJI','ERI','ETH','KEN','MDG','MWI','MUS','MOZ','RWA','SYC','SOM','SSD','TZA','UGA','ZMB','ZWE'],
-    central: ['AGO','CMR','CAF','TCD','COG','COD','GNQ','GAB','STP'],
-    southern: ['BWA','LSO','NAM','ZAF','SWZ']
-  },
-  americas: {
-    north: ['CAN','USA','MEX'],
-    central: ['BLZ','CRI','SLV','GTM','HND','NIC','PAN'],
-    caribbean: ['ATG','BHS','BRB','CUB','DMA','DOM','GRD','HTI','JAM','KNA','LCA','VCT','TTO'],
-    south: ['ARG','BOL','BRA','CHL','COL','ECU','GUY','PRY','PER','SUR','URY','VEN']
-  },
-  europe: {
-    northern: ['DNK','FIN','ISL','NOR','SWE'],
-    western: ['BEL','FRA','LUX','MCO','NLD'],
-    eastern: ['BLR','MDA','RUS','UKR'],
-    southern: ['AND','CYP','ITA','MLT','PRT','SMR','ESP','VAT'],
-    central: ['AUT','CZE','DEU','HUN','LIE','POL','SVK','CHE'],
-    balkans: ['ALB','BIH','BGR','HRV','GRC','MNE','MKD','ROU','SRB','SVN'],
-    british_isles: ['IRL','GBR'],
-    baltics: ['EST','LVA','LTU']
-  },
-  asia: {
-    middle_east: ['ARE','BHR','IRQ','IRN','ISR','JOR','KWT','LBN','OMN','PSE','QAT','SAU','SYR','TUR','YEM'],
-    central: ['KAZ','KGZ','TJK','TKM','UZB'],
-    south: ['AFG','BGD','BTN','IND','LKA','MDV','NPL','PAK'],
-    southeast: ['BRN','KHM','IDN','LAO','MMR','MYS','PHL','SGP','THA','TLS','VNM'],
-    east: ['CHN','JPN','KOR','PRK','MNG','TWN']
-  },
-  oceania: {
-    australia_new_zealand: ['AUS','NZL'],
-    melanesia: ['FJI','PNG','SLB','VUT'],
-    micronesia: ['FSM','KIR','MHL','NRU','PLW'],
-    polynesia: ['TON','TUV','WSM']
-  }
+"use strict";
+/* =========================================================
+   Region definitions (ISO 3166-1 alpha-3, plus dataset ids)
+   Subregions with no matching geometry are hidden at runtime.
+========================================================= */
+const REGION_TREE = [
+  { key:'africa', label:'Africa', subs:[
+    { key:'north',    label:'North Africa',    codes:['DZA','EGY','LBY','MAR','SDN','TUN','ESH'] },
+    { key:'west',     label:'West Africa',     codes:['BEN','BFA','CPV','CIV','GMB','GHA','GIN','GNB','LBR','MLI','MRT','NER','NGA','SEN','SLE','TGO'] },
+    { key:'east',     label:'East Africa',     codes:['BDI','COM','DJI','ERI','ETH','KEN','MDG','MWI','MUS','MOZ','RWA','SYC','SOM','SSD','TZA','UGA','ZMB','ZWE'] },
+    { key:'central',  label:'Central Africa',  codes:['AGO','CMR','CAF','TCD','COG','COD','GNQ','GAB','STP'] },
+    { key:'southern', label:'Southern Africa', codes:['BWA','LSO','NAM','ZAF','SWZ'] }
+  ]},
+  { key:'americas', label:'Americas', subs:[
+    { key:'north',     label:'North America',   codes:['CAN','USA','MEX'] },
+    { key:'central',   label:'Central America', codes:['BLZ','CRI','SLV','GTM','HND','NIC','PAN'] },
+    { key:'caribbean', label:'Caribbean',       codes:['ATG','BHS','BRB','CUB','DMA','DOM','GRD','HTI','JAM','KNA','LCA','VCT','TTO'] },
+    { key:'south',     label:'South America',   codes:['ARG','BOL','BRA','CHL','COL','ECU','GUY','PRY','PER','SUR','URY','VEN'] }
+  ]},
+  { key:'europe', label:'Europe', subs:[
+    { key:'british_isles', label:'British Isles',   codes:['IRL','GBR'] },
+    { key:'northern',      label:'Northern Europe', codes:['DNK','FIN','ISL','NOR','SWE'] },
+    { key:'baltics',       label:'Baltics',         codes:['EST','LVA','LTU'] },
+    { key:'western',       label:'Western Europe',  codes:['BEL','FRA','LUX','MCO','NLD'] },
+    { key:'central',       label:'Central Europe',  codes:['AUT','CZE','DEU','HUN','LIE','POL','SVK','CHE'] },
+    { key:'eastern',       label:'Eastern Europe',  codes:['BLR','MDA','RUS','UKR'] },
+    { key:'southern',      label:'Southern Europe', codes:['AND','CYP','ITA','MLT','PRT','SMR','ESP','VAT'] },
+    { key:'balkans',       label:'Balkans',         codes:['ALB','BIH','BGR','HRV','GRC','MNE','MKD','ROU','SRB','SVN','CS-KM'] }
+  ]},
+  { key:'asia', label:'Asia', subs:[
+    { key:'middle_east', label:'Middle East',    codes:['ARE','BHR','IRQ','IRN','ISR','JOR','KWT','LBN','OMN','PSE','QAT','SAU','SYR','TUR','YEM'] },
+    { key:'caucasus',    label:'Caucasus',       codes:['ARM','AZE','GEO'] },
+    { key:'central',     label:'Central Asia',   codes:['KAZ','KGZ','TJK','TKM','UZB'] },
+    { key:'south',       label:'South Asia',     codes:['AFG','BGD','BTN','IND','LKA','MDV','NPL','PAK'] },
+    { key:'southeast',   label:'Southeast Asia', codes:['BRN','KHM','IDN','LAO','MMR','MYS','PHL','SGP','THA','TLS','VNM'] },
+    { key:'east',        label:'East Asia',      codes:['CHN','JPN','KOR','PRK','MNG','TWN'] }
+  ]},
+  { key:'oceania', label:'Oceania', subs:[
+    { key:'australia_new_zealand', label:'Australia & NZ', codes:['AUS','NZL'] },
+    { key:'melanesia',  label:'Melanesia',  codes:['FJI','PNG','SLB','VUT'] },
+    { key:'micronesia', label:'Micronesia', codes:['FSM','KIR','MHL','NRU','PLW'] },
+    { key:'polynesia',  label:'Polynesia',  codes:['TON','TUV','WSM'] }
+  ]}
+];
+
+/* Features that exist in the geometry but are never quiz targets
+   (dependencies, disputed/unrecognised entities, uninhabited land). */
+const NON_PLAYABLE = new Set([
+  'ATA','ATF','BMU','FLK','GRL','GUF','NCL','PRI',
+  'Northern Cyprus','Somaliland'
+]);
+
+/* Dataset name -> preferred display name */
+const NAME_FIX = new Map(Object.entries({
+  'United States of America':'United States',
+  'United Republic of Tanzania':'Tanzania',
+  'Republic of Serbia':'Serbia',
+  'Republic of the Congo':'Republic of the Congo',
+  'Democratic Republic of the Congo':'DR Congo',
+  'Macedonia':'North Macedonia',
+  'Swaziland':'Eswatini',
+  'Guinea Bissau':'Guinea-Bissau',
+  'East Timor':'Timor-Leste',
+  'The Bahamas':'Bahamas',
+  'West Bank':'Palestine',
+  'Czech Republic':'Czechia',
+  'Ivory Coast':'Ivory Coast'
+}));
+
+/* ISO3 codes missing from the shared ISO map */
+const EXTRA_ISO2 = { 'CS-KM':'XK', 'PSE':'PS' };
+
+const STORE_SELECTION = 'cartoguesser.selection.v2';
+const STORE_BEST      = 'cartoguesser.best.v2';
+
+/* =========================================================
+   State
+========================================================= */
+const state = {
+  phase: 'idle',          // 'idle' | 'playing' | 'done'
+  selection: new Set(),   // "continent.sub" keys
+  activeIds: new Set(),   // ids in the running round
+  previewIds: new Set(),  // ids highlighted while idle
+  queue: [],
+  currentId: null,
+  locked: false,          // true between a resolved country and the next one
+  attempts: 0,
+  wrongThisRound: new Set(),
+  cleared: 0,
+  missed: 0,
+  total: 0,
+  startTime: 0,
+  elapsed: 0
 };
 
-/* =========================
-   State
-========================= */
-let map;
-let countriesLayer;
-let layerById = new Map();      // iso3-or-id -> Leaflet layer
-let featureById = new Map();    // id -> GeoJSON feature
-let playableIds = [];           // ids for current region
-let activeIdSet = new Set();    // uppercase ids for current regions
-let previewIdSet = new Set();   // uppercase ids for preview selection
-let remainingIds = [];          // queue to play
-let clearedCount = 0;
-let attempts = 0;
-let currentId = null;
-let cca3_to_cca2 = new Map();   // for emoji
-let nameFix = new Map();        // name normalizations for lookups
-let startTime = 0;              // ms timestamp when round starts
-let elapsedTime = 0;            // ms elapsed during current round
+let map, countriesLayer;
+const layerById   = new Map();  // id -> layer
+const featureById = new Map();  // id -> feature
+const playableIdSet = new Set();
+let availableByKey = new Map(); // "continent.sub" -> [ids present in the data]
+let hoveredLayer = null;
+let timerHandle = null;
+let advanceHandle = null;
+let iso3to2 = new Map();
 
-/* Some common name fixes for joining if needed */
-[
- ["Côte d'Ivoire","Ivory Coast"],
- ["Congo, The Democratic Republic of the","Democratic Republic of the Congo"],
- ["Congo","Republic of the Congo"],
- ["Eswatini","Swaziland"],
- ["Myanmar","Myanmar"],
- ["Russian Federation","Russia"],
- ["Korea, Republic of","South Korea"],
- ["Korea, Democratic People's Republic of","North Korea"],
- ["Syrian Arab Republic","Syria"],
- ["Viet Nam","Vietnam"],
- ["Bolivia (Plurinational State of)","Bolivia"],
- ["Iran (Islamic Republic of)","Iran"],
- ["United Republic of Tanzania","Tanzania"],
- ["Lao People's Democratic Republic","Laos"],
- ["Moldova, Republic of","Moldova"],
- ["Micronesia, Federated States of","Micronesia"],
- ["Venezuela (Bolivarian Republic of)","Venezuela"],
- ["Palestine, State of","Palestine"],
- ["United States of America","United States"],
- ["Czechia","Czech Republic"]
-].forEach(([a,b])=>nameFix.set(a,b));
-
-/* =========================
-   Utility
-========================= */
+/* =========================================================
+   Small helpers
+========================================================= */
 const el = id => document.getElementById(id);
-function getSelectedRegions(){
-  const sel = el('region');
-  return Array.from(sel.selectedOptions).map(o=>o.value);
+
+const cssCache = new Map();
+function cssVar(name){
+  if(cssCache.has(name)) return cssCache.get(name);
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#fff';
+  cssCache.set(name, v);
+  return v;
 }
-function setMsg(t){ const m=el('msg'); m.textContent = t; m.classList.add('blink'); setTimeout(()=>m.classList.remove('blink'), 900); }
+
+function setMsg(text, tone){
+  const m = el('msg');
+  m.textContent = text;
+  m.className = 'msg' + (tone ? ' ' + tone : '');
+}
+
 function toEmojiFlag(iso2){
-  if(!iso2 || iso2.length!==2) return "🏳️";
-  const up = iso2.toUpperCase();
-  const A = 127397;
+  if(!iso2 || iso2.length !== 2) return '🏳️';
+  const up = iso2.toUpperCase(), A = 127397;
   return String.fromCodePoint(up.charCodeAt(0)+A) + String.fromCodePoint(up.charCodeAt(1)+A);
 }
-function fitToIds(ids){
-  let bounds;
-  ids.forEach(id=>{
-    const lyr = layerById.get(id);
-    if(!lyr) return;
-    const b = lyr.getBounds();
-    if(!bounds) bounds = b; else bounds = bounds.extend(b);
-  });
-  if(bounds){
-    const padded = bounds.pad(ids.length === 1 ? 0.04 : 0.08);
-    map.flyToBounds(padded, { maxZoom: ids.length === 1 ? 8 : 6, animate: true, duration: 0.6 });
-  }
+function emojiForId(id){
+  if(!id) return '🏳️';
+  const up = String(id).toUpperCase();
+  return toEmojiFlag(EXTRA_ISO2[id] || EXTRA_ISO2[up] || iso3to2.get(up));
 }
-function randomChoice(arr){
-  return arr[Math.floor(Math.random()*arr.length)];
+function displayName(id){
+  const f = featureById.get(id);
+  const raw = (f && f.properties && (f.properties.name || f.properties.ADMIN || f.properties.NAME)) || id;
+  return NAME_FIX.get(raw) || raw;
+}
+function formatTime(ms){
+  const s = ms/1000;
+  if(s < 60) return s.toFixed(1) + 's';
+  const m = Math.floor(s/60);
+  return m + ':' + (s - m*60).toFixed(1).padStart(4,'0');
 }
 function shuffle(a){
-  for (let i = a.length - 1; i > 0; i--) {
+  for(let i = a.length - 1; i > 0; i--){
     const j = Math.floor(Math.random() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
 }
 
-function formatTime(ms){
-  return (ms/1000).toFixed(1) + 's';
+/* =========================================================
+   Geometry helpers
+   Country bounds are precomputed once, with an antimeridian
+   fix so Russia / Fiji / NZ don't claim the whole globe.
+========================================================= */
+function featureBounds(feature){
+  const g = feature.geometry;
+  if(!g) return null;
+  let minLat = 90, maxLat = -90;
+  let minLng = 180, maxLng = -180;      // raw longitudes
+  let minLngS = 360, maxLngS = 0;       // longitudes shifted to [0,360)
+  let count = 0;
+
+  (function walk(coords){
+    if(typeof coords[0] === 'number'){
+      const lng = coords[0], lat = coords[1];
+      if(lat < minLat) minLat = lat;
+      if(lat > maxLat) maxLat = lat;
+      if(lng < minLng) minLng = lng;
+      if(lng > maxLng) maxLng = lng;
+      const s = lng < 0 ? lng + 360 : lng;
+      if(s < minLngS) minLngS = s;
+      if(s > maxLngS) maxLngS = s;
+      count++;
+      return;
+    }
+    for(const c of coords) walk(c);
+  })(g.coordinates);
+
+  if(!count) return null;
+  // Pick whichever longitude framing is tighter (handles the 180° seam).
+  const useShifted = (maxLngS - minLngS) < (maxLng - minLng);
+  const west = useShifted ? minLngS : minLng;
+  const east = useShifted ? maxLngS : maxLng;
+  return L.latLngBounds([minLat, west], [maxLat, east]);
 }
 
-/* =========================
-   Loading data (robust with fallbacks)
-========================= */
-async function fetchJSON(url){
-  const r = await fetch(url, {mode:'cors'});
-  if(!r.ok) throw new Error(`HTTP ${r.status}`);
-  return await r.json();
-}
-async function fetchText(url){
-  const r = await fetch(url, {mode:'cors'});
-  if(!r.ok) throw new Error(`HTTP ${r.status}`);
-  return await r.text();
-}
+const boundsById = new Map();
+const WORLD_BOUNDS = L.latLngBounds([-85.05, -180], [85.05, 180]);
 
-/* Try several GeoJSON sources until one works.
-   We prefer one that carries ISO3 in feature.id or properties. */
-async function loadGeoCountries(){
-  const sources = [
-    // 0) Local copy bundled with the site
-    "../assets/data/countries.geojson",
-    // 1) Widely-used world countries GeoJSON (Natural Earth via GitHub)
-    "https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json",
-    // 2) Alternative jsDelivr mirror (may 404, left as fallback examples)
-    "https://cdn.jsdelivr.net/gh/datasets/geo-countries@master/data/countries.geojson",
-    // 3) Another popular mirror (might change)
-    "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson"
-  ];
-  let lastErr;
-  for(const u of sources){
-    try { return await fetchJSON(u); }
-    catch(e){ lastErr = e; /* try next */ }
+function unionBounds(ids){
+  let out = null;
+  for(const id of ids){
+    const b = boundsById.get(id);
+    if(!b) continue;
+    // Clone: Leaflet caches bounds objects, extending them in place corrupts layers.
+    if(!out) out = L.latLngBounds(b.getSouthWest(), b.getNorthEast());
+    else out.extend(b);
   }
-  throw lastErr || new Error("Failed to load any GeoJSON source");
+  return out;
 }
 
-/* Local ISO3->ISO2 map for flags */
-async function loadIsoMap(){
-  const data = await fetchJSON('../assets/data/iso3to2.json');
-  return new Map(Object.entries(data));
+let fitHandle = null;
+function fitToIds(ids, opts){
+  const b = unionBounds(ids);
+  if(!b || !b.isValid()) return;
+  const single = ids.length === 1;
+  const options = Object.assign({
+    maxZoom: single ? 7 : 6,
+    padding: [30, 30],
+    animate: true,
+    duration: 0.7
+  }, opts || {});
+  clearTimeout(fitHandle);
+  fitHandle = setTimeout(()=> map.flyToBounds(b.pad(single ? 0.15 : 0.05), options), 0);
 }
 
-/* =========================
-   Map + Layers
-========================= */
-function baseStyle(){
+/* =========================================================
+   Styling — one function derives every layer's look from state
+========================================================= */
+const RESULT_FILL = { 1:'--good', 2:'--warn', 3:'--orange', miss:'--bad' };
+
+function styleFor(layer){
+  const hovered = (layer === hoveredLayer);
+
+  if(layer.__result){
+    return {
+      weight: hovered ? 2 : 1.2,
+      color: 'rgba(255,255,255,0.85)',
+      fillColor: cssVar(RESULT_FILL[layer.__result]),
+      fillOpacity: 0.78
+    };
+  }
+  if(!layer.__playable){
+    return { weight: 0.5, color: 'rgba(0,255,240,0.10)', fillColor: '#06070b', fillOpacity: 0.35 };
+  }
+
+  const inRound   = state.phase !== 'idle' && state.activeIds.has(layer.__id);
+  const inPreview = state.phase === 'idle' && state.previewIds.has(layer.__id);
+  const lit = inRound || inPreview;
+
   return {
-    weight: 0.8,
-    color: 'rgba(0,255,240,0.45)',      // neon cyan outline
-    fillColor: '#0a0a0a',               // nearly black land
-    fillOpacity: 0.35,
-    lineJoin: 'round',
-    lineCap: 'round'
+    weight:      hovered ? 1.8 : (lit ? 1 : 0.6),
+    color:       hovered ? cssVar('--accent2') : (lit ? 'rgba(0,255,240,0.75)' : 'rgba(0,255,240,0.22)'),
+    fillColor:   lit ? cssVar('--accent') : '#0b0d13',
+    fillOpacity: hovered ? (lit ? 0.32 : 0.22) : (lit ? 0.16 : 0.4)
   };
 }
 
-function resetLayerStyle(layer){
-  const id = layer.__id.toUpperCase();
-  if(layer.__lockedColor){
-    layer.setStyle({ weight: 1.3, color: 'rgba(255,255,255,0.9)' });
+function paint(layer){ layer.setStyle(styleFor(layer)); }
+function repaintAll(){ if(countriesLayer) countriesLayer.eachLayer(paint); }
+
+/* Single source of truth for hover, so a missed mouseout can never
+   strand a highlighted country behind the cursor. */
+function setHover(layer){
+  if(hoveredLayer === layer) return;
+  const prev = hoveredLayer;
+  hoveredLayer = layer;
+  if(prev) paint(prev);
+  if(layer) paint(layer);
+}
+
+/* =========================================================
+   Interaction
+========================================================= */
+function onCountryClick(e){
+  const layer = e.target;
+  if(state.locked) return;                       // answer already resolved, next one is loading
+  if(state.phase !== 'playing' || !state.currentId){
+    setMsg(`${displayName(layer.__id)}${state.phase === 'playing' ? '' : ' — press Start to play.'}`);
+    return;
+  }
+  const id = layer.__id;
+
+  if(id === state.currentId){
+    const tries = Math.min(state.attempts + 1, 3);
+    layer.__result = tries;
+    paint(layer);
+    state.cleared++;
+    flashTarget('flash-good');
+    setMsg(state.attempts === 0
+      ? `Correct — first try!`
+      : `Correct on try ${tries}.`, 'good');
+    finishRound();
+    return;
+  }
+
+  if(!state.activeIds.has(id)){
+    setMsg(`${displayName(id)} isn't in the regions you picked — no penalty.`, 'warn');
+    return;
+  }
+  if(state.wrongThisRound.has(id)){
+    setMsg(`Already tried ${displayName(id)}.`, 'warn');
+    return;
+  }
+
+  state.wrongThisRound.add(id);
+  state.attempts++;
+  updatePips();
+  flashTarget('flash-bad');
+
+  if(state.attempts >= 3){
+    const target = layerById.get(state.currentId);
+    if(target){ target.__result = 'miss'; paint(target); }
+    state.missed++;
+    setMsg(`Out of tries — that was ${displayName(state.currentId)}.`, 'bad');
+    finishRound();
   }else{
-    const style = baseStyle();
-    if(activeIdSet.has(id)){
-      style.fillColor = getCSS('var(--accent)');
-      style.fillOpacity = 0.35;
-    }else if(previewIdSet.has(id)){
-      style.fillColor = getCSS('var(--accent)');
-      style.fillOpacity = 0.5;
-    }
-    layer.setStyle(style);
+    setMsg(`That's ${displayName(id)}. ${3 - state.attempts} ${3 - state.attempts === 1 ? 'try' : 'tries'} left.`, 'bad');
   }
 }
 
-function highlightHover(e){
-  const layer = e.target;
-  layer.setStyle({ weight: 1.3, color: 'rgba(255,0,234,0.6)' }); // magenta glow
-  if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) layer.bringToFront();
-}
-function resetHover(e){
-  resetLayerStyle(e.target);
+function flashTarget(cls){
+  const t = el('target');
+  t.classList.remove('flash-good','flash-bad');
+  void t.offsetWidth;              // restart the animation
+  t.classList.add(cls);
 }
 
-function countryClicked(e){
-  const layer = e.target;
-  const clickedId = layer.__id;
-  if(!currentId) return;
+function finishRound(){
+  state.locked = true;
+  updateStats();
+  clearTimeout(advanceHandle);
+  advanceHandle = setTimeout(nextTarget, 750);
+}
 
-  if(clickedId === currentId){
-    // Correct!
-    const palette = [ "var(--good)","var(--warn)","var(--orange)"];
-    const fill = attempts < 3 ? palette[attempts] : "var(--bad)";
-    layer.setStyle({ fillColor: getCSS(fill), fillOpacity: 0.75, color: "rgba(255,255,255,0.9)", weight:1.3 });
-    layer.__lockedColor = true;
-
-    const ordinal = attempts===0 ? "1st" : attempts===1 ? "2nd" : "3rd";
-    setMsg(`Correct on your ${ordinal} try!`);
-    clearedCount += 1;
-    el('cleared').textContent = String(clearedCount);
-
-    // move to next
-    setTimeout(nextTarget, 800);
-  }else{
-    // Wrong
-    attempts += 1;
-    if(attempts >= 3){
-      // Reveal as missed (red)
-      const targetLayer = layerById.get(currentId);
-      if(targetLayer){
-        targetLayer.setStyle({ fillColor: getCSS("var(--bad)"), fillOpacity: 0.75, color: "rgba(255,255,255,0.9)", weight:1.3 });
-        targetLayer.__lockedColor = true;
-      }
-      setMsg(`Out of tries! That was ${getDisplayName(currentId)}.`);
-      setTimeout(nextTarget, 900);
-    }else{
-      setMsg(`Nope, that's ${getDisplayName(clickedId)}. Try again…`);
-      // brief wrong-click flash
-      layer.setStyle({ fillOpacity: 0.5, fillColor: "rgba(255,0,0,0.35)" });
-      setTimeout(()=> resetLayerStyle(layer), 350);
-    }
-    el('attemptsLabel').textContent = `Attempts: ${Math.min(attempts,3)} / 3`;
+/* =========================================================
+   Selection / preview
+========================================================= */
+function idsForSelection(){
+  const out = new Set();
+  for(const key of state.selection){
+    const ids = availableByKey.get(key);
+    if(ids) ids.forEach(id => out.add(id));
   }
+  return out;
 }
 
-function getCSS(varExpr){
-  // read CSS variable value
-  const m = varExpr.match(/var\((.+)\)/);
-  if(!m) return varExpr;
-  return getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim() || "#fff";
+function refreshPreview(){
+  state.previewIds = idsForSelection();
+  if(state.phase === 'done'){
+    // A finished board goes back to preview mode as soon as the picks change.
+    countriesLayer.eachLayer(l => { delete l.__result; });
+    state.phase = 'idle';
+    state.cleared = state.missed = state.total = 0;
+    state.startTime = 0; state.elapsed = 0;
+    el('elapsedTime').textContent = formatTime(0);
+    el('startBtn').textContent = 'Start';
+  }
+  if(state.phase !== 'playing') repaintAll();
+  updateSelectionUI();
+  updateStats();
+  if(state.phase === 'playing') setMsg('Selection changed — hit Restart to play the new regions.', 'warn');
 }
 
-function getDisplayName(id){
-  const f = featureById.get(id);
-  if(!f) return "Unknown";
-  const raw = f.properties && (f.properties.name || f.properties.ADMIN || f.properties.admin || f.properties.NAME || f.properties.country);
-  return nameFix.get(raw) || raw || id;
-}
+function selectionLabel(){
+  const n = state.selection.size;
+  if(n === 0) return 'No regions';
+  const allKeys = [];
+  REGION_TREE.forEach(c => c.subs.forEach(s => { if(availableByKey.has(c.key+'.'+s.key)) allKeys.push(c.key+'.'+s.key); }));
+  if(n === allKeys.length) return 'Whole world';
 
-function getEmojiForId(id){
-  if(!id) return "🏳️";
-  const iso2 = cca3_to_cca2.get(id.toUpperCase());
-  return toEmojiFlag(iso2);
-}
-
-function getRegionIds(path){
-  if(Array.isArray(path)){
-    if(path.length === 0 || path.includes('world')) return [];
-    const set = new Set();
-    path.forEach(p=>{
-      getRegionIds(p).forEach(id=>set.add(id));
+  // Collapse whole continents into their own name.
+  const parts = [];
+  for(const cont of REGION_TREE){
+    const keys = cont.subs.map(s => cont.key+'.'+s.key).filter(k => availableByKey.has(k));
+    if(!keys.length) continue;
+    const picked = keys.filter(k => state.selection.has(k));
+    if(!picked.length) continue;
+    if(picked.length === keys.length){ parts.push(cont.label); }
+    else picked.forEach(k => {
+      const sub = cont.subs.find(s => cont.key+'.'+s.key === k);
+      parts.push(sub ? sub.label : k);
     });
-    return [...set];
   }
-  if(!path || path === 'world') return [];
-  const parts = path.split('.');
-  let node = REGIONS;
-  for(const p of parts){ node = node && node[p]; }
-  return Array.isArray(node) ? node : [];
+  if(parts.length <= 2) return parts.join(' + ');
+  return `${parts[0]} +${parts.length - 1} more`;
 }
 
-function previewRegion(keys){
-  // reset previous preview styles
-  countriesLayer.eachLayer(layer=>{
-    delete layer.__lockedColor;
+function updateSelectionUI(){
+  const count = state.previewIds.size;
+  el('regionSummary').textContent = selectionLabel();
+  el('pickerCount').textContent = count === 1 ? '1 country' : `${count} countries`;
+
+  document.querySelectorAll('.sub').forEach(btn=>{
+    btn.setAttribute('aria-pressed', state.selection.has(btn.dataset.key) ? 'true' : 'false');
   });
-  activeIdSet.clear();
-  const ids = getRegionIds(keys).map(i=>i.toUpperCase());
-  if(ids.length === 0){
-    previewIdSet = new Set([...layerById.keys()].map(k=>k.toUpperCase()));
-  }else{
-    previewIdSet = new Set(ids);
+  document.querySelectorAll('.cont-head').forEach(head=>{
+    const cont = REGION_TREE.find(c => c.key === head.dataset.cont);
+    const keys = cont.subs.map(s => cont.key+'.'+s.key).filter(k => availableByKey.has(k));
+    const on = keys.filter(k => state.selection.has(k)).length;
+    head.dataset.state = on === 0 ? 'none' : (on === keys.length ? 'all' : 'some');
+  });
+
+  el('startBtn').disabled = count === 0;
+  if(state.phase === 'idle'){
+    el('remaining').textContent = count ? String(count) : '—';
+    el('countryName').textContent = count ? `${count} countries ready` : 'Pick your regions';
+    el('targetLabel').textContent = 'Ready';
+    el('flag').textContent = count ? '🎯' : '🌍';
   }
-  countriesLayer.eachLayer(resetLayerStyle);
+  try{ localStorage.setItem(STORE_SELECTION, JSON.stringify([...state.selection])); }catch(e){}
 }
 
-/* =========================
+/* =========================================================
    Game flow
-========================= */
-function setupForRegion(keys){
-  // Reset any previous round coloring/highlights
-  countriesLayer.eachLayer(layer=>{
-    delete layer.__lockedColor;
-  });
-  previewIdSet.clear();
+========================================================= */
+function startRound(){
+  const ids = [...idsForSelection()];
+  if(!ids.length){ setMsg('Pick at least one region first.', 'warn'); openPicker(true); return; }
 
-  const wanted = new Set(getRegionIds(keys).map(i=>i.toUpperCase()));
-  const ids = [];
-  countriesLayer.eachLayer(layer=>{
-    const id = layer.__id;
-    const up = id.toUpperCase();
-    if(wanted.size === 0 || wanted.has(up)){
-      ids.push(id);
-    }
-  });
-  playableIds = ids;
-  activeIdSet = new Set(ids.map(i=>i.toUpperCase()));
-  remainingIds = shuffle([...playableIds]);
-  clearedCount = 0;
-  startTime = performance.now();
-  elapsedTime = 0;
-  el('cleared').textContent = "0";
-  el('elapsedTime').textContent = formatTime(0);
-  el('remaining').textContent = String(remainingIds.length);
-  countriesLayer.eachLayer(resetLayerStyle);
-  fitToIds(remainingIds);
+  clearTimeout(advanceHandle);
+  countriesLayer.eachLayer(l => { delete l.__result; });
+
+  state.phase = 'playing';
+  state.activeIds = new Set(ids);
+  state.previewIds = new Set();
+  state.queue = shuffle(ids.slice());
+  state.cleared = 0;
+  state.missed = 0;
+  state.total = ids.length;
+  state.currentId = null;
+  state.locked = false;
+  state.startTime = performance.now();
+  state.elapsed = 0;
+
+  el('map').classList.add('is-playing');
+  el('pips').hidden = false;
+  el('skipBtn').disabled = false;
+  el('startBtn').textContent = 'Restart';
+  closePicker();
+
+  repaintAll();
+  fitToIds(ids);
+  startTimer();
+  nextTarget();
+}
+
+function stopRound(message){
+  clearTimeout(advanceHandle);
+  stopTimer();
+  state.phase = 'idle';
+  state.currentId = null;
+  state.locked = false;
+  state.activeIds.clear();
+  el('map').classList.remove('is-playing');
+  el('pips').hidden = true;
+  el('skipBtn').disabled = true;
+  el('startBtn').textContent = 'Start';
+  refreshPreview();
+  if(message) setMsg(message);
 }
 
 function nextTarget(){
-  if(startTime){
-    elapsedTime = performance.now() - startTime;
-    el('elapsedTime').textContent = formatTime(elapsedTime);
-  }
-  attempts = 0;
-  el('attemptsLabel').textContent = `Attempts: 0 / 3`;
-  if(remainingIds.length === 0){
-    currentId = null;
-    el('countryName').textContent = "🎉 Region complete!";
-    el('flag').textContent = "🏁";
-    const finalTime = formatTime(elapsedTime);
-    setMsg(`All done in ${finalTime}! Cleared ${clearedCount}/${playableIds.length}. Pick another region to keep going.`);
+  state.attempts = 0;
+  state.locked = false;
+  state.wrongThisRound.clear();
+  updatePips();
+
+  if(!state.queue.length){
+    endRound();
     return;
   }
-  currentId = remainingIds.pop();
-  el('remaining').textContent = String(remainingIds.length);
-
-  const name = getDisplayName(currentId);
-  el('countryName').textContent = name || "—";
-  el('flag').textContent = getEmojiForId(currentId);
-
-  setMsg(`Find ${name} on the map.`);
+  state.currentId = state.queue.pop();
+  const name = displayName(state.currentId);
+  el('targetLabel').textContent = 'Find on the map';
+  el('countryName').textContent = name;
+  el('flag').textContent = emojiForId(state.currentId);
+  updateStats();
+  setMsg(`Click ${name}. You get 3 tries.`);
 }
 
-/* =========================
-   Initialization
-========================= */
-(async function init(){
-  // Map
-  map = L.map('map', {
-    zoomControl: true,
-    minZoom: 2,
-    maxZoom: 10,
-    zoomSnap: 0.25,
-    wheelPxPerZoomLevel: 80,
-    worldCopyJump: true
-  }).setView([20, 0], 2);
+function endRound(){
+  state.phase = 'done';
+  state.currentId = null;
+  stopTimer();
+  el('map').classList.remove('is-playing');
+  el('pips').hidden = true;
+  el('skipBtn').disabled = true;
+  el('startBtn').textContent = 'Play again';
+  el('targetLabel').textContent = 'Round complete';
+  el('countryName').textContent = `${state.cleared} / ${state.total} correct`;
+  el('flag').textContent = state.missed === 0 ? '🏆' : '🏁';
+  updateStats();
 
-  // No basemap tiles to keep it clean/black. Just countries polygons.
-
-  // Load code map (for flags)
-  try{
-    cca3_to_cca2 = await loadIsoMap();
-  }catch(e){
-    console.warn("Failed to load ISO map; emoji may be blank.", e);
+  const key = [...state.selection].sort().join('|') || 'none';
+  const time = state.elapsed;
+  let best = null;
+  try{ best = JSON.parse(localStorage.getItem(STORE_BEST) || '{}')[key] || null; }catch(e){}
+  const perfect = state.missed === 0;
+  let note = `Finished in ${formatTime(time)} — ${state.cleared} correct, ${state.missed} missed.`;
+  if(perfect && (!best || time < best)){
+    note += ' New best time!';
+    try{
+      const all = JSON.parse(localStorage.getItem(STORE_BEST) || '{}');
+      all[key] = time;
+      localStorage.setItem(STORE_BEST, JSON.stringify(all));
+    }catch(e){}
+  }else if(best){
+    note += ` Best clean run: ${formatTime(best)}.`;
   }
+  setMsg(note, perfect ? 'good' : null);
+}
 
-  // Load countries geometry
+function skipCurrent(){
+  if(state.phase !== 'playing' || !state.currentId || state.locked) return;
+  const target = layerById.get(state.currentId);
+  if(target){ target.__result = 'miss'; paint(target); }
+  state.missed++;
+  setMsg(`Skipped — that was ${displayName(state.currentId)}.`, 'warn');
+  finishRound();
+}
+
+function updatePips(){
+  const pips = el('pips').querySelectorAll('.pip');
+  const colors = [cssVar('--good'), cssVar('--warn'), cssVar('--orange')];
+  pips.forEach((p, i)=>{
+    const used = i < state.attempts;
+    p.classList.toggle('used', used);
+    p.style.background = used ? cssVar('--bad') : 'transparent';
+    p.style.borderColor = used ? 'transparent' : colors[i];
+  });
+  const left = Math.max(0, 3 - state.attempts);
+  el('triesLabel').textContent = left === 1 ? '1 try left' : `${left} tries left`;
+}
+
+function updateStats(){
+  el('cleared').textContent = String(state.cleared);
+  el('missed').textContent  = String(state.missed);
+  const done = state.cleared + state.missed;
+  const left = Math.max(0, state.total - done);
+  el('remaining').textContent = state.phase === 'idle' ? String(state.previewIds.size || '—') : String(left);
+  const total = state.total || 1;
+  el('barGood').style.width = (state.cleared / total * 100) + '%';
+  el('barBad').style.width  = (state.missed  / total * 100) + '%';
+}
+
+function startTimer(){
+  stopTimer();
+  timerHandle = setInterval(()=>{
+    state.elapsed = performance.now() - state.startTime;
+    el('elapsedTime').textContent = formatTime(state.elapsed);
+  }, 100);
+}
+function stopTimer(){
+  if(timerHandle){ clearInterval(timerHandle); timerHandle = null; }
+  if(state.startTime){
+    state.elapsed = performance.now() - state.startTime;
+    el('elapsedTime').textContent = formatTime(state.elapsed);
+  }
+}
+
+/* =========================================================
+   Region picker UI
+========================================================= */
+function buildPicker(){
+  const body = el('pickerBody');
+  body.innerHTML = '';
+
+  REGION_TREE.forEach(cont=>{
+    const usable = cont.subs.filter(s => availableByKey.has(cont.key + '.' + s.key));
+    if(!usable.length) return;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'cont';
+
+    const head = document.createElement('button');
+    head.className = 'cont-head';
+    head.type = 'button';
+    head.dataset.cont = cont.key;
+    head.dataset.state = 'none';
+    const total = usable.reduce((n, s)=> n + availableByKey.get(cont.key+'.'+s.key).length, 0);
+    head.innerHTML = `<span class="box"></span><span>${cont.label}</span><span class="count">${total}</span>`;
+    head.title = `Toggle all of ${cont.label}`;
+    head.addEventListener('click', ()=>{
+      const keys = usable.map(s => cont.key + '.' + s.key);
+      const allOn = keys.every(k => state.selection.has(k));
+      keys.forEach(k => allOn ? state.selection.delete(k) : state.selection.add(k));
+      refreshPreview();
+    });
+
+    const subs = document.createElement('div');
+    subs.className = 'subs';
+    usable.forEach(s=>{
+      const key = cont.key + '.' + s.key;
+      const btn = document.createElement('button');
+      btn.className = 'sub';
+      btn.type = 'button';
+      btn.dataset.key = key;
+      btn.setAttribute('aria-pressed', 'false');
+      btn.innerHTML = `<span>${s.label}</span><span class="n">${availableByKey.get(key).length}</span>`;
+      btn.addEventListener('click', ()=>{
+        if(state.selection.has(key)) state.selection.delete(key);
+        else state.selection.add(key);
+        refreshPreview();
+      });
+      subs.appendChild(btn);
+    });
+
+    wrap.appendChild(head);
+    wrap.appendChild(subs);
+    body.appendChild(wrap);
+  });
+}
+
+function openPicker(force){
+  const picker = el('picker');
+  const willOpen = force === true ? true : picker.hidden;
+  el('help').hidden = true;
+  el('helpBtn').setAttribute('aria-pressed','false');
+  picker.hidden = !willOpen;
+  el('regionBtn').setAttribute('aria-expanded', String(willOpen));
+  el('hud').classList.remove('collapsed');
+}
+function closePicker(){
+  el('picker').hidden = true;
+  el('regionBtn').setAttribute('aria-expanded','false');
+}
+
+/* =========================================================
+   Data loading
+========================================================= */
+async function fetchJSON(url){
+  const r = await fetch(url, { mode:'cors' });
+  if(!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function loadGeoCountries(){
+  const sources = [
+    '../assets/data/countries.geojson',
+    'https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json',
+    'https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson'
+  ];
+  let lastErr;
+  for(const u of sources){
+    try{ return await fetchJSON(u); }
+    catch(e){ lastErr = e; }
+  }
+  throw lastErr || new Error('Failed to load any GeoJSON source');
+}
+
+/* =========================================================
+   Init
+========================================================= */
+(async function init(){
+  // Canvas keeps panning and zooming smooth: one bitmap redraw instead of ~180
+  // SVG paths being reprojected. The generous padding means a drag has ~60% of
+  // a viewport of already-drawn map to travel into before it needs a refill.
+  const renderer = L.canvas({ padding: 0.6 });
+
+  map = L.map('map', {
+    preferCanvas: true,
+    renderer: renderer,
+    zoomControl: false,          // re-added top-right, clear of the HUD popovers
+    minZoom: 0,                  // recomputed from the viewport by syncMinZoom()
+    maxZoom: 10,
+    // Continuous zoom: no 0.25 snapping means the wheel/trackpad glides instead
+    // of ratcheting between fixed levels.
+    zoomSnap: 0,
+    zoomDelta: 0.8,
+    wheelPxPerZoomLevel: 120,
+    wheelDebounceTime: 15,
+    doubleClickZoom: false,      // a double click is two guesses, not a zoom
+    worldCopyJump: false,        // vector layers don't repeat; wrapping showed a blank world
+    maxBounds: WORLD_BOUNDS,
+    maxBoundsViscosity: 1.0,     // hard stop instead of panning off into the void
+    inertia: true
+  }).setView([25, 10], 2);
+  L.control.zoom({ position: 'topright' }).addTo(map);
+
+  // Stop zooming out once the world spans the viewport width — no dead black
+  // margins to drift into, and no fighting with maxBounds at the limit.
+  function syncMinZoom(){
+    const z = Math.log2(Math.max(map.getSize().x, 1) / 256);
+    map.setMinZoom(Math.max(0, Math.round(z * 100) / 100));
+  }
+  syncMinZoom();
+  map.on('resize', syncMinZoom);
+
+  // Leaflet only re-renders vector layers on `moveend`, so a long drag runs off
+  // the edge of the drawn area and leaves blank map until you let go. Top the
+  // canvas up mid-drag instead, at most once per frame and only near the edge.
+  let refillQueued = false;
+  map.on('move', ()=>{
+    if(refillQueued || typeof renderer._update !== 'function') return;
+    refillQueued = true;
+    requestAnimationFrame(()=>{
+      refillQueued = false;
+      const drawn = renderer._bounds;
+      if(!drawn || map._animatingZoom) return;
+      const origin = map.containerPointToLayerPoint([0, 0]);
+      const view = L.bounds(origin, origin.add(map.getSize()));
+      const slack = 64;   // start refilling before the blank edge is visible
+      if(view.min.x - slack < drawn.min.x || view.min.y - slack < drawn.min.y ||
+         view.max.x + slack > drawn.max.x || view.max.y + slack > drawn.max.y){
+        renderer._update();
+      }
+    });
+  });
+
+  // Belt and braces against a stranded highlight: any of these clears hover.
+  map.on('mouseout', ()=> setHover(null));
+  map.on('movestart zoomstart', ()=> setHover(null));
+  map.getContainer().addEventListener('mouseleave', ()=> setHover(null));
+
+  try{ iso3to2 = new Map(Object.entries(await fetchJSON('../assets/data/iso3to2.json'))); }
+  catch(e){ console.warn('ISO map unavailable; flags may be blank.', e); }
+
   let geo;
-  try{
-    geo = await loadGeoCountries();
-  }catch(e){
-    console.error("Failed to load countries GeoJSON", e);
-    setMsg("Could not load country shapes. Ensure the local countries.geojson exists or check your internet connection, then reload.");
+  try{ geo = await loadGeoCountries(); }
+  catch(e){
+    console.error('Failed to load countries GeoJSON', e);
+    setMsg('Could not load country shapes. Check assets/data/countries.geojson or your connection, then reload.', 'bad');
     return;
   }
 
-  // Normalize FeatureCollection
   const features = geo.type === 'FeatureCollection' ? geo.features : (geo.features || []);
-  // Build layer
+
   countriesLayer = L.geoJSON(features, {
-    style: baseStyle,
+    smoothFactor: 1.2,
+    style: ()=> ({ weight:0.6, color:'rgba(0,255,240,0.22)', fillColor:'#0b0d13', fillOpacity:0.4,
+                   lineJoin:'round', lineCap:'round' }),
     onEachFeature: (feature, layer)=>{
-      // Find stable id: prefer ISO3 in id or property; fallback to name
       const props = feature.properties || {};
-      const iso3 = (feature.id || props.ISO_A3 || props.iso_a3 || props.ADM0_A3 || props.adm0_a3 || "").toString();
-      const name = props.name || props.ADMIN || props.admin || props.NAME || props.country || iso3 || "Unknown";
-      const id = (iso3 && iso3 !== "undefined" && iso3 !== "-99") ? iso3 : name;
+      const rawId = (feature.id || props.ISO_A3 || props.iso_a3 || props.ADM0_A3 || props.adm0_a3 || '').toString();
+      const name  = props.name || props.ADMIN || props.NAME || props.country || rawId || 'Unknown';
+      // "-99" is the dataset's placeholder for unrecognised states; fall back to
+      // the name so two of them can't collide on the same key.
+      let id = (rawId && rawId !== 'undefined' && rawId !== '-99') ? rawId : name;
+      while(layerById.has(id)) id = id + '·';        // never let a feature be swallowed
 
       layer.__id = id;
+      layer.__playable = !NON_PLAYABLE.has(id);
       featureById.set(id, feature);
       layerById.set(id, layer);
+      const b = featureBounds(feature);
+      if(b) boundsById.set(id, b);
+      if(layer.__playable) playableIdSet.add(id);
 
+      layer.options.interactive = true;
       layer.on({
-        click: countryClicked,
-        mouseover: highlightHover,
-        mouseout: resetHover
+        click: onCountryClick,
+        mouseover: ()=> setHover(layer),
+        mouseout: ()=> { if(hoveredLayer === layer) setHover(null); }
       });
     }
-    }).addTo(map);
+  }).addTo(map);
 
-    // Controls
-    el('region').addEventListener('change', ()=>{
-      previewRegion(getSelectedRegions());
+  // Which subregions actually have geometry in this dataset?
+  availableByKey = new Map();
+  const assigned = new Set();
+  REGION_TREE.forEach(cont=>{
+    cont.subs.forEach(sub=>{
+      const ids = sub.codes.filter(c => layerById.has(c));
+      ids.forEach(i => assigned.add(i));
+      if(ids.length) availableByKey.set(cont.key + '.' + sub.key, ids);
     });
-    el('startBtn').addEventListener('click', ()=>{
-      setupForRegion(getSelectedRegions());
-      nextTarget();
-    });
-  el('skipBtn').addEventListener('click', ()=>{
-    if(!currentId) return;
-    // Mark as missed (red) and continue
-    const targetLayer = layerById.get(currentId);
-    if(targetLayer){
-      targetLayer.setStyle({ fillColor: getCSS("var(--bad)"), fillOpacity: 0.75, color: "rgba(255,255,255,0.9)", weight:1.3 });
-      targetLayer.__lockedColor = true;
-    }
-    setMsg(`Skipped! That was ${getDisplayName(currentId)}.`);
-    setTimeout(nextTarget, 600);
+  });
+  const orphans = [...playableIdSet].filter(id => !assigned.has(id));
+  if(orphans.length) console.warn('Countries not in any region (World-only):', orphans);
+
+  buildPicker();
+
+  // Restore the last selection, defaulting to the whole world.
+  let restored = [];
+  try{ restored = JSON.parse(localStorage.getItem(STORE_SELECTION) || '[]'); }catch(e){}
+  restored = restored.filter(k => availableByKey.has(k));
+  state.selection = new Set(restored.length ? restored : availableByKey.keys());
+
+  refreshPreview();
+  updateStats();
+  fitToIds([...state.previewIds], { animate: false });
+  setMsg('Pick regions, then hit Start. Tap a region chip to toggle it — no modifier keys needed.');
+
+  /* ---- wiring ---- */
+  el('startBtn').addEventListener('click', startRound);
+  el('skipBtn').addEventListener('click', skipCurrent);
+  el('regionBtn').addEventListener('click', (e)=>{ e.stopPropagation(); openPicker(); });
+  el('pickerDone').addEventListener('click', closePicker);
+  el('selectAll').addEventListener('click', ()=>{ state.selection = new Set(availableByKey.keys()); refreshPreview(); });
+  el('selectNone').addEventListener('click', ()=>{ state.selection.clear(); refreshPreview(); });
+  el('focusBtn').addEventListener('click', ()=>{
+    const ids = state.phase === 'playing' ? [...state.activeIds] : [...state.previewIds];
+    if(ids.length) fitToIds(ids); else map.flyToBounds(WORLD_BOUNDS);
+  });
+  el('helpBtn').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const h = el('help');
+    const show = h.hidden;
+    closePicker();
+    h.hidden = !show;
+    el('helpBtn').setAttribute('aria-pressed', String(show));
+  });
+  el('collapseBtn').addEventListener('click', ()=>{
+    const hud = el('hud');
+    const collapsed = hud.classList.toggle('collapsed');
+    if(collapsed){ closePicker(); el('help').hidden = true; }
+    el('collapseBtn').textContent = collapsed ? '+' : '–';
+    el('collapseBtn').title = collapsed ? 'Expand panel' : 'Collapse panel';
   });
 
-    // Initial fit
-    fitToIds([...layerById.keys()]);
-    previewRegion(getSelectedRegions());
-    setMsg("Pick a region and hit Start.");
-  })();
+  // Popovers live inside the HUD, so a click anywhere else dismisses them.
+  document.addEventListener('click', (e)=>{
+    if(el('hud').contains(e.target)) return;
+    closePicker();
+    el('help').hidden = true;
+    el('helpBtn').setAttribute('aria-pressed','false');
+  });
+
+  document.addEventListener('keydown', (e)=>{
+    if(e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = e.target;
+    if(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+
+    if(e.key === 'Escape'){
+      if(!el('picker').hidden || !el('help').hidden){ closePicker(); el('help').hidden = true; el('helpBtn').setAttribute('aria-pressed','false'); }
+      else if(state.phase === 'playing') stopRound('Round stopped.');
+      return;
+    }
+    // Enter on a focused button should just press that button.
+    if(e.key === 'Enter'){
+      if(!t || t.tagName !== 'BUTTON'){ e.preventDefault(); startRound(); }
+      return;
+    }
+    const k = e.key.toLowerCase();
+    if(k === 's'){ e.preventDefault(); skipCurrent(); }
+    else if(k === 'r'){ e.preventDefault(); openPicker(true); }
+    else if(k === 'f'){ e.preventDefault(); el('focusBtn').click(); }
+    else if(k === '?'){ e.preventDefault(); el('helpBtn').click(); }
+  });
+
+  // Small handle for debugging from the console.
+  window.CartoGuesser = { map, state, layerById, boundsById, get hovered(){ return hoveredLayer && hoveredLayer.__id; } };
+})();
 </script>
 <script src="../assets/js/styleToggle.js"></script>
 </body>
