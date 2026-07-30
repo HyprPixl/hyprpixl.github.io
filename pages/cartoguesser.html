@@ -37,7 +37,7 @@
     font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; }
   #app { height: 100%; position: relative; overflow: hidden; }
   #map { height: 100%; width: 100%; background: #000; cursor: default; }
-  #map.is-playing { cursor: crosshair; }
+  #map.is-playing.is-picking { cursor: crosshair; }
 
   .leaflet-container { background:#000; outline:1px solid rgba(0,255,240,0.12); }
   .leaflet-control-attribution{ display:none }
@@ -88,7 +88,57 @@
     border:1px solid rgba(255,0,234,0.28);
     border-radius:12px; padding:10px 12px; min-height:64px;
   }
-  .target .flag{ font-size:34px; line-height:1; filter: drop-shadow(0 0 6px rgba(0,255,240,.35)) }
+  .target .flag{
+    font-size:34px; line-height:1; flex:0 0 auto;
+    width:46px; height:35px; display:grid; place-items:center;
+    filter: drop-shadow(0 0 6px rgba(0,255,240,.35));
+  }
+  .flag-img{
+    width:46px; height:35px; object-fit:cover; display:block;
+    border-radius:3px; border:1px solid rgba(255,255,255,.22);
+  }
+  .target.big-flag .flag{ width:92px; height:69px }
+  .target.big-flag .flag-img{ width:92px; height:69px }
+
+  /* ============ Mode switch ============ */
+  .modes{ display:flex; gap:0; border:1px solid var(--line); border-radius:10px; overflow:hidden }
+  .mode{
+    flex:1 1 0; background:transparent; border:0; border-right:1px solid var(--line);
+    color:var(--muted); padding:6px 4px; cursor:pointer;
+    font:700 11px Orbitron, monospace; letter-spacing:.1em; text-transform:uppercase;
+    transition: background .15s ease, color .15s ease;
+  }
+  .mode:last-child{ border-right:0 }
+  .mode:hover{ color:var(--accent); background:rgba(0,255,240,.07) }
+  .mode[aria-pressed="true"]{
+    color:#04060a; background:linear-gradient(180deg, var(--accent), rgba(0,255,240,.75));
+    text-shadow:none;
+  }
+
+  /* ============ Typed answer ============ */
+  .answer{ position:relative }
+  .answer[hidden]{ display:none }
+  #answerInput{
+    width:100%; background:rgba(4,6,10,.9); color:var(--text);
+    border:1px solid var(--line-strong); border-radius:10px; padding:9px 11px;
+    font:600 14px Inter, system-ui; outline:none;
+  }
+  #answerInput:focus{ border-color:var(--accent); box-shadow:0 0 0 2px rgba(0,255,240,.22) }
+  #answerInput::placeholder{ color:var(--muted); opacity:.5 }
+  .suggest{
+    position:absolute; left:0; bottom:calc(100% + 8px); z-index:960;
+    width: min(380px, calc(100vw - 24px));
+    background:rgba(6,6,12,.98); border:1px solid var(--line-strong); border-radius:10px;
+    overflow:hidden; box-shadow:0 8px 30px rgba(0,0,0,.7);
+  }
+  .suggest[hidden]{ display:none }
+  .suggest button{
+    display:flex; align-items:center; gap:8px; width:100%; text-align:left;
+    background:transparent; border:0; border-bottom:1px solid rgba(0,255,240,.1);
+    color:var(--text); padding:7px 10px; font:600 13px Inter, system-ui; cursor:pointer;
+  }
+  .suggest button:last-child{ border-bottom:0 }
+  .suggest button:hover, .suggest button.on{ background:rgba(0,255,240,.14); color:#eaffff }
   .target .meta{ min-width:0; flex:1 1 auto }
   .target .label{ font:600 10px Inter, system-ui; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); opacity:.75 }
   .target .name{
@@ -225,7 +275,7 @@
   @media (max-width: 420px){
     .hud{ left:8px; right:8px; bottom:8px; width:auto }
     .target .name{ font-size:18px }
-    .picker, .help{ left:0; width:100% }
+    .picker, .help, .suggest{ left:0; width:100% }
     /* pinch to zoom on touch; the buttons would sit under the picker anyway */
     .leaflet-control-zoom{ display:none }
   }
@@ -247,6 +297,12 @@
     </div>
 
     <div class="hud-body" id="hudBody">
+      <div class="modes" id="modes" role="group" aria-label="Game mode">
+        <button class="mode" data-mode="find" aria-pressed="true">Find</button>
+        <button class="mode" data-mode="flag" aria-pressed="false">Flag</button>
+        <button class="mode" data-mode="name" aria-pressed="false">Name</button>
+      </div>
+
       <div class="target" id="target">
         <div class="flag" id="flag">🌍</div>
         <div class="meta">
@@ -257,6 +313,12 @@
             <span class="tries" id="triesLabel">3 tries</span>
           </div>
         </div>
+      </div>
+
+      <div class="answer" id="answer" hidden>
+        <input id="answerInput" type="text" autocomplete="off" autocorrect="off"
+               autocapitalize="off" spellcheck="false" placeholder="Type the country…"
+               aria-label="Country name" aria-autocomplete="list" />
       </div>
 
       <div class="progress" id="progress" aria-hidden="true">
@@ -295,6 +357,8 @@
         <button class="mini" id="pickerDone">Done</button>
       </div>
     </div>
+
+    <div class="suggest" id="suggest" role="listbox" hidden></div>
 
     <div class="help" id="help" hidden>
       <h3>How scoring works</h3>
@@ -344,7 +408,7 @@ const REGION_TREE = [
     { key:'central',       label:'Central Europe',  codes:['AUT','CZE','DEU','HUN','LIE','POL','SVK','CHE'] },
     { key:'eastern',       label:'Eastern Europe',  codes:['BLR','MDA','RUS','UKR'] },
     { key:'southern',      label:'Southern Europe', codes:['AND','CYP','ITA','MLT','PRT','SMR','ESP','VAT'] },
-    { key:'balkans',       label:'Balkans',         codes:['ALB','BIH','BGR','HRV','GRC','MNE','MKD','ROU','SRB','SVN','CS-KM'] }
+    { key:'balkans',       label:'Balkans',         codes:['ALB','BIH','BGR','HRV','GRC','MNE','MKD','ROU','SRB','SVN','XKX'] }
   ]},
   { key:'asia', label:'Asia', subs:[
     { key:'middle_east', label:'Middle East',    codes:['ARE','BHR','IRQ','IRN','ISR','JOR','KWT','LBN','OMN','PSE','QAT','SAU','SYR','TUR','YEM'] },
@@ -362,41 +426,70 @@ const REGION_TREE = [
   ]}
 ];
 
-/* Features that exist in the geometry but are never quiz targets
-   (dependencies, disputed/unrecognised entities, uninhabited land). */
-const NON_PLAYABLE = new Set([
-  'ATA','ATF','BMU','FLK','GRL','GUF','NCL','PRI',
-  'Northern Cyprus','Somaliland'
-]);
 
 /* Dataset name -> preferred display name */
-const NAME_FIX = new Map(Object.entries({
-  'United States of America':'United States',
-  'United Republic of Tanzania':'Tanzania',
-  'Republic of Serbia':'Serbia',
-  'Republic of the Congo':'Republic of the Congo',
-  'Democratic Republic of the Congo':'DR Congo',
-  'Macedonia':'North Macedonia',
-  'Swaziland':'Eswatini',
-  'Guinea Bissau':'Guinea-Bissau',
-  'East Timor':'Timor-Leste',
-  'The Bahamas':'Bahamas',
-  'West Bank':'Palestine',
-  'Czech Republic':'Czechia',
-  'Ivory Coast':'Ivory Coast'
-}));
+/* Accepted alternatives when you type an answer in Name mode. Names in the data
+   are the modern/common forms, so these cover former names, abbreviations and
+   the endonym/exonym splits people actually type. Matching is accent- and
+   punctuation-insensitive, so "Sao Tome" needs no entry. */
+const ALIASES = {
+  USA: ['usa', 'us', 'america', 'united states of america'],
+  GBR: ['uk', 'britain', 'great britain', 'united kingdom of great britain and northern ireland'],
+  ARE: ['uae'],
+  NLD: ['holland'],
+  CZE: ['czech republic'],
+  TUR: ['turkey'],
+  SWZ: ['swaziland'],
+  MKD: ['macedonia', 'fyrom'],
+  MMR: ['burma'],
+  TLS: ['east timor'],
+  CPV: ['cabo verde'],
+  COD: ['democratic republic of the congo', 'drc', 'congo kinshasa', 'zaire'],
+  COG: ['congo', 'congo brazzaville'],
+  CIV: ['cote divoire', 'cote d ivoire'],
+  KOR: ['republic of korea', 'korea south'],
+  PRK: ['dprk', 'korea north'],
+  VAT: ['vatican', 'holy see'],
+  BIH: ['bosnia'],
+  RUS: ['russian federation'],
+  LAO: ['lao', 'lao pdr'],
+  PSE: ['palestinian territories', 'west bank'],
+  FSM: ['federated states of micronesia'],
+  VCT: ['saint vincent', 'st vincent'],
+  KNA: ['saint kitts', 'st kitts'],
+  LCA: ['st lucia'],
+  TTO: ['trinidad'],
+  SLB: ['solomons'],
+  DOM: ['dr'],
+  CAF: ['car'],
+  GNQ: ['eq guinea'],
+  ZAF: ['rsa', 'south africa'],
+  IRN: ['persia'],
+  LKA: ['ceylon'],
+  KHM: ['kampuchea'],
+  XKX: ['republic of kosovo']
+};
 
-/* ISO3 codes missing from the shared ISO map */
-const EXTRA_ISO2 = { 'CS-KM':'XK', 'PSE':'PS' };
+const MODES = {
+  find: { label: 'Find',  hint: 'Name and flag shown — click the country.' },
+  flag: { label: 'Flag',  hint: 'Flag only — click the country it belongs to.' },
+  name: { label: 'Name',  hint: 'A country lights up — type its name.' }
+};
 
 const STORE_SELECTION = 'cartoguesser.selection.v2';
-const STORE_BEST      = 'cartoguesser.best.v2';
+const STORE_BEST      = 'cartoguesser.best.v3';
+const STORE_MODE      = 'cartoguesser.mode.v1';
+
+/* How much map is drawn beyond the viewport, as a fraction of it. Bigger means
+   longer drags before a refill, but every redraw costs (1+2p)^2 of the screen. */
+const RENDERER_PADDING = 0.25;
 
 /* =========================================================
    State
 ========================================================= */
 const state = {
   phase: 'idle',          // 'idle' | 'playing' | 'done'
+  mode: 'find',           // 'find' | 'flag' | 'name'
   selection: new Set(),   // "continent.sub" keys
   activeIds: new Set(),   // ids in the running round
   previewIds: new Set(),  // ids highlighted while idle
@@ -417,6 +510,7 @@ const layerById   = new Map();  // id -> layer
 const featureById = new Map();  // id -> feature
 const playableIdSet = new Set();
 let availableByKey = new Map(); // "continent.sub" -> [ids present in the data]
+let answerIndex = [];           // { id, name, keys[] } for typed answers
 let hoveredLayer = null;
 let timerHandle = null;
 let advanceHandle = null;
@@ -446,15 +540,37 @@ function toEmojiFlag(iso2){
   const up = iso2.toUpperCase(), A = 127397;
   return String.fromCodePoint(up.charCodeAt(0)+A) + String.fromCodePoint(up.charCodeAt(1)+A);
 }
-function emojiForId(id){
-  if(!id) return '🏳️';
-  const up = String(id).toUpperCase();
-  return toEmojiFlag(EXTRA_ISO2[id] || EXTRA_ISO2[up] || iso3to2.get(up));
-}
+function iso2For(id){ return id ? iso3to2.get(String(id).toUpperCase()) : null; }
 function displayName(id){
   const f = featureById.get(id);
-  const raw = (f && f.properties && (f.properties.name || f.properties.ADMIN || f.properties.NAME)) || id;
-  return NAME_FIX.get(raw) || raw;
+  return (f && f.properties && f.properties.name) || id || 'Unknown';
+}
+
+/* Real SVG artwork, with the emoji as a fallback: Windows has no flag glyphs
+   and renders emoji flags as the two-letter code, which would give the answer
+   away in Flag mode. */
+function setFlag(el, id){
+  const code = (iso2For(id) || '').toLowerCase();
+  if(!code){ el.replaceChildren(document.createTextNode(id ? '🏳️' : '🌍')); return; }
+  const img = document.createElement('img');
+  img.className = 'flag-img';
+  img.alt = '';
+  img.src = `../assets/flags/${code}.svg`;
+  img.addEventListener('error', ()=>{
+    el.replaceChildren(document.createTextNode(toEmojiFlag(code)));
+  }, { once: true });
+  el.replaceChildren(img);
+}
+function setGlyph(el, text){ el.replaceChildren(document.createTextNode(text)); }
+
+/* Normalised key for typed answers: case, accents and punctuation all ignored. */
+function answerKey(s){
+  return String(s)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/ø/gi, 'o').replace(/æ/gi, 'ae').replace(/ß/gi, 'ss').replace(/đ/gi, 'd')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 }
 function formatTime(ms){
   const s = ms/1000;
@@ -475,14 +591,13 @@ function shuffle(a){
    Country bounds are precomputed once, with an antimeridian
    fix so Russia / Fiji / NZ don't claim the whole globe.
 ========================================================= */
+/* A plain bounding box is all that's needed: scripts/build_countries.mjs already
+   unwraps every country across the 180° seam, so no feature's coordinates jump
+   360° mid-shape and unions of them are always meaningful. */
 function featureBounds(feature){
   const g = feature.geometry;
   if(!g) return null;
-  let minLat = 90, maxLat = -90;
-  let minLng = 180, maxLng = -180;      // raw longitudes
-  let minLngS = 360, maxLngS = 0;       // longitudes shifted to [0,360)
-  let count = 0;
-
+  let minLat = 90, maxLat = -90, minLng = Infinity, maxLng = -Infinity, count = 0;
   (function walk(coords){
     if(typeof coords[0] === 'number'){
       const lng = coords[0], lat = coords[1];
@@ -490,24 +605,37 @@ function featureBounds(feature){
       if(lat > maxLat) maxLat = lat;
       if(lng < minLng) minLng = lng;
       if(lng > maxLng) maxLng = lng;
-      const s = lng < 0 ? lng + 360 : lng;
-      if(s < minLngS) minLngS = s;
-      if(s > maxLngS) maxLngS = s;
       count++;
       return;
     }
     for(const c of coords) walk(c);
   })(g.coordinates);
+  return count ? L.latLngBounds([minLat, minLng], [maxLat, maxLng]) : null;
+}
 
-  if(!count) return null;
-  // Pick whichever longitude framing is tighter (handles the 180° seam).
-  const useShifted = (maxLngS - minLngS) < (maxLng - minLng);
-  const west = useShifted ? minLngS : minLng;
-  const east = useShifted ? maxLngS : maxLng;
-  return L.latLngBounds([minLat, west], [maxLat, east]);
+/* Rough land area in square degrees. Used to spot countries that are too small
+   to click — a bounding box won't do, because Palau's box is 50px across while
+   its islands are sub-pixel. */
+function featureArea(feature){
+  const g = feature.geometry;
+  if(!g) return 0;
+  const rings = g.type === 'MultiPolygon'
+    ? g.coordinates.map(p => p[0])
+    : [g.coordinates[0]];
+  let total = 0;
+  for(const ring of rings){
+    if(!ring || ring.length < 3) continue;
+    let sum = 0;
+    for(let i = 0, j = ring.length - 1; i < ring.length; j = i++){
+      sum += (ring[j][0] * ring[i][1]) - (ring[i][0] * ring[j][1]);
+    }
+    total += Math.abs(sum) / 2;
+  }
+  return total;
 }
 
 const boundsById = new Map();
+const areaById = new Map();   // approximate land area, square degrees
 const WORLD_BOUNDS = L.latLngBounds([-85.05, -180], [85.05, 180]);
 
 function unionBounds(ids){
@@ -557,6 +685,16 @@ function styleFor(layer){
     return { weight: 0.5, color: 'rgba(0,255,240,0.10)', fillColor: '#06070b', fillOpacity: 0.35 };
   }
 
+  // Name mode: the current country is the question, so it gets the spotlight.
+  if(state.mode === 'name' && state.phase === 'playing' && layer.__id === state.currentId){
+    return {
+      weight: 2.4,
+      color: cssVar('--accent2'),
+      fillColor: cssVar('--accent'),
+      fillOpacity: 0.55
+    };
+  }
+
   const inRound   = state.phase !== 'idle' && state.activeIds.has(layer.__id);
   const inPreview = state.phase === 'idle' && state.previewIds.has(layer.__id);
   const lit = inRound || inPreview;
@@ -592,20 +730,14 @@ function onCountryClick(e){
     setMsg(`${displayName(layer.__id)}${state.phase === 'playing' ? '' : ' — press Start to play.'}`);
     return;
   }
-  const id = layer.__id;
-
-  if(id === state.currentId){
-    const tries = Math.min(state.attempts + 1, 3);
-    layer.__result = tries;
-    paint(layer);
-    state.cleared++;
-    flashTarget('flash-good');
-    setMsg(state.attempts === 0
-      ? `Correct — first try!`
-      : `Correct on try ${tries}.`, 'good');
-    finishRound();
+  // In Name mode the map is the question, not the answer sheet.
+  if(state.mode === 'name'){
+    setMsg('Type the name of the highlighted country.', 'warn');
     return;
   }
+
+  const id = layer.__id;
+  if(id === state.currentId){ scoreCorrect(); return; }
 
   if(!state.activeIds.has(id)){
     setMsg(`${displayName(id)} isn't in the regions you picked — no penalty.`, 'warn');
@@ -615,12 +747,49 @@ function onCountryClick(e){
     setMsg(`Already tried ${displayName(id)}.`, 'warn');
     return;
   }
-
   state.wrongThisRound.add(id);
+  scoreWrong(`That's ${displayName(id)}.`);
+}
+
+/* Name mode: the typed answer is checked against the country's display name
+   plus its aliases, all accent- and punctuation-insensitive. */
+function submitTypedAnswer(raw){
+  if(state.phase !== 'playing' || !state.currentId || state.locked) return;
+  const key = answerKey(raw);
+  if(!key) return;
+
+  const target = answerIndex.find(a => a.id === state.currentId);
+  if(target && target.keys.includes(key)){ scoreCorrect(); return; }
+
+  // Did they name a different real country, or just mistype?
+  const other = answerIndex.find(a => a.keys.includes(key));
+  if(other && state.wrongThisRound.has(other.id)){
+    setMsg(`Already tried ${other.name}.`, 'warn');
+    return;
+  }
+  if(other){
+    state.wrongThisRound.add(other.id);
+    scoreWrong(`${other.name} is a country, but not this one.`);
+  }else{
+    scoreWrong(`No country called "${raw.trim()}".`);
+  }
+}
+
+function scoreCorrect(){
+  const layer = layerById.get(state.currentId);
+  if(layer){ layer.__result = Math.min(state.attempts + 1, 3); paint(layer); }
+  state.cleared++;
+  flashTarget('flash-good');
+  setMsg(state.attempts === 0
+    ? `Correct — first try! That's ${displayName(state.currentId)}.`
+    : `Correct on try ${state.attempts + 1} — ${displayName(state.currentId)}.`, 'good');
+  finishRound();
+}
+
+function scoreWrong(reason){
   state.attempts++;
   updatePips();
   flashTarget('flash-bad');
-
   if(state.attempts >= 3){
     const target = layerById.get(state.currentId);
     if(target){ target.__result = 'miss'; paint(target); }
@@ -628,7 +797,8 @@ function onCountryClick(e){
     setMsg(`Out of tries — that was ${displayName(state.currentId)}.`, 'bad');
     finishRound();
   }else{
-    setMsg(`That's ${displayName(id)}. ${3 - state.attempts} ${3 - state.attempts === 1 ? 'try' : 'tries'} left.`, 'bad');
+    const left = 3 - state.attempts;
+    setMsg(`${reason} ${left} ${left === 1 ? 'try' : 'tries'} left.`, 'bad');
   }
 }
 
@@ -719,7 +889,7 @@ function updateSelectionUI(){
     el('remaining').textContent = count ? String(count) : '—';
     el('countryName').textContent = count ? `${count} countries ready` : 'Pick your regions';
     el('targetLabel').textContent = 'Ready';
-    el('flag').textContent = count ? '🎯' : '🌍';
+    setGlyph(el('flag'), count ? '🎯' : '🌍');
   }
   try{ localStorage.setItem(STORE_SELECTION, JSON.stringify([...state.selection])); }catch(e){}
 }
@@ -747,6 +917,7 @@ function startRound(){
   state.elapsed = 0;
 
   el('map').classList.add('is-playing');
+  el('map').classList.toggle('is-picking', state.mode !== 'name');
   el('pips').hidden = false;
   el('skipBtn').disabled = false;
   el('startBtn').textContent = 'Restart';
@@ -767,6 +938,8 @@ function stopRound(message){
   state.activeIds.clear();
   el('map').classList.remove('is-playing');
   el('pips').hidden = true;
+  el('answer').hidden = true;
+  clearSuggestions();
   el('skipBtn').disabled = true;
   el('startBtn').textContent = 'Start';
   refreshPreview();
@@ -783,13 +956,45 @@ function nextTarget(){
     endRound();
     return;
   }
+  const previous = state.currentId;
   state.currentId = state.queue.pop();
-  const name = displayName(state.currentId);
-  el('targetLabel').textContent = 'Find on the map';
-  el('countryName').textContent = name;
-  el('flag').textContent = emojiForId(state.currentId);
+  if(previous) paint(layerById.get(previous));   // drop the old "this one" highlight
+  presentTarget();
   updateStats();
-  setMsg(`Click ${name}. You get 3 tries.`);
+}
+
+/* Renders the prompt for the current mode. Find shows name + flag, Flag shows
+   the flag alone, Name lights the country up on the map and asks for a word. */
+function presentTarget(){
+  const id = state.currentId;
+  const target = el('target');
+  const flagEl = el('flag');
+  target.classList.toggle('big-flag', state.mode === 'flag');
+  el('answer').hidden = state.mode !== 'name';
+
+  if(state.mode === 'find'){
+    el('targetLabel').textContent = 'Find on the map';
+    el('countryName').textContent = displayName(id);
+    setFlag(flagEl, id);
+    setMsg(`Click ${displayName(id)}. You get 3 tries.`);
+  }else if(state.mode === 'flag'){
+    el('targetLabel').textContent = 'Whose flag is this?';
+    el('countryName').textContent = '— — —';
+    setFlag(flagEl, id);
+    setMsg('Click the country this flag belongs to.');
+  }else{
+    el('targetLabel').textContent = 'Name the highlighted country';
+    el('countryName').textContent = '?';
+    setGlyph(flagEl, '❓');
+    const layer = layerById.get(id);
+    if(layer) paint(layer);                      // styleFor lights up state.currentId
+    fitToIds([id], { maxZoom: 7, padding: [80, 80] });
+    clearSuggestions();
+    const input = el('answerInput');
+    input.value = '';
+    input.focus();
+    setMsg('Type its name and press Enter. Partial names are fine.');
+  }
 }
 
 function endRound(){
@@ -798,14 +1003,16 @@ function endRound(){
   stopTimer();
   el('map').classList.remove('is-playing');
   el('pips').hidden = true;
+  el('answer').hidden = true;
+  clearSuggestions();
   el('skipBtn').disabled = true;
   el('startBtn').textContent = 'Play again';
   el('targetLabel').textContent = 'Round complete';
   el('countryName').textContent = `${state.cleared} / ${state.total} correct`;
-  el('flag').textContent = state.missed === 0 ? '🏆' : '🏁';
+  setGlyph(el('flag'), state.missed === 0 ? '🏆' : '🏁');
   updateStats();
 
-  const key = [...state.selection].sort().join('|') || 'none';
+  const key = state.mode + ':' + ([...state.selection].sort().join('|') || 'none');
   const time = state.elapsed;
   let best = null;
   try{ best = JSON.parse(localStorage.getItem(STORE_BEST) || '{}')[key] || null; }catch(e){}
@@ -831,6 +1038,76 @@ function skipCurrent(){
   state.missed++;
   setMsg(`Skipped — that was ${displayName(state.currentId)}.`, 'warn');
   finishRound();
+}
+
+/* ---------- Name-mode autocomplete ---------- */
+let suggestions = [], suggestIndex = -1;
+
+function clearSuggestions(){
+  suggestions = [];
+  suggestIndex = -1;
+  const box = el('suggest');
+  box.replaceChildren();
+  box.hidden = true;
+}
+
+function refreshSuggestions(){
+  const q = answerKey(el('answerInput').value);
+  const box = el('suggest');
+  if(q.length < 2){ clearSuggestions(); return; }
+
+  // Only ever suggest countries that are actually in play, and never reveal one
+  // that has already been cleared or missed this round.
+  const pool = answerIndex.filter(a => state.activeIds.has(a.id));
+  const starts = pool.filter(a => a.keys.some(k => k.startsWith(q)));
+  const inside = pool.filter(a => !starts.includes(a) && a.keys.some(k => k.includes(q)));
+  suggestions = starts.concat(inside).slice(0, 6);
+  suggestIndex = -1;
+
+  if(!suggestions.length){ clearSuggestions(); return; }
+  box.replaceChildren(...suggestions.map((a, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = a.name;
+    b.addEventListener('mousedown', (e)=>{      // mousedown: fires before blur
+      e.preventDefault();
+      el('answerInput').value = a.name;
+      clearSuggestions();
+      submitTypedAnswer(a.name);
+    });
+    return b;
+  }));
+  box.hidden = false;
+}
+
+function moveSuggestion(delta){
+  if(!suggestions.length) return;
+  suggestIndex = (suggestIndex + delta + suggestions.length) % suggestions.length;
+  const buttons = el('suggest').querySelectorAll('button');
+  buttons.forEach((b, i) => b.classList.toggle('on', i === suggestIndex));
+}
+
+function buildAnswerIndex(){
+  answerIndex = [];
+  for(const id of playableIdSet){
+    const name = displayName(id);
+    const keys = new Set([answerKey(name)]);
+    for(const alias of (ALIASES[id] || [])) keys.add(answerKey(alias));
+    answerIndex.push({ id, name, keys: [...keys] });
+  }
+}
+
+/* ---------- Mode ---------- */
+function setMode(mode){
+  if(!MODES[mode] || state.mode === mode) return;
+  if(state.phase === 'playing') stopRound();
+  state.mode = mode;
+  try{ localStorage.setItem(STORE_MODE, mode); }catch(e){}
+  document.querySelectorAll('.mode').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+  el('answer').hidden = true;
+  el('target').classList.toggle('big-flag', mode === 'flag');
+  setMsg(MODES[mode].hint);
 }
 
 function updatePips(){
@@ -969,20 +1246,19 @@ async function loadGeoCountries(){
   // Canvas keeps panning and zooming smooth: one bitmap redraw instead of ~180
   // SVG paths being reprojected. The generous padding means a drag has ~60% of
   // a viewport of already-drawn map to travel into before it needs a refill.
-  const renderer = L.canvas({ padding: 0.6 });
+  const renderer = L.canvas({ padding: RENDERER_PADDING });
 
   map = L.map('map', {
     preferCanvas: true,
     renderer: renderer,
     zoomControl: false,          // re-added top-right, clear of the HUD popovers
     minZoom: 0,                  // recomputed from the viewport by syncMinZoom()
-    maxZoom: 10,
+    maxZoom: 12,                 // deep enough to click Vatican City
     // Continuous zoom: no 0.25 snapping means the wheel/trackpad glides instead
     // of ratcheting between fixed levels.
     zoomSnap: 0,
     zoomDelta: 0.8,
-    wheelPxPerZoomLevel: 120,
-    wheelDebounceTime: 15,
+    scrollWheelZoom: false,      // replaced below with a direct, un-animated handler
     doubleClickZoom: false,      // a double click is two guesses, not a zoom
     worldCopyJump: false,        // vector layers don't repeat; wrapping showed a blank world
     maxBounds: WORLD_BOUNDS,
@@ -999,6 +1275,69 @@ async function loadGeoCountries(){
   }
   syncMinZoom();
   map.on('resize', syncMinZoom);
+
+  /* Wheel zoom.
+     Leaflet's own handler debounces the wheel and then plays a ~250ms animation
+     per notch, so a spin means every notch interrupts the animation the last one
+     started — that is the chewing feeling.
+     Re-projecting 25k points and refilling the canvas on every wheel event isn't
+     the answer either; it caps out around 40fps. So the burst is previewed with a
+     GPU-cheap CSS scale on the overlay pane, and the real (expensive) zoom is
+     committed once, when the wheel settles or drifts a full level away. */
+  (function directWheelZoom(){
+    const container = map.getContainer();
+    const overlay = map.getPanes().overlayPane;
+    const SETTLE_MS = 90;
+    // Zooming in only ever magnifies drawn map, so it can preview a long way.
+    // Zooming out shrinks it, and once the drawn area (1 + 2*padding of the
+    // viewport) no longer covers the screen you would see blank edges.
+    const MAX_IN  = 0.9;
+    const MAX_OUT = Math.log2(1 / (1 + 2 * RENDERER_PADDING)) + 0.05;
+    let target = null, anchor = null, rafQueued = false, settleTimer = null;
+
+    function preview(){
+      rafQueued = false;
+      if(target === null) return;
+      const scale = map.getZoomScale(target, map.getZoom());
+      const lp = map.containerPointToLayerPoint(anchor);
+      overlay.style.transformOrigin = `${lp.x}px ${lp.y}px`;
+      overlay.style.transform = `scale(${scale})`;
+    }
+
+    function commit(){
+      clearTimeout(settleTimer);
+      settleTimer = null;
+      if(target === null) return;
+      const z = target, a = anchor;
+      target = null;
+      overlay.style.transform = '';
+      overlay.style.transformOrigin = '';
+      if(z !== map.getZoom()) map.setZoomAround(a, z, { animate: false });
+    }
+
+    container.addEventListener('wheel', (e)=>{
+      e.preventDefault();
+      setHover(null);                        // pointer maths is stale mid-preview
+      let dy = e.deltaY;
+      if(e.deltaMode === 1) dy *= 16;        // lines
+      else if(e.deltaMode === 2) dy *= 400;  // pages
+
+      const step = Math.max(-2, Math.min(2, -dy / 220));
+      if(target === null) anchor = map.mouseEventToContainerPoint(e);
+      target = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(),
+               (target === null ? map.getZoom() : target) + step));
+
+      const drift = target - map.getZoom();
+      if(drift >= MAX_IN || drift <= MAX_OUT){ commit(); return; }
+      if(!rafQueued){ rafQueued = true; requestAnimationFrame(preview); }
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(commit, SETTLE_MS);
+    }, { passive: false });
+
+    // Never let a preview transform survive into a drag or a programmatic move.
+    container.addEventListener('pointerdown', commit);
+    map.on('movestart', ()=>{ if(settleTimer) commit(); });
+  })();
 
   // Leaflet only re-renders vector layers on `moveend`, so a long drag runs off
   // the edge of the drawn area and leaves blank map until you let go. Top the
@@ -1019,6 +1358,27 @@ async function loadGeoCountries(){
         renderer._update();
       }
     });
+  });
+
+  /* Leaflet only fires map-level clicks when no layer was hit, so this is the
+     "you missed everything" path. Nauru is 8km across and Tuvalu is nine atolls
+     around an empty bounding box — without a tolerance they are unclickable, so
+     a near miss snaps to a country that is genuinely too small to hit. */
+  map.on('click', (e)=>{
+    if(state.phase !== 'playing' || state.locked || state.mode === 'name') return;
+    const p = e.containerPoint;
+    const pxPerDeg = 256 * Math.pow(2, map.getZoom()) / 360;
+    const MIN_CLICKABLE_PX2 = 400;      // anything under ~20x20px of land
+    let best = null, bestDist = 18;
+    for(const id of state.activeIds){
+      const b = boundsById.get(id);
+      if(!b) continue;
+      if((areaById.get(id) || 0) * pxPerDeg * pxPerDeg > MIN_CLICKABLE_PX2) continue;
+      const c = map.latLngToContainerPoint(b.getCenter());
+      const d = Math.hypot(c.x - p.x, c.y - p.y);
+      if(d < bestDist){ bestDist = d; best = id; }
+    }
+    if(best) onCountryClick({ target: layerById.get(best) });
   });
 
   // Belt and braces against a stranded highlight: any of these clears hover.
@@ -1045,20 +1405,15 @@ async function loadGeoCountries(){
                    lineJoin:'round', lineCap:'round' }),
     onEachFeature: (feature, layer)=>{
       const props = feature.properties || {};
-      const rawId = (feature.id || props.ISO_A3 || props.iso_a3 || props.ADM0_A3 || props.adm0_a3 || '').toString();
-      const name  = props.name || props.ADMIN || props.NAME || props.country || rawId || 'Unknown';
-      // "-99" is the dataset's placeholder for unrecognised states; fall back to
-      // the name so two of them can't collide on the same key.
-      let id = (rawId && rawId !== 'undefined' && rawId !== '-99') ? rawId : name;
-      while(layerById.has(id)) id = id + '·';        // never let a feature be swallowed
+      const id = String(feature.id || props.ISO_A3 || props.iso_a3 || props.name || 'Unknown');
+      if(layerById.has(id)){ console.warn('duplicate feature id, ignoring:', id); return; }
 
       layer.__id = id;
-      layer.__playable = !NON_PLAYABLE.has(id);
       featureById.set(id, feature);
       layerById.set(id, layer);
       const b = featureBounds(feature);
       if(b) boundsById.set(id, b);
-      if(layer.__playable) playableIdSet.add(id);
+      areaById.set(id, featureArea(feature));
 
       layer.options.interactive = true;
       layer.on({
@@ -1069,18 +1424,24 @@ async function loadGeoCountries(){
     }
   }).addTo(map);
 
-  // Which subregions actually have geometry in this dataset?
+  // Playable == listed in a region. Everything else in the file (Greenland,
+  // Puerto Rico, Antarctica, the 40-odd dependencies) is background scenery.
   availableByKey = new Map();
-  const assigned = new Set();
   REGION_TREE.forEach(cont=>{
     cont.subs.forEach(sub=>{
       const ids = sub.codes.filter(c => layerById.has(c));
-      ids.forEach(i => assigned.add(i));
+      const missing = sub.codes.filter(c => !layerById.has(c));
+      if(missing.length) console.warn(`No geometry for ${cont.key}.${sub.key}:`, missing.join(', '));
+      ids.forEach(i => playableIdSet.add(i));
       if(ids.length) availableByKey.set(cont.key + '.' + sub.key, ids);
     });
   });
-  const orphans = [...playableIdSet].filter(id => !assigned.has(id));
-  if(orphans.length) console.warn('Countries not in any region (World-only):', orphans);
+  countriesLayer.eachLayer(l => { l.__playable = playableIdSet.has(l.__id); });
+  buildAnswerIndex();
+
+  // Let the map reach every country: the seam-healed geometry runs past ±180.
+  const dataBounds = unionBounds([...layerById.keys()]);
+  if(dataBounds) map.setMaxBounds(dataBounds.pad(0.02));
 
   buildPicker();
 
@@ -1090,12 +1451,42 @@ async function loadGeoCountries(){
   restored = restored.filter(k => availableByKey.has(k));
   state.selection = new Set(restored.length ? restored : availableByKey.keys());
 
+  let savedMode = 'find';
+  try{ savedMode = localStorage.getItem(STORE_MODE) || 'find'; }catch(e){}
+  if(MODES[savedMode] && savedMode !== 'find'){
+    state.mode = savedMode;
+    document.querySelectorAll('.mode').forEach(b =>
+      b.setAttribute('aria-pressed', String(b.dataset.mode === savedMode)));
+    el('target').classList.toggle('big-flag', savedMode === 'flag');
+  }
+
   refreshPreview();
   updateStats();
   fitToIds([...state.previewIds], { animate: false });
-  setMsg('Pick regions, then hit Start. Tap a region chip to toggle it — no modifier keys needed.');
+  setMsg(`${MODES[state.mode].hint} Pick regions, then hit Start.`);
 
   /* ---- wiring ---- */
+  document.querySelectorAll('.mode').forEach(b =>
+    b.addEventListener('click', ()=> setMode(b.dataset.mode)));
+
+  const input = el('answerInput');
+  input.addEventListener('input', refreshSuggestions);
+  input.addEventListener('blur', ()=> setTimeout(clearSuggestions, 120));
+  input.addEventListener('keydown', (e)=>{
+    if(e.key === 'ArrowDown'){ e.preventDefault(); moveSuggestion(1); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); moveSuggestion(-1); }
+    else if(e.key === 'Enter'){
+      e.preventDefault();
+      const picked = suggestIndex >= 0 ? suggestions[suggestIndex] : null;
+      const value = picked ? picked.name : input.value;
+      clearSuggestions();
+      input.value = '';
+      submitTypedAnswer(value);
+    }else if(e.key === 'Escape'){
+      if(!el('suggest').hidden){ e.stopPropagation(); clearSuggestions(); }
+    }
+  });
+
   el('startBtn').addEventListener('click', startRound);
   el('skipBtn').addEventListener('click', skipCurrent);
   el('regionBtn').addEventListener('click', (e)=>{ e.stopPropagation(); openPicker(); });
@@ -1153,7 +1544,9 @@ async function loadGeoCountries(){
   });
 
   // Small handle for debugging from the console.
-  window.CartoGuesser = { map, state, layerById, boundsById, get hovered(){ return hoveredLayer && hoveredLayer.__id; } };
+  window.CartoGuesser = { map, state, layerById, featureById, boundsById, playableIdSet,
+    get answerIndex(){ return answerIndex; },
+    get hovered(){ return hoveredLayer && hoveredLayer.__id; } };
 })();
 </script>
 <script src="../assets/js/styleToggle.js"></script>

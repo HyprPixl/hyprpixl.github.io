@@ -1,0 +1,17 @@
+{
+  "name": "hyprpixl-map-data",
+  "private": true,
+  "type": "module",
+  "description": "Build script for the CartoGuesser country geometry (assets/data/countries.geojson).",
+  "scripts": {
+    "build:countries": "node build_countries.mjs"
+  },
+  "dependencies": {
+    "flag-icons": "^7.2.3",
+    "mapshaper": "^0.6.102",
+    "svgo": "^3.3.2",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2",
+    "world-countries": "^5.1.0"
+  }
+}
