@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Advect</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <link rel="stylesheet" href="../assets/css/modern-style.css">
+  <meta property="og:title" content="Advect">
+  <meta property="og:description" content="Generative wallpapers for macOS. Thousands of particles march through a noise field and leave glowing filaments behind them.">
+  <meta property="og:image" content="../assets/images/advect/harbor.jpg">
+  <style>
+    .palette-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+    .palette-grid figure { margin: 0; }
+    .palette-grid img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border: 2px solid currentColor;
+    }
+    .palette-grid figcaption {
+      margin-top: 0.35rem;
+      font-size: 0.85rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .download-row { margin: 1.5rem 0; }
+    pre.cli {
+      border: 1px solid currentColor;
+      padding: 0.75rem 1rem;
+      overflow-x: auto;
+    }
+    @media (max-width: 520px) {
+      .palette-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Advect</h1>
+  <nav>
+  <a href="/index.html">Home</a>
+  <a href="/about.html">About Me</a>
+  <a href="https://www.linkedin.com/in/caleb-fedyshen" target="_blank" rel="noopener">LinkedIn ↗</a>
+  <button id="style-toggle-btn">✨ Modern Style</button>
+</nav>
+</header>
+
+<main><article>
+
+<p>Generative wallpapers for macOS. Thousands of particles march through a layered
+noise field and leave glowing filaments behind them on a near-black ground. Every
+render is unique, or pass a seed and get the same picture back.</p>
+
+<div class="palette-grid">
+  <figure>
+    <img src="../assets/images/advect/harbor.jpg" alt="Advect wallpaper in the harbor palette: red filaments on near-black">
+    <figcaption>harbor</figcaption>
+  </figure>
+  <figure>
+    <img src="../assets/images/advect/ember.jpg" alt="Advect wallpaper in the ember palette: orange filaments on near-black">
+    <figcaption>ember</figcaption>
+  </figure>
+  <figure>
+    <img src="../assets/images/advect/moss.jpg" alt="Advect wallpaper in the moss palette: purple filaments on near-black">
+    <figcaption>moss</figcaption>
+  </figure>
+  <figure>
+    <img src="../assets/images/advect/dune.jpg" alt="Advect wallpaper in the dune palette: gold filaments on near-black">
+    <figcaption>dune</figcaption>
+  </figure>
+</div>
+
+<h2>Get the app</h2>
+
+<p class="download-row"><strong><a href="https://github.com/HyprPixl/advect/releases/latest" target="_blank" rel="noopener">Download Advect.dmg ↗</a></strong>
+— drag it to Applications and it lives in your menu bar.</p>
+
+<p>Requires macOS 13 or later. Universal, so it runs natively on Apple Silicon and
+Intel. Signed and notarized, so it opens with a double click. Nothing else to
+install: the renderer is compiled into the app, which is 567&nbsp;KB.</p>
+
+<p>From the menu bar you get:</p>
+
+<ul>
+  <li><strong>New Wallpaper</strong> — render at your display's native resolution and set it</li>
+  <li><strong>New Day Cycle</strong> — a Dynamic <code>.heic</code> whose colour drifts with the time of day</li>
+  <li><strong>Auto-Rotate</strong> — a fresh wallpaper every 30 minutes through once a day</li>
+  <li><strong>Recent</strong> — thumbnails of past renders, click to re-apply, ⌥-click to reveal</li>
+  <li>Palette, size and frame-count pickers, and <strong>Launch at Login</strong></li>
+</ul>
+
+<p>While it paints, the wallpaper itself redraws about ten times a second, so you
+watch the picture appear at full size on the desktop. Cancelling puts your old
+wallpaper back. Wallpapers are set through <code>NSWorkspace</code>, so the app never
+asks for Automation permission — it needs no permissions at all.</p>
+
+<h2>The day cycle</h2>
+
+<p>A Dynamic wallpaper packs 32 frames that share one seed, so the geometry is
+frozen and only colour and light drift. The result changes continuously through
+the day rather than snapping between looks: <code>harbor</code> red at night,
+<code>ember</code> orange at dawn and dusk, <code>dune</code> gold through the
+morning and midday, <code>moss</code> purple in the afternoon.</p>
+
+<h2>The command line</h2>
+
+<p><code>advect</code> is a standalone Python renderer with no dependencies at all —
+standard library only, writing real PNGs and macOS Dynamic <code>.heic</code> files
+by hand.</p>
+
+<pre class="cli"><code>advect                    # render to ~/Pictures/advect/, print path
+advect --set              # render AND set as desktop wallpaper
+advect --palette ember    # harbor | ember | moss | dune
+advect --seed 7 --size 2016x1310
+advect --dynamic --set    # a Dynamic .heic that shifts with the time of day</code></pre>
+
+<p>It compiles a small C hot loop on demand with <code>cc</code>, and falls back to a
+pure-Python march when there's no compiler. Same geometry either way.</p>
+
+<h2>How it works</h2>
+
+<p>A particle is dropped at a random point and repeatedly asks the noise field which
+way to go, leaving a tapered, anti-aliased streak as it travels. Some strokes are
+painted sharp, straight into the image; the rest deposit energy into a coarse light
+grid that gets blurred and added back as glow. That split is why the filaments read
+as <em>lit</em> rather than merely drawn.</p>
+
+<p>The app doesn't shell out to the Python — the renderer is ported to Swift, with the
+same C march linked in at build time. Keeping the two honest means reproducing
+CPython's Mersenne Twister exactly, down to <code>init_by_array</code> seeding and
+<code>genrand_res53</code>, because a seed has to name the same picture from either
+one. Output is verified pixel-identical across seeds, sizes, every palette, and both
+architectures.</p>
+
+<p>Source is MIT licensed and on
+<a href="https://github.com/HyprPixl/advect" target="_blank" rel="noopener">GitHub ↗</a>.</p>
+
+</article></main>
+<script src="../assets/js/styleToggle.js"></script>
+<script src="../assets/js/terminal.js"></script>
+</body>
+</html>
