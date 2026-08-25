@@ -39,6 +39,19 @@
   #map { height: 100%; width: 100%; background: #000; cursor: default; }
   #map.is-playing.is-picking { cursor: crosshair; }
 
+  /* Aim assist. A country three pixels wide cannot show a hover highlight, so
+     the ring is the feedback: it marks the scrap of land a click would snap to. */
+  .assist-ring{
+    position:absolute; z-index:500; pointer-events:none;
+    width:40px; height:40px; margin:-20px 0 0 -20px;
+    border:1.5px solid var(--accent2); border-radius:50%;
+    box-shadow:0 0 12px rgba(255,0,234,0.45), inset 0 0 12px rgba(255,0,234,0.22);
+    opacity:0; transition:opacity .1s linear;
+  }
+  .assist-ring.on{ opacity:.95; animation:assistPulse 1.6s ease-in-out infinite }
+  @keyframes assistPulse{ 0%,100%{transform:scale(.8)} 55%{transform:scale(1)} }
+  @media (prefers-reduced-motion: reduce){ .assist-ring.on{ animation:none } }
+
   .leaflet-container { background:#000; outline:1px solid rgba(0,255,240,0.12); }
   .leaflet-control-attribution{ display:none }
   .leaflet-control-zoom{ margin: 12px 12px 0 0 !important; border:none !important }
@@ -269,6 +282,7 @@
     border:1px solid var(--line); border-radius:5px; background:rgba(0,255,240,.06);
     font:600 11px ui-monospace, monospace; color:var(--text);
   }
+  .help p{ margin:0 0 8px; color:var(--muted); font:400 12px/1.45 Inter, system-ui }
   .help .keys{ display:grid; grid-template-columns:auto 1fr; gap:3px 10px; align-items:center }
 
   /* toast for tiny screens / big announcements */
@@ -287,6 +301,7 @@
 <body>
 <div id="app">
   <div id="map"></div>
+  <div class="assist-ring" id="assistRing" aria-hidden="true"></div>
 
   <div class="hud" id="hud">
     <div class="hud-bar">
@@ -368,6 +383,10 @@
         <span class="item"><span class="dot" style="background:var(--orange)"></span>3rd try</span>
         <span class="item"><span class="dot" style="background:var(--bad)"></span>Missed</span>
       </div>
+      <h3>Tiny countries</h3>
+      <p>Point near one that is too small to hit at this zoom and a magenta ring
+         appears over it — click anywhere near the ring and it counts as that
+         country, even if a bigger neighbour is underneath. Zoom in for more room.</p>
       <h3>Shortcuts</h3>
       <div class="keys">
         <div><kbd>Enter</kbd></div><div>Start / restart a round</div>
@@ -512,6 +531,8 @@ const playableIdSet = new Set();
 let availableByKey = new Map(); // "continent.sub" -> [ids present in the data]
 let answerIndex = [];           // { id, name, keys[] } for typed answers
 let hoveredLayer = null;
+let pointerLayer = null;   // what Leaflet's own hit test reports under the cursor
+let assistLayer  = null;   // the tiny country an assisted click would land on
 let timerHandle = null;
 let advanceHandle = null;
 let iso3to2 = new Map();
@@ -613,29 +634,71 @@ function featureBounds(feature){
   return count ? L.latLngBounds([minLat, minLng], [maxLat, maxLng]) : null;
 }
 
-/* Rough land area in square degrees. Used to spot countries that are too small
-   to click — a bounding box won't do, because Palau's box is 50px across while
-   its islands are sub-pixel. */
-function featureArea(feature){
+/* How wide a country is where you have to hit it, in degrees of longitude —
+   multiply by pixels-per-degree for its size on screen at the current zoom.
+   The measure is 4 x area / perimeter, which is the side of a square, the
+   diameter of a circle, and, for a sliver like The Gambia or Chile, its narrow
+   width rather than its impressive length. A bounding box would say Palau is
+   50px across when its islands are sub-pixel, and plain area would call The
+   Gambia comfortable when it is six pixels wide.
+   Islands are measured one at a time and the widest wins: Tuvalu is nine
+   specks, but Indonesia is a big target that merely happens to be in pieces.
+   Latitudes are divided by cos(lat) first, because that is what Mercator does
+   to them — Estonia gets half again the pixels its raw degrees suggest. */
+function featureHitWidth(feature, bounds){
   const g = feature.geometry;
   if(!g) return 0;
-  const rings = g.type === 'MultiPolygon'
-    ? g.coordinates.map(p => p[0])
+  const parts = g.type === 'MultiPolygon'
+    ? g.coordinates.map(poly => poly[0])
     : [g.coordinates[0]];
-  let total = 0;
-  for(const ring of rings){
+  const ky = 1 / Math.max(0.05, Math.cos((bounds ? bounds.getCenter().lat : 0) * Math.PI / 180));
+  let widest = 0;
+  for(const ring of parts){
     if(!ring || ring.length < 3) continue;
-    let sum = 0;
+    let twiceArea = 0, perimeter = 0;
     for(let i = 0, j = ring.length - 1; i < ring.length; j = i++){
-      sum += (ring[j][0] * ring[i][1]) - (ring[i][0] * ring[j][1]);
+      const jx = ring[j][0], jy = ring[j][1] * ky;
+      const ix = ring[i][0], iy = ring[i][1] * ky;
+      twiceArea += jx * iy - ix * jy;
+      perimeter += Math.hypot(ix - jx, iy - jy);
     }
-    total += Math.abs(sum) / 2;
+    if(perimeter <= 0) continue;
+    const w = 2 * Math.abs(twiceArea) / perimeter;   // 4 * area / perimeter
+    if(w > widest) widest = w;
   }
-  return total;
+  return widest;
+}
+
+/* Hit testing wants the coastline itself, not a bounding box: Tuvalu's box is
+   mostly open ocean and its centre is 30km of water. Flatten every ring into a
+   plain [lng, lat, ...] list, thinned so a 4,000-vertex country can't turn a
+   mousemove into a scan of all of it. The thinning keeps the first vertex of
+   every ring, so no island drops out of the list entirely. */
+const MAX_HIT_POINTS = 240;
+function featurePoints(feature){
+  const g = feature.geometry;
+  if(!g || !g.coordinates) return null;
+  const rings = [];
+  (function walk(node){
+    if(!Array.isArray(node) || !node.length) return;
+    if(typeof node[0][0] === 'number'){ rings.push(node); return; }
+    for(const child of node) walk(child);
+  })(g.coordinates);
+
+  let total = 0;
+  for(const r of rings) total += r.length;
+  if(!total) return null;
+  const stride = Math.max(1, Math.ceil(total / MAX_HIT_POINTS));
+  const out = [];
+  for(const r of rings){
+    for(let i = 0; i < r.length; i += stride) out.push(r[i][0], r[i][1]);
+  }
+  return out.length ? Float64Array.from(out) : null;
 }
 
 const boundsById = new Map();
-const areaById = new Map();   // approximate land area, square degrees
+const widthById = new Map();    // clickable width, in degrees of longitude
+const pointsById = new Map();   // id -> Float64Array of [lng, lat, ...] coast samples
 const WORLD_BOUNDS = L.latLngBounds([-85.05, -180], [85.05, 180]);
 
 function unionBounds(ids){
@@ -663,6 +726,97 @@ function fitToIds(ids, opts){
   }, opts || {});
   clearTimeout(fitHandle);
   fitHandle = setTimeout(()=> map.flyToBounds(b.pad(single ? 0.15 : 0.05), options), 0);
+}
+
+/* =========================================================
+   Aim assist
+   Leaflet's hit test is exact, which is precisely the problem: Vatican City is
+   a two-pixel disc sitting inside Italy, Nauru is smaller than the cursor, and
+   Tuvalu is nine atolls around an empty bounding box. An honest aim lands on
+   the neighbour or in the sea. So a click near a country that is genuinely too
+   small to hit at the current zoom counts as that country.
+========================================================= */
+const MIN_CLICKABLE_PX = 24;          // a target this wide needs no help
+const ASSIST_RADIUS_PX  = 18;
+const ASSIST_RADIUS_COARSE_PX = 30;   // fingers are blunter than cursors
+const coarseQuery = window.matchMedia ? window.matchMedia('(pointer: coarse)') : null;
+function assistRadius(){
+  return (coarseQuery && coarseQuery.matches) ? ASSIST_RADIUS_COARSE_PX : ASSIST_RADIUS_PX;
+}
+
+/* Distance in screen pixels from a point to the nearest sampled bit of a
+   country's coast, plus a rough centre for the island or enclave that bit
+   belongs to. Mercator is locally conformal, so across the ~20px that matters
+   one degree of longitude is `ppd` pixels and one of latitude is ppd/cos(lat)
+   — cheaper and steadier than pushing every vertex through Leaflet. */
+function nearestLand(id, lat, lng, ppd, limitPx){
+  const pts = pointsById.get(id);
+  if(!pts) return null;
+  const kx = ppd, ky = ppd / Math.max(0.05, Math.cos(lat * Math.PI / 180));
+  let bestSq = limitPx * limitPx, bi = -1;
+  for(let i = 0; i < pts.length; i += 2){
+    const dx = (pts[i] - lng) * kx, dy = (pts[i+1] - lat) * ky;
+    const sq = dx*dx + dy*dy;
+    if(sq < bestSq){ bestSq = sq; bi = i; }
+  }
+  if(bi < 0) return null;
+
+  // Average the coast around the winning vertex so the ring sits over the
+  // island you are pointing at, not on its near shore.
+  const NEAR2 = 26 * 26;
+  let sx = 0, sy = 0, n = 0;
+  for(let i = 0; i < pts.length; i += 2){
+    const dx = (pts[i] - pts[bi]) * kx, dy = (pts[i+1] - pts[bi+1]) * ky;
+    if(dx*dx + dy*dy <= NEAR2){ sx += pts[i]; sy += pts[i+1]; n++; }
+  }
+  return { dist: Math.sqrt(bestSq), lng: n ? sx/n : pts[bi], lat: n ? sy/n : pts[bi+1] };
+}
+
+/* The country a click at this point should count as, or null for "take the
+   click at face value". Reach tapers with size: a two-pixel dot gets the full
+   radius, a 22px country gets almost none, so the assist can't quietly steal
+   clicks aimed at its larger neighbours. */
+function assistTarget(containerPoint, hitId){
+  if(!map || !containerPoint) return null;
+  if(state.phase !== 'playing' || state.locked || state.mode === 'name') return null;
+
+  const ppd = 256 * Math.pow(2, map.getZoom()) / 360;
+  const widthPx = id => (widthById.get(id) || 0) * ppd;
+  const ll = map.containerPointToLatLng(containerPoint);
+
+  /* Already inside a country too small to click? Then the exact hit is the
+     answer — but say so rather than bowing out, so the ring stays put as the
+     pointer settles onto the speck it has been guiding you to. */
+  if(hitId && state.activeIds.has(hitId) && widthPx(hitId) < MIN_CLICKABLE_PX){
+    const own = nearestLand(hitId, ll.lat, ll.lng, ppd, Infinity);
+    return own ? { id: hitId, w: widthPx(hitId), dist: own.dist, lat: own.lat, lng: own.lng } : null;
+  }
+
+  const maxReach = assistRadius();
+  const pad = maxReach / ppd;            // degrees of longitude, generous for latitude
+  let best = null;
+
+  for(const id of state.activeIds){
+    if(id === hitId) continue;
+    const w = widthPx(id);
+    if(w >= MIN_CLICKABLE_PX) continue;
+    const reach = maxReach * (1 - w / MIN_CLICKABLE_PX);
+    if(reach < 1) continue;
+    const b = boundsById.get(id);
+    if(!b) continue;
+    if(ll.lat < b.getSouth() - pad || ll.lat > b.getNorth() + pad ||
+       ll.lng < b.getWest()  - pad || ll.lng > b.getEast()  + pad) continue;
+
+    const limit = Math.min(reach, best ? best.dist + 0.5 : reach);
+    const near = nearestLand(id, ll.lat, ll.lng, ppd, limit);
+    if(!near) continue;
+    // Nearest wins; a near-tie goes to the country that needs the help more.
+    if(!best || near.dist < best.dist - 0.5 ||
+       (near.dist < best.dist + 0.5 && w < best.w)){
+      best = { id, w, dist: near.dist, lat: near.lat, lng: near.lng };
+    }
+  }
+  return best;
 }
 
 /* =========================================================
@@ -720,11 +874,44 @@ function setHover(layer){
   if(layer) paint(layer);
 }
 
+/* Whatever the assist would take beats whatever the cursor is technically over,
+   so the highlight always agrees with what a click is about to do. */
+function syncHover(){ setHover(assistLayer || pointerLayer); }
+
+function setAssist(target){
+  assistLayer = target ? (layerById.get(target.id) || null) : null;
+  const ring = el('assistRing');
+  if(ring){
+    if(target && map){
+      const p = map.latLngToContainerPoint([target.lat, target.lng]);
+      ring.style.left = p.x + 'px';
+      ring.style.top  = p.y + 'px';
+      ring.classList.add('on');
+    }else{
+      ring.classList.remove('on');
+    }
+  }
+  syncHover();
+}
+
+function clearHover(){ pointerLayer = null; setAssist(null); }
+
 /* =========================================================
    Interaction
 ========================================================= */
 function onCountryClick(e){
-  const layer = e.target;
+  let layer = e.target;
+  if(!layer) return;
+  /* Being told "that's Italy" after clicking four pixels from Vatican City is
+     the most annoying way there is to burn a try, so a tiny country under the
+     cursor outranks the big one the click actually hit — but a click that
+     already landed on the country being asked for is never a mistake worth
+     correcting. */
+  if(layer.__id !== state.currentId){
+    const snap = assistTarget(e.containerPoint, layer.__id);
+    if(snap) layer = layerById.get(snap.id) || layer;
+  }
+
   if(state.locked) return;                       // answer already resolved, next one is loading
   if(state.phase !== 'playing' || !state.currentId){
     setMsg(`${displayName(layer.__id)}${state.phase === 'playing' ? '' : ' — press Start to play.'}`);
@@ -811,6 +998,7 @@ function flashTarget(cls){
 
 function finishRound(){
   state.locked = true;
+  setAssist(null);          // the answer is in, stop pointing at land
   updateStats();
   clearTimeout(advanceHandle);
   advanceHandle = setTimeout(nextTarget, 750);
@@ -1274,7 +1462,7 @@ async function loadGeoCountries(){
     map.setMinZoom(Math.max(0, Math.round(z * 100) / 100));
   }
   syncMinZoom();
-  map.on('resize', syncMinZoom);
+  map.on('resize', ()=>{ syncMinZoom(); clearHover(); });
 
   /* Wheel zoom.
      Leaflet's own handler debounces the wheel and then plays a ~250ms animation
@@ -1317,7 +1505,7 @@ async function loadGeoCountries(){
 
     container.addEventListener('wheel', (e)=>{
       e.preventDefault();
-      setHover(null);                        // pointer maths is stale mid-preview
+      clearHover();                          // pointer maths is stale mid-preview
       let dy = e.deltaY;
       if(e.deltaMode === 1) dy *= 16;        // lines
       else if(e.deltaMode === 2) dy *= 400;  // pages
@@ -1361,30 +1549,30 @@ async function loadGeoCountries(){
   });
 
   /* Leaflet only fires map-level clicks when no layer was hit, so this is the
-     "you missed everything" path. Nauru is 8km across and Tuvalu is nine atolls
-     around an empty bounding box — without a tolerance they are unclickable, so
-     a near miss snaps to a country that is genuinely too small to hit. */
+     "you missed everything" path — a near miss on an island still counts. */
   map.on('click', (e)=>{
-    if(state.phase !== 'playing' || state.locked || state.mode === 'name') return;
-    const p = e.containerPoint;
-    const pxPerDeg = 256 * Math.pow(2, map.getZoom()) / 360;
-    const MIN_CLICKABLE_PX2 = 400;      // anything under ~20x20px of land
-    let best = null, bestDist = 18;
-    for(const id of state.activeIds){
-      const b = boundsById.get(id);
-      if(!b) continue;
-      if((areaById.get(id) || 0) * pxPerDeg * pxPerDeg > MIN_CLICKABLE_PX2) continue;
-      const c = map.latLngToContainerPoint(b.getCenter());
-      const d = Math.hypot(c.x - p.x, c.y - p.y);
-      if(d < bestDist){ bestDist = d; best = id; }
-    }
-    if(best) onCountryClick({ target: layerById.get(best) });
+    const snap = assistTarget(e.containerPoint, null);
+    if(snap) onCountryClick({ target: layerById.get(snap.id) });
+  });
+
+  /* Show the assist before it is needed: as the pointer moves, ring whatever a
+     click would snap to. Recomputed at most once a frame — it is a few hundred
+     distance checks, but not on every mousemove event a trackpad can produce. */
+  let hoverQueued = false, lastMovePoint = null;
+  map.on('mousemove', (e)=>{
+    lastMovePoint = e.containerPoint;
+    if(hoverQueued) return;
+    hoverQueued = true;
+    requestAnimationFrame(()=>{
+      hoverQueued = false;
+      if(lastMovePoint) setAssist(assistTarget(lastMovePoint, pointerLayer && pointerLayer.__id));
+    });
   });
 
   // Belt and braces against a stranded highlight: any of these clears hover.
-  map.on('mouseout', ()=> setHover(null));
-  map.on('movestart zoomstart', ()=> setHover(null));
-  map.getContainer().addEventListener('mouseleave', ()=> setHover(null));
+  map.on('mouseout', ()=>{ lastMovePoint = null; clearHover(); });
+  map.on('movestart zoomstart', ()=> clearHover());
+  map.getContainer().addEventListener('mouseleave', ()=>{ lastMovePoint = null; clearHover(); });
 
   try{ iso3to2 = new Map(Object.entries(await fetchJSON('../assets/data/iso3to2.json'))); }
   catch(e){ console.warn('ISO map unavailable; flags may be blank.', e); }
@@ -1413,13 +1601,15 @@ async function loadGeoCountries(){
       layerById.set(id, layer);
       const b = featureBounds(feature);
       if(b) boundsById.set(id, b);
-      areaById.set(id, featureArea(feature));
+      widthById.set(id, featureHitWidth(feature, b));
+      const pts = featurePoints(feature);
+      if(pts) pointsById.set(id, pts);
 
       layer.options.interactive = true;
       layer.on({
         click: onCountryClick,
-        mouseover: ()=> setHover(layer),
-        mouseout: ()=> { if(hoveredLayer === layer) setHover(null); }
+        mouseover: ()=>{ pointerLayer = layer; syncHover(); },
+        mouseout: ()=>{ if(pointerLayer === layer){ pointerLayer = null; syncHover(); } }
       });
     }
   }).addTo(map);
@@ -1544,9 +1734,11 @@ async function loadGeoCountries(){
   });
 
   // Small handle for debugging from the console.
-  window.CartoGuesser = { map, state, layerById, featureById, boundsById, playableIdSet,
+  window.CartoGuesser = { map, state, layerById, featureById, boundsById, widthById,
+    playableIdSet, assistTarget,
     get answerIndex(){ return answerIndex; },
-    get hovered(){ return hoveredLayer && hoveredLayer.__id; } };
+    get hovered(){ return hoveredLayer && hoveredLayer.__id; },
+    get assisted(){ return assistLayer && assistLayer.__id; } };
 })();
 </script>
 <script src="../assets/js/styleToggle.js"></script>
