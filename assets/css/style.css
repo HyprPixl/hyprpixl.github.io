@@ -13,7 +13,6 @@ body {
   background: #fffbe8; /* light cream */
   font-family: "Courier New", Courier, monospace;
   color: #000;
-  padding-bottom: 40vh; /* Add space for terminal overlay */
 }
 
 /* Darken the page when lava lamp is on so the glow reads */
