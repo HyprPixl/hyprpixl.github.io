@@ -184,8 +184,11 @@ function lev(a, b) {
 }
 async function embedder() {
   if (!embed) {
-    const { pipeline } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.1");
-    embed = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", { dtype: "q8" });
+    const { pipeline, env } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.1");
+    // one thread, no worker proxy: the most reliable setup on iOS Safari (no SharedArrayBuffer there)
+    env.backends.onnx.wasm.numThreads = 1;
+    env.backends.onnx.wasm.proxy = false;
+    embed = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", { dtype: "q8", device: "wasm" });
   }
   return embed;
 }
@@ -196,20 +199,42 @@ async function vecs(texts) {
   return texts.map((_, i) => out.data.slice(i * dim, (i + 1) * dim));
 }
 async function prepareCandidates() {
+  if (modelBroken) return;
   const want = P;
   candKeys = Object.keys(P.guesses);
   const v = await vecs(candKeys.map(norm));
   if (P === want) candVecs = v;
 }
+// Fallback when the embedding model can't run (old phones, blocked CDN, memory limits):
+// character-trigram similarity to the pre-scored guesses. Coarser, but every guess still gets judged.
+function trigrams(t) { const s = `  ${t} `, out = new Set(); for (let i = 0; i < s.length - 2; i++) out.add(s.slice(i, i + 3)); return out; }
+function lexicalSims(g) {
+  const a = trigrams(g);
+  return candKeys.map(k => { const b = trigrams(norm(k)); let n = 0; for (const x of a) if (b.has(x)) n++; return n / (a.size + b.size - n || 1); });
+}
+let modelBroken = false;
+
 async function judge(guess) {
   const g = norm(guess);
   for (const a of P.aliases.map(norm)) {
     if (g === a || (a.length >= 5 && lev(g, a) <= Math.max(1, Math.floor(a.length / 6)))) return { score: 10, p: 1, line: null };
   }
   for (const [k, v] of Object.entries(P.guesses)) if (norm(k) === g) return { score: v[0], p: v[1], line: v[2] };
-  if (!candVecs) await prepareCandidates();
-  const [q] = await vecs([g]);
-  const sims = candVecs.map(v => v.reduce((s, x, i) => s + x * q[i], 0));
+  let sims;
+  if (!modelBroken) {
+    try {
+      if (!candVecs) await prepareCandidates();
+      const [q] = await vecs([g]);
+      sims = candVecs.map(v => v.reduce((s, x, i) => s + x * q[i], 0));
+    } catch (err) {
+      console.warn("Picle: embedding judge unavailable, using text matching instead.", err);
+      modelBroken = true;
+    }
+  }
+  if (!sims) {
+    candKeys = Object.keys(P.guesses);
+    sims = lexicalSims(g).map(x => 0.35 + 0.6 * x);     // map trigram overlap onto the embedding scale
+  }
   const order = sims.map((s, i) => [s, i]).sort((x, y) => y[0] - x[0]).slice(0, 4);
   const top = order[0], best = P.guesses[candKeys[top[1]]];
   if (top[0] >= 0.9) return { score: best[0], p: best[1], line: best[2] };
