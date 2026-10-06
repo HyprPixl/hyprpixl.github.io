@@ -246,13 +246,21 @@ def aliases(title):
     return sorted(out)
 
 
-def guesses(m, c):
-    prompt = (f"A picture-guessing game shows a pixelated photo of: {c['title']} ({c['description']}).\n"
-              "List 45 different guesses players might type, one per line, no numbering: exact answers, "
-              "nicknames, partial answers, related people/things, the general category, and common wrong "
-              "guesses for a blurry photo like this. Short (1-6 words).")
-    lines = [re.sub(r"^[\s\-*\d.)]+", "", l).strip().strip('"') for l in m.chat("You write game data.", prompt, 500).splitlines()]
-    pool = {g.lower() for g in lines if 1 < len(g) <= 60}
+def guesses(m, c, want=40):
+    """~45 guesses a player might type. Uses the writer model (small models often return too few)."""
+    base = (f"A picture-guessing game shows a pixelated photo of: {c['title']} ({c['description']}).\n"
+            "List 45 different guesses players might type: exact answers, nicknames, partial answers, related "
+            "people/things, the general category, and common wrong guesses for a blurry photo like this. "
+            "Short (1-6 words).")
+    pool = set()
+    for fmt in ("One per line, no numbering, nothing else.", "Reply as a single comma-separated list, nothing else."):
+        text = m.chat("You write game data.", f"{base} {fmt}", 700, 0.8, writer=True)
+        for part in re.split(r"[\n,]", text):
+            g = re.sub(r"^[\s\-*\d.)]+", "", part).strip().strip('"').lower()
+            if 1 < len(g) <= 60:
+                pool.add(g)
+        if len(pool) >= want:
+            break
     pool |= set(aliases(c["title"])) | {g.lower() for g in random.sample(GENERIC, 25)}
     return sorted(pool)[:96]
 
@@ -277,8 +285,14 @@ def judge(m, c, pool):
 
 
 JUDGE = ("You are the judge of Picle, a daily picture-guessing game in the style of the New York Times games. "
-         "Your voice: dry, clever, warm underneath; one short line (max 18 words). Tease the guess, never the "
-         "person. Never mean, never crude, no emojis, no exclamation-mark pileups.")
+         "Your voice: dry, clever, warm underneath; one short line (max 16 words). Tease the guess, never the "
+         "person. Never mean, never crude, no emojis, no exclamation-mark pileups.\n"
+         "The voice, by example (do not reuse these):\n"
+         "- \"a toaster\" (cold): Bold of you to assume this is kitchen-related.\n"
+         "- \"a dog\" (cold): Every blurry photo is a dog if you believe hard enough.\n"
+         "- \"sun king's palace\" (hot): The apostrophe is doing a lot of work. So are you.\n"
+         "- \"some guy\" (warm): Technically accurate, spiritually unhelpful.\n"
+         "Be specific to the exact words of the guess; never generic filler like 'interesting choice'.")
 STOP = {"the", "and", "of", "a", "an", "in", "on", "for", "to", "with", "from", "film", "band", "river"}
 
 
