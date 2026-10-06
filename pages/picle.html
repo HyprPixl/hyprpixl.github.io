@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Picle - a daily pixel picture puzzle</title>
+<meta name="description" content="Five pixelated pictures a day from what the world is reading about. Guess what they are.">
+<meta property="og:title" content="Picle">
+<meta property="og:description" content="Five pixelated pictures a day. Guess what they are.">
+<meta name="theme-color" content="#ffffff">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;600;700&family=Libre+Baskerville:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #ffffff; --fg: #121212; --muted: #6b6b6b; --line: #d3d6da; --soft: #f4f4f2;
+    --cold: #8fb0d6; --cool: #a8c99a; --warm: #e9b949; --hot: #e3743f; --won: #6aaa64;
+    --btn: #121212; --btn-fg: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121213; --fg: #f2f2f2; --muted: #9a9a9a; --line: #3a3a3c; --soft: #1d1d1f;
+            --btn: #f2f2f2; --btn-fg: #121213; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  body { font-family: "Libre Franklin", "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; }
+  a { color: inherit; }
+
+  header { display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 16px;
+           border-bottom: 1px solid var(--line); max-width: 640px; margin: 0 auto; }
+  header h1 { font-family: "Libre Baskerville", Georgia, serif; font-size: 26px; margin: 0; letter-spacing: -.5px; }
+  header .date { font-size: 13px; color: var(--muted); margin-left: 10px; }
+  .icon { width: 36px; height: 36px; border: none; background: none; border-radius: 50%; cursor: pointer;
+          display: inline-flex; align-items: center; justify-content: center; }
+  .icon:hover { background: var(--soft); }
+  .icon svg { width: 22px; height: 22px; }
+  #back { font-size: 12px; color: var(--muted); text-decoration: none; margin-right: 6px; }
+
+  main { max-width: 420px; margin: 0 auto; padding: 18px 16px 48px; display: flex; flex-direction: column; align-items: center; }
+  #tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  #tabs button { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--line); background: var(--bg);
+                 font-weight: 700; font-size: 14px; cursor: pointer; transition: border-color .15s, transform .1s; }
+  #tabs button:active { transform: scale(.94); }
+  #tabs button.on { border-color: var(--fg); }
+  #tabs button.won { background: var(--won); border-color: var(--won); color: #fff; }
+  #tabs button.lost { background: var(--muted); border-color: var(--muted); color: var(--bg); }
+
+  #stage { position: relative; width: 100%; max-width: 340px; }
+  #board, #photo { display: block; width: 100%; border-radius: 6px; }
+  #board { image-rendering: pixelated; background: var(--soft); }
+  #photo { display: none; }
+
+  #quip { min-height: 44px; margin: 14px 0 6px; text-align: center; font-family: "Libre Baskerville", Georgia, serif;
+          font-style: italic; font-size: 15px; line-height: 1.45; color: var(--fg); max-width: 340px;
+          opacity: 0; transition: opacity .35s; }
+  #quip.show { opacity: 1; }
+
+  form { display: flex; gap: 8px; width: 100%; max-width: 340px; margin-top: 4px; }
+  #guess { flex: 1; min-width: 0; height: 48px; padding: 0 14px; font-size: 17px; border: 2px solid var(--line);
+           border-radius: 6px; background: var(--bg); color: var(--fg); outline: none; }
+  #guess:focus { border-color: var(--fg); }
+  .primary { height: 48px; padding: 0 18px; border: none; border-radius: 24px; background: var(--btn); color: var(--btn-fg);
+             font-weight: 700; font-size: 15px; cursor: pointer; }
+  .primary:disabled { opacity: .45; cursor: default; }
+  .ghost { border: 1px solid var(--fg); background: transparent; border-radius: 24px; height: 40px; padding: 0 16px;
+           font-weight: 600; cursor: pointer; }
+  #giveUp { margin-top: 12px; border: none; background: none; color: var(--muted); text-decoration: underline;
+            font-size: 13px; cursor: pointer; display: none; }
+
+  #history { list-style: none; padding: 0; margin: 18px 0 0; width: 100%; max-width: 340px; }
+  #history li { display: grid; grid-template-columns: 1fr 120px 54px; gap: 10px; align-items: center;
+                padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 15px; animation: rowIn .25s ease-out; }
+  #history .g { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #history .bar { display: flex; gap: 2px; }
+  #history .bar i { flex: 1; height: 10px; border-radius: 2px; background: var(--soft); }
+  #history .v { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; text-align: right; }
+  @keyframes rowIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+  #win { display: none; width: 100%; max-width: 340px; margin-top: 18px; padding: 18px; border-radius: 10px;
+         background: var(--soft); animation: rowIn .3s ease-out; }
+  #win .label { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  #win .answer { font-family: "Libre Baskerville", Georgia, serif; font-size: 24px; font-weight: 700; margin: 4px 0 2px; }
+  #win .about { color: var(--muted); font-size: 14px; margin-bottom: 10px; }
+  #win .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  #win .links { font-size: 12px; color: var(--muted); margin-top: 12px; }
+
+  dialog { border: none; border-radius: 12px; padding: 24px; max-width: 380px; width: calc(100% - 32px);
+           background: var(--bg); color: var(--fg); box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog h2 { font-family: "Libre Baskerville", Georgia, serif; margin: 0 0 10px; font-size: 22px; }
+  dialog p, dialog li { font-size: 15px; line-height: 1.5; }
+  dialog .close { position: absolute; top: 10px; right: 10px; }
+  .stats { display: flex; justify-content: space-between; text-align: center; margin: 14px 0 18px; }
+  .stats b { display: block; font-size: 30px; font-weight: 600; }
+  .stats span { font-size: 11px; color: var(--muted); }
+  #shareText { white-space: pre-wrap; background: var(--soft); border-radius: 8px; padding: 12px; font-size: 14px; margin: 0 0 14px; }
+  #toast { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg);
+           padding: 10px 16px; border-radius: 6px; font-weight: 700; font-size: 14px; opacity: 0; pointer-events: none;
+           transition: opacity .2s; z-index: 10; }
+  #toast.show { opacity: 1; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 0 16px 32px; line-height: 1.6; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <div style="display:flex;align-items:baseline"><a id="back" href="/index.html" aria-label="hyprpixl home">←</a><h1>Picle</h1><span class="date" id="date"></span></div>
+  <div>
+    <button class="icon" id="helpBtn" aria-label="How to play"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9.5"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14"/><circle cx="12" cy="17.2" r=".6" fill="currentColor"/></svg></button>
+    <button class="icon" id="statsBtn" aria-label="Statistics"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 20V11M12 20V5M19 20v-6"/></svg></button>
+  </div>
+</header>
+
+<main>
+  <div id="tabs" aria-label="Today's pictures"></div>
+  <div id="stage">
+    <canvas id="board" width="340" height="340" aria-label="Pixelated picture"></canvas>
+    <img id="photo" alt="">
+  </div>
+  <p id="quip" aria-live="polite"></p>
+  <form id="form" autocomplete="off">
+    <input id="guess" placeholder="What is it?" maxlength="80" aria-label="Your guess" disabled>
+    <button class="primary" id="go" disabled>Guess</button>
+  </form>
+  <button id="giveUp">Give up and reveal</button>
+  <section id="win" aria-live="polite"></section>
+  <ul id="history" aria-label="Your guesses"></ul>
+</main>
+<footer>Five pictures a day from what the world is reading about.<br>
+  Judged by <a href="https://huggingface.co/Cloudflare/clef-flash" target="_blank" rel="noopener">Clef-Flash</a> · photos from Wikimedia Commons</footer>
+
+<dialog id="help">
+  <button class="icon close" aria-label="Close" onclick="this.closest('dialog').close()">✕</button>
+  <h2>How to play</h2>
+  <p>Each day brings five pictures of things people are reading about. They start as a blur of pixels.</p>
+  <ul>
+    <li>Type what you think it is: a person, place, film, band, thing.</li>
+    <li>Every guess sharpens the picture. The bar shows how close you are.</li>
+    <li>Name it to solve it. Fewer guesses, better score.</li>
+  </ul>
+  <p style="color:var(--muted);font-size:13px">New pictures every day.</p>
+</dialog>
+
+<dialog id="results">
+  <button class="icon close" aria-label="Close" onclick="this.closest('dialog').close()">✕</button>
+  <h2>Statistics</h2>
+  <div class="stats">
+    <div><b id="stPlayed">0</b><span>Days played</span></div>
+    <div><b id="stSolved">0</b><span>Solved today</span></div>
+    <div><b id="stStreak">0</b><span>Current streak</span></div>
+    <div><b id="stMax">0</b><span>Max streak</span></div>
+  </div>
+  <pre id="shareText"></pre>
+  <button class="primary" id="shareBtn" style="width:100%">Share</button>
+</dialog>
+<div id="toast" role="status"></div>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+const KEY = "picle-v2";
+let DAY = null, P = null, S = null, idx = 0, embed = null, candVecs = null, candKeys = null, imgData = null;
+
+// ------------------------------------------------------------------ storage
+function store() { try { return JSON.parse(localStorage.getItem(KEY)) || { days: {} }; } catch (e) { return { days: {} }; } }
+function persist(all) { try { localStorage.setItem(KEY, JSON.stringify(all)); } catch (e) {} }
+function today(all = store()) { return (all.days[DAY.date] ||= {}); }
+function saveState() { const all = store(); today(all)[idx] = S; persist(all); }
+
+// ------------------------------------------------------------------ data
+function reveal(secret, key) {
+  const raw = Uint8Array.from(atob(secret), c => c.charCodeAt(0)), k = new TextEncoder().encode(key);
+  return JSON.parse(new TextDecoder().decode(raw.map((b, i) => b ^ k[i % k.length])));
+}
+
+// ------------------------------------------------------------------ judging (in the browser)
+const norm = s => s.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "")
+  .replace(/[^a-z0-9 ]+/g, " ").replace(/\b(a|an|the)\b/g, " ").replace(/\s+/g, " ").trim();
+function lev(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+async function embedder() {
+  if (!embed) {
+    const { pipeline } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.1");
+    embed = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", { dtype: "q8" });
+  }
+  return embed;
+}
+async function vecs(texts) {
+  const e = await embedder();
+  const out = await e(texts, { pooling: "mean", normalize: true });
+  const dim = out.dims[1];
+  return texts.map((_, i) => out.data.slice(i * dim, (i + 1) * dim));
+}
+async function prepareCandidates() {
+  const want = P;
+  candKeys = Object.keys(P.guesses);
+  const v = await vecs(candKeys.map(norm));
+  if (P === want) candVecs = v;
+}
+async function judge(guess) {
+  const g = norm(guess);
+  for (const a of P.aliases.map(norm)) {
+    if (g === a || (a.length >= 5 && lev(g, a) <= Math.max(1, Math.floor(a.length / 6)))) return { score: 10, p: 1, line: null };
+  }
+  for (const [k, v] of Object.entries(P.guesses)) if (norm(k) === g) return { score: v[0], p: v[1], line: v[2] };
+  if (!candVecs) await prepareCandidates();
+  const [q] = await vecs([g]);
+  const sims = candVecs.map(v => v.reduce((s, x, i) => s + x * q[i], 0));
+  const order = sims.map((s, i) => [s, i]).sort((x, y) => y[0] - x[0]).slice(0, 4);
+  const top = order[0], best = P.guesses[candKeys[top[1]]];
+  if (top[0] >= 0.9) return { score: best[0], p: best[1], line: best[2] };
+  const w = order.map(([s]) => Math.exp(s * 25)), W = w.reduce((a, b) => a + b, 0);
+  const est = order.reduce((a, [, i], k) => a + w[k] * P.guesses[candKeys[i]][0], 0) / W;
+  const pest = order.reduce((a, [, i], k) => a + w[k] * P.guesses[candKeys[i]][1], 0) / W;
+  const conf = Math.min(1, Math.max(0, (top[0] - 0.35) / 0.5));
+  return { score: 1 + (est - 1) * conf, p: pest * conf, line: top[0] >= 0.85 ? best[2] : null };
+}
+const BAND = s => s >= 6.5 ? "hot" : s >= 5 ? "warm" : "cold";
+const DEFAULT_LINES = {
+  cold: ["{g}. A choice was made.", "Not {g}. Not even nearby.", "{g}? The pixels respectfully disagree."],
+  warm: ["{g} is in the right neighbourhood. Wrong house.", "Warmer. {g} is closer than you'd think."],
+  hot: ["{g}. Oh, you're close.", "So close to {g} it hurts. Not quite."],
+};
+function lineFor(guess, v) {
+  if (v.line) return v.line;
+  const pool = (DAY.lines || {})[BAND(v.score)] || [];
+  const list = pool.length ? pool : DEFAULT_LINES[BAND(v.score)];
+  return list[Math.floor(Math.random() * list.length)].replaceAll("{g}", `“${guess}”`);
+}
+function verdict(score, won) {
+  if (won) return ["Got it", "var(--won)"];
+  if (score >= 6.5) return ["Hot", "var(--hot)"];
+  if (score >= 5) return ["Warm", "var(--warm)"];
+  if (score >= 3.5) return ["Cool", "var(--cool)"];
+  return ["Cold", "var(--cold)"];
+}
+
+// ------------------------------------------------------------------ pixels
+function loadPixels(src) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = img.width; c.height = img.height;
+      const x = c.getContext("2d");
+      x.drawImage(img, 0, 0);
+      res(x.getImageData(0, 0, img.width, img.height));
+    };
+    img.src = src;
+  });
+}
+function draw(n) {
+  const { width: w, height: h, data } = imgData, cv = $("board"), x = cv.getContext("2d");
+  const W = 340, H = Math.round(340 * h / w);
+  cv.width = W; cv.height = H;
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const x0 = Math.floor(i * w / n), x1 = Math.max(x0 + 1, Math.floor((i + 1) * w / n));
+    const y0 = Math.floor(j * h / n), y1 = Math.max(y0 + 1, Math.floor((j + 1) * h / n));
+    let r = 0, g = 0, b = 0, c = 0;
+    for (let y = y0; y < y1 && y < h; y++) for (let xx = x0; xx < x1 && xx < w; xx++) {
+      const k = (y * w + xx) * 4; r += data[k]; g += data[k + 1]; b += data[k + 2]; c++;
+    }
+    x.fillStyle = `rgb(${r / c | 0},${g / c | 0},${b / c | 0})`;
+    x.fillRect(Math.floor(i * W / n), Math.floor(j * H / n), Math.ceil(W / n) + 1, Math.ceil(H / n) + 1);
+  }
+}
+
+// ------------------------------------------------------------------ game
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function tabs() {
+  const st = today();
+  $("tabs").innerHTML = DAY.puzzles.map((_, i) => {
+    const s = st[i] || {};
+    return `<button class="${i === idx ? "on" : ""} ${s.won ? "won" : s.gaveUp ? "lost" : ""}" data-i="${i}"
+      aria-label="Picture ${i + 1}${s.won ? ", solved" : s.gaveUp ? ", revealed" : ""}"${i === idx ? ' aria-current="true"' : ""}>${i + 1}</button>`;
+  }).join("");
+}
+function renderHistory() {
+  $("history").innerHTML = (S.log || []).slice().reverse().map(([g, sc, won]) => {
+    const [label, color] = verdict(sc, won);
+    const filled = won ? 10 : Math.max(1, Math.round(sc));
+    const bar = Array.from({ length: 10 }, (_, k) => `<i style="${k < filled ? `background:${color}` : ""}"></i>`).join("");
+    return `<li><span class="g">${esc(g)}</span><span class="bar" aria-hidden="true">${bar}</span><span class="v" style="color:${color}">${label}</span></li>`;
+  }).join("");
+}
+function say(text) {
+  const q = $("quip");
+  q.classList.remove("show");
+  setTimeout(() => { q.textContent = text || ""; if (text) q.classList.add("show"); }, 150);
+}
+async function open(i) {
+  idx = i;
+  const raw = DAY.puzzles[i];
+  P = reveal(raw.secret, `picle-${DAY.date}-${raw.n}`);
+  S = today()[i] || { n: 8, attempts: 0, log: [] };
+  saveState(); tabs();
+  imgData = await loadPixels(raw.pixels);
+  $("photo").style.display = "none"; $("board").style.display = "block";
+  $("win").style.display = "none";
+  renderHistory();
+  say(S.lastLine || "");
+  $("giveUp").style.display = !S.won && !S.gaveUp && S.attempts >= 5 ? "inline" : "none";
+  if (S.won || S.gaveUp) return finish(S.won, false);
+  draw(S.n);
+  $("guess").disabled = false; $("go").disabled = false; $("guess").value = ""; $("guess").focus();
+  candVecs = null; prepareCandidates().catch(() => {});
+}
+async function submit(e) {
+  e.preventDefault();
+  const guess = $("guess").value.trim();
+  if (!guess || !P || S.won || S.gaveUp) return;
+  $("guess").value = "";
+  $("guess").disabled = true; $("go").disabled = true; $("go").textContent = "…";
+  let v;
+  try { v = await judge(guess); }
+  catch (err) { $("go").textContent = "Guess"; $("guess").disabled = false; $("go").disabled = false; return toast("Couldn't load the judge. Try again."); }
+  $("go").textContent = "Guess";
+  const won = v.p >= 0.6 && v.score >= 6.5;
+  S.attempts++;
+  S.log = (S.log || []).concat([[guess, Math.round(v.score * 10) / 10, won]]);
+  if (won) {
+    S.won = true; S.lastLine = null; saveState(); renderHistory(); tabs(); finish(true, true); return;
+  }
+  const line = lineFor(guess, v);
+  S.lastLine = line;
+  S.quips = (S.quips || []).concat([[v.score, line]]);
+  S.n = Math.min(128, v.score >= 7 ? S.n + 1 : v.score >= 6 ? S.n + 3 : Math.floor(S.n * 1.5));
+  saveState(); renderHistory(); draw(S.n); say(line);
+  $("guess").disabled = false; $("go").disabled = false; $("guess").focus();
+  if (S.attempts >= 5) $("giveUp").style.display = "inline";
+}
+function finish(won, fresh) {
+  $("guess").disabled = true; $("go").disabled = true; $("giveUp").style.display = "none";
+  const ph = $("photo");
+  ph.onload = () => { ph.style.display = "block"; $("board").style.display = "none"; };
+  ph.src = P.photo; ph.alt = P.answer;
+  draw(Math.min(128, imgData.width));
+  if (fresh) say(won ? ["Well named.", "Correct.", "There it is.", "Nicely done."][Math.min(3, S.attempts - 1)] : "");
+  const st = today();
+  const next = DAY.puzzles.findIndex((_, i) => !(st[i] || {}).won && !(st[i] || {}).gaveUp);
+  $("win").innerHTML =
+    `<div class="label">${won ? `Solved in ${S.attempts} ${S.attempts === 1 ? "guess" : "guesses"}` : "The answer was"}</div>` +
+    `<div class="answer">${esc(P.answer)}</div>` +
+    (P.about ? `<div class="about">${esc(P.about)}</div>` : "") +
+    `<div class="row">` +
+    (next >= 0 ? `<button class="primary" data-next="${next}">Next picture</button>` : `<button class="primary" data-results>See results</button>`) +
+    `<button class="ghost" data-results>Share</button></div>` +
+    `<div class="links"><a href="${esc(P.page)}" target="_blank" rel="noopener">Read about it on Wikipedia</a>` +
+    (P.file ? ` · <a href="${esc(P.file)}" target="_blank" rel="noopener">Photo credit</a>` : "") + `</div>`;
+  $("win").style.display = "block";
+  if (fresh && next < 0) setTimeout(showResults, 900);
+}
+
+// ------------------------------------------------------------------ results, streaks, sharing
+function streaks(all) {
+  const done = d => Object.values(all.days[d] || {}).some(s => s.won || s.gaveUp);
+  const dates = Object.keys(all.days).filter(done).sort();
+  let max = 0, run = 0, prev = null;
+  for (const d of dates) {
+    run = prev && (new Date(d) - new Date(prev)) === 864e5 ? run + 1 : 1;
+    max = Math.max(max, run); prev = d;
+  }
+  const last = dates[dates.length - 1];
+  const current = last && (new Date(DAY.date) - new Date(last)) <= 864e5 ? run : 0;
+  return { played: dates.length, current, max };
+}
+function shareText() {
+  const st = today();
+  const marks = DAY.puzzles.map((_, i) => { const s = st[i] || {};
+    return s.won ? (s.attempts <= 3 ? "🟩" : "🟨") : s.gaveUp ? "⬛" : "⬜"; }).join("");
+  const solved = DAY.puzzles.filter((_, i) => (st[i] || {}).won).length;
+  const guesses = DAY.puzzles.reduce((a, _, i) => a + ((st[i] || {}).won ? st[i].attempts : 0), 0);
+  // the judge's best line from your day: the one aimed at your coldest guess
+  const quips = Object.values(st).flatMap(s => s.quips || []).sort((a, b) => a[0] - b[0]);
+  const best = quips.length ? `\n“${quips[0][1].replace(/^[“"]|[”"]$/g, "")}” — the judge` : "";
+  const d = new Date(DAY.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return `Picle ${d} · ${solved}/5${solved ? ` in ${guesses}` : ""}\n${marks}${best}\nhyprpixl.ca/pages/picle.html`;
+}
+function showResults() {
+  const all = store(), s = streaks(all), st = today(all);
+  $("stPlayed").textContent = s.played;
+  $("stSolved").textContent = `${DAY.puzzles.filter((_, i) => (st[i] || {}).won).length}/5`;
+  $("stStreak").textContent = s.current;
+  $("stMax").textContent = s.max;
+  $("shareText").textContent = shareText();
+  $("results").showModal();
+}
+async function share() {
+  const text = shareText();
+  try {
+    if (navigator.share && matchMedia("(pointer: coarse)").matches) await navigator.share({ text });
+    else { await navigator.clipboard.writeText(text); toast("Copied to clipboard"); }
+  } catch (e) {}
+}
+function toast(t) { const el = $("toast"); el.textContent = t; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 1600); }
+
+// ------------------------------------------------------------------ wiring
+$("form").addEventListener("submit", submit);
+$("tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) open(+b.dataset.i); });
+$("win").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.next) open(+b.dataset.next); else if ("results" in b.dataset) showResults();
+});
+$("giveUp").onclick = () => { S.gaveUp = true; saveState(); tabs(); finish(false, true); };
+$("helpBtn").onclick = () => $("help").showModal();
+$("statsBtn").onclick = () => DAY && showResults();
+$("shareBtn").onclick = share;
+for (const d of document.querySelectorAll("dialog")) d.addEventListener("click", e => { if (e.target === d) d.close(); });
+
+(async () => {
+  try { DAY = await (await fetch("picle/puzzles/latest.json", { cache: "no-cache" })).json(); }
+  catch (e) { $("quip").textContent = "No pictures today. Check back soon."; $("quip").classList.add("show"); return; }
+  $("date").textContent = new Date(DAY.date + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric" });
+  const all = store();
+  if (!all.seenHelp) { all.seenHelp = true; persist(all); $("help").showModal(); }
+  const st = today();
+  const first = DAY.puzzles.findIndex((_, i) => !(st[i] || {}).won && !(st[i] || {}).gaveUp);
+  await open(first >= 0 ? first : 0);
+  embedder().catch(() => {});
+})();
+</script>
+</body>
+</html>

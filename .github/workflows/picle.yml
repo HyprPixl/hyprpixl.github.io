@@ -1,0 +1,39 @@
+name: Picle daily puzzles
+
+# Builds today's five Picle pictures with Workers AI (Clef-Flash judge + a small Llama),
+# all within Cloudflare's free daily allocation. The site itself has no backend.
+on:
+  schedule:
+    - cron: "30 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: picle
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pillow
+      - name: Build puzzles
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          PICLE_NEURON_BUDGET: "7000"
+        run: python scripts/picle_build.py --count 5
+      - name: Commit puzzles
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: "chore: picle puzzles for today"
+          add: "pages/picle/puzzles"
+          default_author: github_actions
+          pull: "--rebase --autostash"
