@@ -45,12 +45,15 @@
   #tabs button.won { background: var(--won); border-color: var(--won); color: #fff; }
   #tabs button.lost { background: var(--muted); border-color: var(--muted); color: var(--bg); }
 
-  #stage { position: relative; width: 100%; max-width: 340px; }
-  #board, #photo { display: block; width: 100%; border-radius: 6px; }
+  /* The picture shrinks to whatever height is left once the tabs, line and guess box fit on screen
+     (--stage-max is set from the visible viewport, so it also shrinks when the keyboard opens). */
+  #stage { position: relative; width: 100%; max-width: 340px; display: flex; justify-content: center; }
+  #board, #photo { display: block; width: auto; height: auto; max-width: 100%; max-height: var(--stage-max, 340px);
+                   border-radius: 6px; }
   #board { image-rendering: pixelated; background: var(--soft); }
   #photo { display: none; }
 
-  #quip { min-height: 44px; margin: 14px 0 6px; text-align: center; font-family: "Libre Baskerville", Georgia, serif;
+  #quip { min-height: 44px; margin: 12px 0 6px; text-align: center; font-family: "Libre Baskerville", Georgia, serif;
           font-style: italic; font-size: 15px; line-height: 1.45; color: var(--fg); max-width: 340px;
           opacity: 0; transition: opacity .35s; }
   #quip.show { opacity: 1; }
@@ -99,6 +102,11 @@
            transition: opacity .2s; z-index: 10; }
   #toast.show { opacity: 1; }
   footer { text-align: center; color: var(--muted); font-size: 12px; padding: 0 16px 32px; line-height: 1.6; }
+  @media (max-width: 600px) {
+    header { height: 48px; }
+    main { padding-top: 10px; }
+    #tabs { margin-bottom: 10px; }
+  }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
 </head>
@@ -158,7 +166,7 @@
 <script type="module">
 const $ = id => document.getElementById(id);
 const KEY = "picle-v2";
-let DAY = null, P = null, S = null, idx = 0, embed = null, candVecs = null, candKeys = null, imgData = null;
+let DAY = null, P = null, S = null, idx = 0, embed = null, candVecs = null, candKeys = null, imgData = null, POOL = null;
 
 // ------------------------------------------------------------------ storage
 function store() { try { return JSON.parse(localStorage.getItem(KEY)) || { days: {} }; } catch (e) { return { days: {} }; } }
@@ -182,6 +190,19 @@ function lev(a, b) {
     d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
   return d[a.length][b.length];
 }
+// The embedding model is an optional upgrade: it loads in the background and a guess only uses it if it's
+// ready (or becomes ready within a moment). Otherwise the guess is judged by text matching straight away.
+const canEmbed = !(navigator.connection && navigator.connection.saveData) && !((navigator.deviceMemory || 8) < 4);
+let embedReady = false, embedLoading = null;
+function warmEmbedder() {
+  if (!canEmbed || modelBroken) return null;
+  embedLoading ||= embedder().then(e => (embedReady = true, e)).catch(err => {
+    console.warn("Picle: embedding judge unavailable, using text matching instead.", err);
+    modelBroken = true;
+  });
+  return embedLoading;
+}
+const within = (promise, ms) => Promise.race([promise, new Promise(r => setTimeout(r, ms))]);
 async function embedder() {
   if (!embed) {
     const { pipeline, env } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.1");
@@ -199,7 +220,7 @@ async function vecs(texts) {
   return texts.map((_, i) => out.data.slice(i * dim, (i + 1) * dim));
 }
 async function prepareCandidates() {
-  if (modelBroken) return;
+  if (modelBroken || !embedReady) return;
   const want = P;
   candKeys = Object.keys(P.guesses);
   const v = await vecs(candKeys.map(norm));
@@ -221,14 +242,15 @@ async function judge(guess) {
   }
   for (const [k, v] of Object.entries(P.guesses)) if (norm(k) === g) return { score: v[0], p: v[1], line: v[2] };
   let sims;
-  if (!modelBroken) {
+  if (!embedReady && canEmbed && !modelBroken) await within(warmEmbedder(), 1200);
+  if (embedReady && !modelBroken) {
     try {
-      if (!candVecs) await prepareCandidates();
+      if (!candVecs) await within(prepareCandidates(), 1500);
+      if (!candVecs) throw new Error("still preparing");
       const [q] = await vecs([g]);
       sims = candVecs.map(v => v.reduce((s, x, i) => s + x * q[i], 0));
     } catch (err) {
-      console.warn("Picle: embedding judge unavailable, using text matching instead.", err);
-      modelBroken = true;
+      if (String(err.message) !== "still preparing") { console.warn("Picle: embedding judge failed.", err); modelBroken = true; }
     }
   }
   if (!sims) {
@@ -247,14 +269,32 @@ async function judge(guess) {
 const BAND = s => s >= 6.5 ? "hot" : s >= 5 ? "warm" : "cold";
 const DEFAULT_LINES = {
   cold: ["{g}. A choice was made.", "Not {g}. Not even nearby.", "{g}? The pixels respectfully disagree."],
-  warm: ["{g} is in the right neighbourhood. Wrong house.", "Warmer. {g} is closer than you'd think."],
-  hot: ["{g}. Oh, you're close.", "So close to {g} it hurts. Not quite."],
+  warm: ["{g}: the bar went up. Try not to let it go to your head.", "Somewhere, {g} is nodding along."],
+  hot: ["{g}. Oh, you're close.", "So close to {g} it hurts."],
+  warmer: ["{g} beats {prev}. Momentum."], colder: ["From {prev} to {g}. A bold retreat."],
 };
+// Lines already shown today, so the judge never repeats itself.
+function seen() { return (today().seenLines ||= []); }
+function pickLine(kind, guess, prev) {
+  const pool = (POOL && POOL[kind] && POOL[kind].length ? POOL[kind] : (DAY.lines || {})[kind]) || DEFAULT_LINES[kind];
+  const used = new Set(seen()), fresh = pool.filter(l => !used.has(l));
+  const list = fresh.length ? fresh : pool;
+  const line = list[Math.floor(Math.random() * list.length)];
+  const all = store(); (today(all).seenLines ||= []).push(line); persist(all);
+  return line.replaceAll("{g}", `“${guess}”`).replaceAll("{prev}", `“${prev}”`);
+}
 function lineFor(guess, v) {
-  if (v.line) return v.line;
-  const pool = (DAY.lines || {})[BAND(v.score)] || [];
-  const list = pool.length ? pool : DEFAULT_LINES[BAND(v.score)];
-  return list[Math.floor(Math.random() * list.length)].replaceAll("{g}", `“${guess}”`);
+  if (v.line && !seen().includes(v.line)) {
+    const all = store(); (today(all).seenLines ||= []).push(v.line); persist(all);
+    return v.line;
+  }
+  // Compare with the previous guess about half the time it moved noticeably, so the judge seems to follow along.
+  const last = (S.log || [])[S.log.length - 2];
+  if (last && Math.random() < 0.5) {
+    if (v.score - last[1] >= 1.2) return pickLine("warmer", guess, last[0]);
+    if (last[1] - v.score >= 1.2) return pickLine("colder", guess, last[0]);
+  }
+  return pickLine(BAND(v.score), guess);
 }
 function verdict(score, won) {
   if (won) return ["Got it", "var(--won)"];
@@ -330,8 +370,9 @@ async function open(i) {
   say(S.lastLine || "");
   $("giveUp").style.display = !S.won && !S.gaveUp && S.attempts >= 5 ? "inline" : "none";
   if (S.won || S.gaveUp) return finish(S.won, false);
-  draw(S.n);
-  $("guess").disabled = false; $("go").disabled = false; $("guess").value = ""; $("guess").focus();
+  draw(S.n); fit();
+  $("guess").disabled = false; $("go").disabled = false; $("guess").value = "";
+  if (!touch) $("guess").focus();
   candVecs = null; prepareCandidates().catch(() => {});
 }
 async function submit(e) {
@@ -355,7 +396,7 @@ async function submit(e) {
   S.quips = (S.quips || []).concat([[v.score, line]]);
   S.n = Math.min(128, v.score >= 7 ? S.n + 1 : v.score >= 6 ? S.n + 3 : Math.floor(S.n * 1.5));
   saveState(); renderHistory(); draw(S.n); say(line);
-  $("guess").disabled = false; $("go").disabled = false; $("guess").focus();
+  $("guess").disabled = false; $("go").disabled = false; $("guess").focus({ preventScroll: true });
   if (S.attempts >= 5) $("giveUp").style.display = "inline";
 }
 function finish(won, fresh) {
@@ -364,7 +405,9 @@ function finish(won, fresh) {
   ph.onload = () => { ph.style.display = "block"; $("board").style.display = "none"; };
   ph.src = P.photo; ph.alt = P.answer;
   draw(Math.min(128, imgData.width));
-  if (fresh) say(won ? ["Well named.", "Correct.", "There it is.", "Nicely done."][Math.min(3, S.attempts - 1)] : "");
+  const after = P.after || {};
+  if (fresh) say(won ? (S.attempts <= 2 ? after.quick : after.slow) || ["Well named.", "Correct.", "There it is.", "Nicely done."][Math.min(3, S.attempts - 1)]
+                     : after.gaveup || "");
   const st = today();
   const next = DAY.puzzles.findIndex((_, i) => !(st[i] || {}).won && !(st[i] || {}).gaveUp);
   $("win").innerHTML =
@@ -423,6 +466,29 @@ async function share() {
 }
 function toast(t) { const el = $("toast"); el.textContent = t; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 1600); }
 
+// ------------------------------------------------------------------ fitting the screen
+// On a phone the tabs, picture, judge's line and guess box must all fit in what's visible, including when the
+// keyboard is open. The picture takes whatever height is left; the page then scrolls so the tabs sit at the top.
+const touch = matchMedia("(pointer: coarse)").matches;
+function fit() {
+  const vv = window.visualViewport, h = vv ? vv.height : innerHeight;
+  const below = $("quip").offsetHeight + 18 + $("form").offsetHeight + 12;
+  const above = $("tabs").offsetHeight + 10 + (document.activeElement === $("guess") ? 0 : $("tabs").offsetTop);
+  const room = Math.max(120, Math.min(340, h - above - below - 8));
+  document.documentElement.style.setProperty("--stage-max", `${Math.floor(room)}px`);
+}
+function keepInView() {
+  if (!touch || document.activeElement !== $("guess")) return fit();
+  fit();
+  // iOS scrolls the focused input into view and pushes the picture off the top; undo that.
+  const y = $("tabs").getBoundingClientRect().top + scrollY - 6 - (window.visualViewport ? visualViewport.offsetTop : 0);
+  window.scrollTo({ top: Math.max(0, y), behavior: "instant" });
+}
+if (window.visualViewport) { visualViewport.addEventListener("resize", keepInView); }
+addEventListener("resize", fit);
+$("guess").addEventListener("focus", () => { keepInView(); setTimeout(keepInView, 300); });
+$("guess").addEventListener("blur", () => setTimeout(fit, 100));
+
 // ------------------------------------------------------------------ wiring
 $("form").addEventListener("submit", submit);
 $("tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) open(+b.dataset.i); });
@@ -444,8 +510,9 @@ for (const d of document.querySelectorAll("dialog")) d.addEventListener("click",
   if (!all.seenHelp) { all.seenHelp = true; persist(all); $("help").showModal(); }
   const st = today();
   const first = DAY.puzzles.findIndex((_, i) => !(st[i] || {}).won && !(st[i] || {}).gaveUp);
+  fetch("picle/lines.json", { cache: "no-cache" }).then(r => r.ok ? r.json() : null).then(j => { POOL = j; }).catch(() => {});
   await open(first >= 0 ? first : 0);
-  embedder().catch(() => {});
+  setTimeout(warmEmbedder, 800);
 })();
 </script>
 </body>

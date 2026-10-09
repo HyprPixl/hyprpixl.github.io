@@ -11,6 +11,8 @@ The site has no backend, so every AI call happens here, once a day:
      the answer, so lines react to the guess and can't give the picture away.
   4. Everything is written to pages/picle/puzzles/<date>.json (+ latest.json). The page matches a
      player's guess to these scored guesses in the browser.
+  5. pages/picle/used.json remembers every subject and photo ever used, so a picture never repeats.
+     pages/picle/lines.json is a pool of answer-agnostic judge lines that grows a little every day.
 
   python scripts/picle_build.py                         # Workers AI (needs CF_ACCOUNT_ID, CF_API_TOKEN)
   python scripts/picle_build.py --local                 # local Clef-Flash (~/laya-bench) + Ollama
@@ -35,6 +37,8 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "pages" / "picle" / "puzzles"
+USED = ROOT / "pages" / "picle" / "used.json"
+LINES = ROOT / "pages" / "picle" / "lines.json"
 UA = "PicleBot/1.0 (https://hyprpixl.ca/pages/picle.html; hyprpixlstudios@gmail.com)"
 CLEF = "@cf/cloudflare/clef-flash"
 CHAT = "@cf/meta/llama-3.2-3b-instruct"          # guess lists
@@ -42,7 +46,7 @@ WRITER = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"  # the judge's lines: wit ne
 
 BLOCK = re.compile(r"murder|kill|terror|shoot|massacre|assassin|bomb|war\b|attack|crime|criminal|prison|"
                    r"execut|death|died|dead|suicide|abuse|rape|sex|porn|nazi|genocide|disaster|crash|"
-                   r"election|politic|scandal|cartel|gang", re.I)
+                   r"election|politic|scandal|cartel|gang|abortion|weapon|firearm|drug|disease|cancer", re.I)
 def levels(t):
     """Closeness to naming the answer: generic descriptions sit mid-scale, only the name is near the top."""
     return [f"0: unrelated to {t}", "1: almost nothing in common", "2: a vague connection (colour, setting)",
@@ -174,33 +178,131 @@ def data_url(img):
 
 
 # ----------------------------------------------------------------------------- pipeline
-def candidates(date):
-    """Pictures from the day before `date`: most-read articles first, then 'on this day' pages and the
-    featured article (places, things and events, so the day isn't all people). Resizable JPEGs only."""
-    feed = get(f"https://api.wikimedia.org/feed/v1/wikipedia/en/featured/{(date - dt.timedelta(days=1)):%Y/%m/%d}")
+def load_used():
+    """Every subject and photo Picle has ever shown. Seeded from the puzzle files the first time."""
+    if USED.exists():
+        return json.loads(USED.read_text())
+    used = {"titles": [], "files": []}
+    for f in sorted(OUT.glob("20*.json")):
+        doc = json.loads(f.read_text())
+        for pz in doc["puzzles"]:
+            sec = reveal(pz["secret"], f"picle-{doc['date']}-{pz['n']}")
+            used["titles"].append(sec["answer"].lower())
+            used["files"].append(sec.get("file", ""))
+    return used
+
+
+VITAL = ["Biology and health sciences/Animals", "Everyday life", "Everyday life/Sports, games and recreation",
+         "Technology"]
+
+
+def evergreen(date, have, n=60):
+    """Well-known things (animals, foods, inventions, sports) from Wikipedia's vital articles, so a day with
+    little but people in the news still gets its three things. A fresh sample every day."""
+    titles = []
+    for page in VITAL:
+        q = {"action": "query", "redirects": 1, "generator": "links", "gpllimit": "max", "gplnamespace": 0,
+             "format": "json", "formatversion": 2, "titles": f"Wikipedia:Vital articles/Level/4/{page}"}
+        for _ in range(6):
+            try:
+                d = get("https://en.wikipedia.org/w/api.php?" + urllib.parse.urlencode(q))
+            except Exception as e:
+                print("vital articles unavailable:", e)
+                break
+            titles += [x["title"] for x in d.get("query", {}).get("pages", [])]
+            if "continue" not in d:
+                break
+            q.update(d["continue"])
+    rng = random.Random(f"evergreen-{date}")
+    out = []
+    for t in rng.sample(sorted(set(titles)), min(n, len(set(titles)))):
+        try:
+            a = get("https://en.wikipedia.org/api/rest_v1/page/summary/" + urllib.parse.quote(t.replace(" ", "_"), safe=""))
+        except Exception:
+            continue
+        if a.get("type") == "standard":
+            a.setdefault("normalizedtitle", (a.get("titles") or {}).get("normalized") or a.get("title", ""))
+            out.append((a, "evergreen"))
+    print(f"{len(out)} evergreen candidates", flush=True)
+    return out
+
+
+def candidates(date, used):
+    """Pictures for `date`, never one used before: the previous day's most-read articles first, then
+    'on this day' pages and the featured article (places, things and events, so the day isn't all
+    people), then the two days before that. Resizable JPEGs only."""
+    day = date - dt.timedelta(days=1)
+    feed = get(f"https://api.wikimedia.org/feed/v1/wikipedia/en/featured/{day:%Y/%m/%d}")
     pages = [(a, "trending") for a in feed.get("mostread", {}).get("articles", [])]
     pages += [(p, "on this day") for ev in feed.get("onthisday", []) for p in ev.get("pages", [])]
     if feed.get("tfa"):
         pages.append((feed["tfa"], "featured"))
+    try:
+        otd = get(f"https://api.wikimedia.org/feed/v1/wikipedia/en/onthisday/all/{date:%m/%d}")
+        pages += [(p, "on this day") for k in ("selected", "events", "holidays") for ev in otd.get(k, [])
+                  for p in ev.get("pages", [])]
+    except Exception as e:
+        print("on this day feed unavailable:", e)
+    pages += evergreen(date, len(pages))
+    for back in (2, 3):
+        try:
+            older = get(f"https://api.wikimedia.org/feed/v1/wikipedia/en/featured/{date - dt.timedelta(days=back):%Y/%m/%d}")
+            pages += [(a, "trending") for a in older.get("mostread", {}).get("articles", [])]
+        except Exception as e:
+            print(f"feed for {back} days back unavailable:", e)
+    old_titles = {t.lower() for t in used["titles"]}
+    old_files = {f for f in used["files"] if f}
     out, seen = [], set()
     for a, source in pages:
         t = a.get("thumbnail", {}).get("source", "").split("?")[0]
         title, desc = a.get("normalizedtitle", ""), a.get("description", "") or ""
-        if (title in seen or "/thumb/" not in t or not re.search(r"\.jpe?g/", t, re.I) or ":" in a.get("title", "")
+        answer = re.sub(r"\s*\(.*?\)", "", title).strip().lower()
+        file = a.get("originalimage", {}).get("source", "")
+        if (title in seen or answer in old_titles or title.lower() in old_titles or (file and file in old_files)
+                or "/thumb/" not in t or not re.search(r"\.jpe?g/", t, re.I) or ":" in a.get("title", "")
                 or title == "Main Page" or title.startswith("List of")
                 or BLOCK.search(title + " " + desc + " " + a.get("extract", "")[:300])):
             continue
         seen.add(title)
+        seen.add(answer)
         out.append({"title": title, "description": desc, "page": a["content_urls"]["desktop"]["page"],
                     "thumb": re.sub(r"/\d+px-", "/{w}px-", t), "views": a.get("views", 0), "source": source,
-                    "file": a.get("originalimage", {}).get("source", "")})
+                    "file": file})
     return out
 
 
-def curate(m, cands, count, max_people=1):
-    """Clef-Flash picks family-friendly, recognisable subjects (at most `max_people` real people), then
-    checks each photo actually shows its subject."""
-    cands = cands[:42]
+MIX = {"person": 1, "place": 1, "thing": 3}     # a day's pictures: guessing several people is no fun
+
+
+def curate(m, cands, count):
+    """Clef-Flash picks family-friendly, recognisable subjects in the day's mix (MIX: one person, one place,
+    the rest things), then checks each photo actually shows its subject. Works through the candidates 40 at
+    a time; if the whole list still comes up short, a second pass accepts less famous subjects and lets an
+    extra place or thing fill a gap. Never more than one person."""
+    quota = {k: round(v * count / sum(MIX.values())) for k, v in MIX.items()}
+    quota["thing"] += count - sum(quota.values())
+    picked, tried, scored = [], set(), []
+    for start in range(0, min(len(cands), 200), 40):
+        window = cands[start:start + 40]
+        ans = rate(m, window)
+        scored += [(c, ans, i) for i, c in enumerate(window)]
+        pick(m, [(c, ans, i) for i, c in enumerate(window)], picked, tried, quota, 0.45)
+        if len(picked) >= count:
+            return order(picked)
+    print(f"  only {len(picked)} after the first pass; relaxing", flush=True)
+    short = count - len(picked)
+    pick(m, scored, picked, tried, {**quota, "place": quota["place"] + short, "thing": quota["thing"] + short}, 0.2,
+         total=count)
+    return order(picked)
+
+
+def order(picked):
+    """Mix the kinds through the day (random is seeded with the date, so reruns agree)."""
+    random.shuffle(picked)
+    return picked
+
+
+def rate(m, cands):
     state = {"task": "choosing pictures for a family-friendly 'guess the pixelated picture' game",
              "candidates": {f"c{i}": f"{c['title']} - {c['description']}" for i, c in enumerate(cands)}}
     qs = {}
@@ -209,32 +311,43 @@ def curate(m, cands, count, max_people=1):
                          "subject for a public guessing game (no crime, violence, tragedy, politics or sexual content)?"}
         qs[f"known{i}"] = {"type": "noul", "instructions": f"Would many people recognise and be able to name "
                            f"candidate c{i} ({c['title']}) from a photo?"}
-        qs[f"person{i}"] = {"type": "noul", "instructions": f"Is candidate c{i} ({c['title']}) a specific real person?"}
+        qs[f"person{i}"] = {"type": "noul", "instructions": f"Is candidate c{i} ({c['title']}) a specific real person "
+                            "or group of people (a band, a team)?"}
+        qs[f"place{i}"] = {"type": "noul", "instructions": f"Is candidate c{i} ({c['title']}) a place: a city, country, "
+                           "building, landmark, river, mountain or other location?"}
     ans = {}
     for chunk in range(0, len(qs), 64):
         keys = list(qs)[chunk:chunk + 64]
         ans.update(m.clef(state, {k: qs[k] for k in keys}))
-    ranked = sorted(range(len(cands)), key=lambda i: -(ans[f"fun{i}"]["noul"] * ans[f"known{i}"]["noul"]))
-    picked, people = [], 0
-    for i in ranked:
-        c = cands[i]
-        if ans[f"fun{i}"]["noul"] < 0.5 or ans[f"known{i}"]["noul"] < 0.3:
+    return ans
+
+
+def kind(ans, i):
+    if ans[f"person{i}"]["noul"] >= 0.5:
+        return "person"
+    return "place" if ans[f"place{i}"]["noul"] >= 0.5 else "thing"
+
+
+def pick(m, scored, picked, tried, quota, min_known, total=None):
+    """Adds photo-checked picks from [(candidate, answers, index)] to `picked` while their kind has room."""
+    total = total or sum(quota.values())
+    ranked = sorted(scored, key=lambda x: -(x[1][f"fun{x[2]}"]["noul"] * x[1][f"known{x[2]}"]["noul"]))
+    for c, ans, i in ranked:
+        if len(picked) >= total:
+            break
+        k = kind(ans, i)
+        if (c["title"] in tried or ans[f"fun{i}"]["noul"] < 0.5 or ans[f"known{i}"]["noul"] < min_known
+                or sum(p["kind"] == k for p in picked) >= quota[k]):
             continue
-        is_person = ans[f"person{i}"]["noul"] >= 0.5
-        if is_person and people >= max_people:
-            continue
+        tried.add(c["title"])
         img = Image.open(io.BytesIO(get(c["thumb"].format(w=330), binary=True))).convert("RGB")
         shown = m.clef({"subject": c["title"], "about": c["description"]}, {"shows": {
             "type": "noul", "instructions": "Does this photo clearly show the subject itself (a person, place, "
             "thing or poster you could guess), not a map, chart, logo, document or unrelated scene?"}}, img)
-        print(f"  {c['title']:40s} [{c['source']}] fun {ans[f'fun{i}']['noul']:.2f} known {ans[f'known{i}']['noul']:.2f} "
-              f"person {ans[f'person{i}']['noul']:.2f} photo {shown['shows']['noul']:.2f}", flush=True)
+        print(f"  {c['title']:40s} [{c['source']}] {k:6s} fun {ans[f'fun{i}']['noul']:.2f} "
+              f"known {ans[f'known{i}']['noul']:.2f} photo {shown['shows']['noul']:.2f}", flush=True)
         if shown["shows"]["noul"] >= 0.5:
-            picked.append({**c, "image": img})
-            people += is_person
-        if len(picked) == count:
-            break
-    return picked
+            picked.append({**c, "image": img, "kind": k})
 
 
 def aliases(title):
@@ -285,14 +398,22 @@ def judge(m, c, pool):
 
 
 JUDGE = ("You are the judge of Picle, a daily picture-guessing game in the style of the New York Times games. "
-         "Your voice: dry, clever, warm underneath; one short line (max 16 words). Tease the guess, never the "
-         "person. Never mean, never crude, no emojis, no exclamation-mark pileups.\n"
-         "The voice, by example (do not reuse these):\n"
+         "Your voice: a dry, quick-witted game-show judge who has seen every bad guess and still enjoys them. "
+         "One short line, max 16 words. Tease the guess, never the person. No emojis, no crude jokes, at most one "
+         "exclamation mark.\n"
+         "The voice, by example (never reuse these):\n"
          "- \"a toaster\" (cold): Bold of you to assume this is kitchen-related.\n"
          "- \"a dog\" (cold): Every blurry photo is a dog if you believe hard enough.\n"
          "- \"sun king's palace\" (hot): The apostrophe is doing a lot of work. So are you.\n"
          "- \"some guy\" (warm): Technically accurate, spiritually unhelpful.\n"
-         "Be specific to the exact words of the guess; never generic filler like 'interesting choice'.")
+         "- \"lasagna\" (cold): I admire the confidence. I do not admire the lasagna.\n"
+         "- \"a famous actor\" (warm): You've narrowed it down to several thousand people. Progress.\n"
+         "- \"big boat\" (hot): Size: correct. Vocabulary: on holiday.\n"
+         "Variety matters most. Mix the shapes: a question, a fake ruling, a tiny story, a two-beat joke, a "
+         "sports-commentator aside, a stage direction, a mock-formal verdict. Play with the exact words of the "
+         "guess (a pun, a literal reading, its spelling). Never use these patterns: 'X is a ... but ...', "
+         "'X shares a border', 'X is a creative/novel/interesting ...', 'not quite', 'close but', "
+         "'in the right neighbourhood', 'a thread in the tapestry'. Never open two lines the same way.")
 STOP = {"the", "and", "of", "a", "an", "in", "on", "for", "to", "with", "from", "film", "band", "river"}
 
 
@@ -319,11 +440,11 @@ def quips(m, answer, about, aliases, scored):
         # and to how close the guess is (which the player sees anyway on the warmth bar).
         prompt = (f"Players are guessing a hidden, pixelated picture. You do NOT know what it is.\n"
                   f"Their guesses, with how close each one is:\n{listing}\n\n"
-                  "Write the judge's one-line reaction to each guess: wry about the guess itself (what it says "
-                  "about the player, the word they chose), grudgingly encouraging when warm or hot. Never claim "
-                  "anything about what the picture is. Avoid stock phrases like 'not quite' or 'close but'. "
+                  "Write the judge's one-line reaction to each guess: a joke about the guess itself (its exact "
+                  "words, what it says about the player), grudgingly encouraging when warm or hot. Never claim "
+                  "anything about what the picture is. Every line a different shape and a different first word. "
                   "Reply as numbered lines only, same numbering.")
-        text = m.chat(JUDGE, prompt, 1200, 0.9, writer=True)
+        text = m.chat(JUDGE, prompt, 1200, 1.0, writer=True)
         for line in text.splitlines():
             mm = re.match(r"\s*(\d+)[.)]\s*(.+)", line)
             if not mm or not (1 <= int(mm.group(1)) <= len(part)):
@@ -335,25 +456,75 @@ def quips(m, answer, about, aliases, scored):
     return out
 
 
-def fallback_pool(m, n=14):
-    """Answer-agnostic lines with a literal {g} slot, by temperature, for unpredicted guesses."""
-    ask = {"cold": "a guess that is nowhere close", "warm": "a guess that is in the right neighbourhood",
-           "hot": "a guess that is very close but not quite"}
-    pool = {}
-    for k, what in ask.items():
+POOL_ASK = {
+    "cold": ("a guess that is nowhere close", "{g}"),
+    "warm": ("a guess that is in the right general area", "{g}"),
+    "hot": ("a guess that is very close but not the answer", "{g}"),
+    "warmer": ("a guess {g} that is clearly closer than the player's previous guess {prev}", "{g} {prev}"),
+    "colder": ("a guess {g} that is further away than the player's previous guess {prev}", "{g} {prev}"),
+}
+
+
+def opener(line):
+    return " ".join(re.findall(r"[a-z{}']+", line.lower())[:2])
+
+
+def fresh_lines(m, have, n=12):
+    """Up to `n` new answer-agnostic lines per kind, unlike the ones already in the pool."""
+    new = {}
+    for k, (what, slots) in POOL_ASK.items():
+        known = list(have.get(k, []))
+        avoid = "\n".join(f"- {x}" for x in random.sample(known, min(12, len(known))))
         lines = []
-        for _ in range(3):
-            text = m.chat(JUDGE, f"Write {n} different one-line judge reactions to {what}. Put the literal "
-                          "placeholder {g} where the player's guess goes, once per line. Each must work for any "
-                          "guess and any picture. Avoid stock phrases. Numbered lines only.", 1200, 1.0, writer=True)
+        for _ in range(2):
+            text = m.chat(JUDGE, f"Write {n + 4} different one-line judge reactions to {what}. Use the literal "
+                          f"placeholder{'s' if ' ' in slots else ''} {slots} exactly once each per line. Each must work "
+                          "for any guess and any picture, and never say what the picture is. Every line a different "
+                          "shape and a different first word."
+                          + (f"\nAlready used, so write nothing like these:\n{avoid}" if avoid else "")
+                          + "\nNumbered lines only.", 1200, 1.0, writer=True)
             for line in text.splitlines():
                 q = re.sub(r"^[\s\-*\d.)]+", "", line).strip().strip('"')
-                if q.count("{g}") == 1 and 10 <= len(q) <= 160 and q not in lines:
+                ok = all(q.count(slot) == 1 for slot in slots.split()) and 10 <= len(q) <= 160
+                taken = {opener(x) for x in known + lines}
+                if ok and q not in known and opener(q) not in taken:
                     lines.append(q)
             if len(lines) >= n:
                 break
-        pool[k] = lines[:n]
-    return pool
+        new[k] = lines[:n]
+    return new
+
+
+def grow_pool(m, date, keep=150):
+    """Adds today's new lines to pages/picle/lines.json, keeping the newest `keep` per kind."""
+    pool = json.loads(LINES.read_text()) if LINES.exists() else {}
+    if not pool:                                         # seed from the last puzzle file's pool
+        try:
+            pool = {k: list(v) for k, v in json.loads((OUT / "latest.json").read_text()).get("lines", {}).items()}
+        except Exception:
+            pool = {}
+    for k, lines in fresh_lines(m, pool).items():
+        pool[k] = (pool.get(k, []) + lines)[-keep:]
+    pool["updated"] = date
+    LINES.write_text(json.dumps(pool, ensure_ascii=False, indent=0))
+    return {k: len(v) for k, v in pool.items() if isinstance(v, list)}
+
+
+def reveal_lines(m, answer, about):
+    """Lines for after the picture is revealed. These may name it, since the player has seen the answer."""
+    text = m.chat(JUDGE, f"The hidden picture was {answer} ({about}). Write the judge's one-liner shown after "
+                  "the reveal, in three situations:\n1. the player named it on the first or second guess\n"
+                  "2. the player got it after many guesses\n3. the player gave up\n"
+                  "Make each one specific to the subject (a fact, a pun, its reputation). Numbered lines only.",
+                  300, 1.0, writer=True)
+    out = {}
+    for line in text.splitlines():
+        mm = re.match(r"\s*([123])[.)]\s*(.+)", line)
+        if mm:
+            q = mm.group(2).strip().strip('"')
+            if 8 <= len(q) <= 180:
+                out[("quick", "slow", "gaveup")[int(mm.group(1)) - 1]] = q
+    return out
 
 
 def reveal(secret, key):
@@ -396,13 +567,11 @@ def requip(a):
             sec["guesses"] = {g: [s, p, lines.get(g)] for g, (s, p) in scored.items()}
             pz["secret"] = hide(sec, key)
             print(f"#{pz['n']} {sec['answer']}: {len(lines)} judge lines", flush=True)
-        doc["lines"] = fallback_pool(m)
-        doc.pop("fallbacks", None)
+        print("pool:", grow_pool(m, doc["date"]))
     finally:
         m.close()
     for name in ("latest.json", f"{doc['date']}.json"):
         (OUT / name).write_text(json.dumps(doc, separators=(",", ":")))
-    print("pool:", {k: len(v) for k, v in doc["lines"].items()})
 
 
 def main():
@@ -410,6 +579,7 @@ def main():
     ap.add_argument("--local", action="store_true")
     ap.add_argument("--date", default=dt.date.today().isoformat())
     ap.add_argument("--count", type=int, default=5)
+    ap.add_argument("--dry", action="store_true", help="only list candidates and picks; write nothing")
     ap.add_argument("--requip", action="store_true", help="only rewrite the judge's lines in latest.json")
     a = ap.parse_args()
     if a.requip:
@@ -419,32 +589,50 @@ def main():
     m = Local() if a.local else WorkersAI()
     t0 = time.time()
     try:
-        cands = candidates(date)
+        used = load_used()
+        cands = candidates(date, used)
         print(f"{len(cands)} candidates after filters", flush=True)
         picked = curate(m, cands, a.count)
         puzzles = []
         for n, c in enumerate(picked):
-            pool = guesses(m, c)
-            scored = judge(m, c, pool)
-            answer = re.sub(r"\s*\(.*?\)", "", c["title"]).strip()
-            lines = quips(m, answer, c["description"], aliases(c["title"]), scored)
-            best = sorted(scored.items(), key=lambda kv: -kv[1][0])[:3]
-            print(f"#{n + 1} {c['title']}: {len(scored)} guesses scored, {len(lines)} judge lines; top {best}", flush=True)
-            puzzles.append({"n": n + 1, "pixels": pack(c["image"]),
-                            "secret": hide({"answer": re.sub(r"\s*\(.*?\)", "", c["title"]).strip(), "about": c["description"], "page": c["page"],
-                                            "photo": c["thumb"].format(w=500), "file": c["file"],
-                                            "aliases": aliases(c["title"]),
-                                            "guesses": {g: [s, p, lines.get(g)] for g, (s, p) in scored.items()}},
-                                           f"picle-{a.date}-{n + 1}")})
-        pool = fallback_pool(m)
+            if a.dry:
+                continue
+            try:
+                pool = guesses(m, c)
+                scored = judge(m, c, pool)
+                answer = re.sub(r"\s*\(.*?\)", "", c["title"]).strip()
+                lines = quips(m, answer, c["description"], aliases(c["title"]), scored)
+                after = reveal_lines(m, answer, c["description"])
+                best = sorted(scored.items(), key=lambda kv: -kv[1][0])[:3]
+                print(f"#{n + 1} {c['title']}: {len(scored)} guesses scored, {len(lines)} judge lines; top {best}", flush=True)
+                puzzles.append({"n": n + 1, "pixels": pack(c["image"]),
+                                "secret": hide({"answer": re.sub(r"\s*\(.*?\)", "", c["title"]).strip(), "about": c["description"], "page": c["page"],
+                                                "photo": c["thumb"].format(w=500), "file": c["file"],
+                                                "aliases": aliases(c["title"]), "after": after,
+                                                "guesses": {g: [s, p, lines.get(g)] for g, (s, p) in scored.items()}},
+                                               f"picle-{a.date}-{n + 1}")})
+            except BudgetExceeded as e:             # keep the finished puzzles
+                print(e)
+                picked = picked[:n]
+                break
+        if a.dry:
+            return
+        try:
+            print("line pool:", grow_pool(m, a.date))
+        except BudgetExceeded as e:                      # the puzzles matter more than new lines
+            print("line pool not grown today:", e)
     finally:
         if hasattr(m, "close"):
             m.close()
     OUT.mkdir(parents=True, exist_ok=True)
     doc ={"date": a.date, "source": "Wikipedia (most read, on this day, featured); photos from Wikimedia Commons",
-           "judge": "Cloudflare Clef-Flash", "puzzles": puzzles, "lines": pool}
+           "judge": "Cloudflare Clef-Flash", "puzzles": puzzles}
     (OUT / f"{a.date}.json").write_text(json.dumps(doc, separators=(",", ":")))
     (OUT / "latest.json").write_text(json.dumps(doc, separators=(",", ":")))
+    for c in picked:
+        used["titles"].append(re.sub(r"\s*\(.*?\)", "", c["title"]).strip().lower())
+        used["files"].append(c["file"])
+    USED.write_text(json.dumps(used, ensure_ascii=False, indent=0))
     for old in OUT.glob("20*.json"):                     # keep two weeks of history
         if old.stem < (date - dt.timedelta(days=14)).isoformat():
             old.unlink()
