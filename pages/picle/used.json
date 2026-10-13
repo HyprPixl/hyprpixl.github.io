@@ -27,7 +27,12 @@
 "parachute",
 "color television",
 "san francisco bay",
-"delta goodrem"
+"delta goodrem",
+"niagara river",
+"strawberry",
+"christopher columbus",
+"tiger",
+"fox"
 ],
 "files": [
 "https://upload.wikimedia.org/wikipedia/commons/4/42/The_Beatles_1963_Dezo_Hoffman_Capitol_Records_press_photo_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
@@ -57,6 +62,11 @@
 "https://upload.wikimedia.org/wikipedia/commons/9/9a/Bangladesh_Air_Force_%28BAF%29_paratroopers_jump_from_a_U.S._Air_Force_C-130_Hercules_aircraft_over_Bangladesh_during_exercise_Cope_South_14_Nov._10%2C_2013_131110-F-SI013-240.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://upload.wikimedia.org/wikipedia/commons/c/cb/RCA_Victor_Color_TV_ad_featuring_milliner_Lilly_Dach%C3%A9%2C_1959.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/60/Bay_Area_by_Sentinel-2%2C_2019-03-11_%28small_version%29.jpg/3840px-Bay_Area_by_Sentinel-2%2C_2019-03-11_%28small_version%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
-"https://upload.wikimedia.org/wikipedia/commons/9/90/ESC_2026_Delta_Goodrem_014_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
+"https://upload.wikimedia.org/wikipedia/commons/9/90/ESC_2026_Delta_Goodrem_014_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/c/cf/Whirlpool_Bridge_%282936545446%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4c/Garden_strawberry_%28Fragaria_%C3%97_ananassa%29_single2.jpg/3840px-Garden_strawberry_%28Fragaria_%C3%97_ananassa%29_single2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c2/Portrait_of_a_Man%2C_Said_to_be_Christopher_Columbus.jpg/3840px-Portrait_of_a_Man%2C_Said_to_be_Christopher_Columbus.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b0/Bengal_tiger_%28Panthera_tigris_tigris%29_female_3_crop.jpg/3840px-Bengal_tiger_%28Panthera_tigris_tigris%29_female_3_crop.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://upload.wikimedia.org/wikipedia/commons/3/30/Vulpes_vulpes_ssp_fulvus.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
 ]
 }

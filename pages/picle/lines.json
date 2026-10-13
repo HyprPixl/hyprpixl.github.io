@@ -55,7 +55,19 @@
 "Nowhere in the history of guessing has {g} been a good idea.",
 "Oddly, {g} seems to be a guess that was made without eyes.",
 "Plainly, {g} is a testament to the power of wild speculation.",
-"Quietly, {g} has been disqualified from the competition."
+"Quietly, {g} has been disqualified from the competition.",
+"Although {g} sounds plausible, it's a bit of a stretch.",
+"Beneath the surface of {g} lies a profound misunderstanding.",
+"Detailed analysis reveals {g} to be a non-starter.",
+"Facing the facts, {g} just doesn't add up.",
+"Guesses like {g} make one wonder about the thought process.",
+"Had {g} been correct, it would have been a surprising twist.",
+"Inexplicably, {g} has been entered into the record.",
+"Just for the record, {g} is not a viable option.",
+"Keeping in mind the rules, {g} is a bit of an outlier.",
+"Look closely at {g} and you'll see why it's not a fit.",
+"Meanwhile, {g} is waiting patiently to be disproven.",
+"Narrowing it down to {g} requires a unique perspective."
 ],
 "warm": [
 "{g}. The bar twitched. That's not nothing.",
@@ -108,7 +120,19 @@
 "Inexplicably, {g} has a certain ring of truth to it.",
 "Just when it seemed unlikely, {g} emerges as a contender.",
 "Keen observers will note the subtle implications of {g}.",
-"Little did we know, {g} would become a crucial piece of the puzzle."
+"Little did we know, {g} would become a crucial piece of the puzzle.",
+"Normally, a guess like {g} would be considered a long shot.",
+"Undertones of {g} are starting to resonate with the overall theme.",
+"Sometimes {g} is the kind of guess that grows on you.",
+"Roughly speaking, {g} is in the same league as the correct answer.",
+"Given the circumstances, {g} is a surprisingly plausible option.",
+"And yet, {g} remains a viable candidate despite its flaws.",
+"Roughly translated, {g} means we're on the right track.",
+"Navigating through the possibilities, {g} appears to be a landmark.",
+"By process of elimination, {g} becomes a more attractive choice.",
+"If nothing else, {g} has provided a useful point of comparison.",
+"Curiously, the more we consider {g}, the more it starts to fit.",
+"Literally, {g} is the most straightforward interpretation so far."
 ],
 "hot": [
 "{g}! You can practically smell it.",
@@ -158,7 +182,19 @@
 "Curiously, {g} seems to be the answer, if only in an alternate universe.",
 "Remarkably, {g} has managed to be both familiar and foreign at the same time.",
 "Around {g}, the air is thick with the scent of almost-correctness.",
-"Following {g} to its logical conclusion leads us down a intriguing path."
+"Following {g} to its logical conclusion leads us down a intriguing path.",
+"Always a bridesmaid, {g} is forever the runner-up.",
+"Considering the options, {g} was a reasonable, if flawed, choice.",
+"Deliberately or not, {g} has led us down a tantalizing path.",
+"Finding the perfect answer proves elusive, even with {g}.",
+"Given the circumstances, {g} is an understandable, if incorrect, guess.",
+"Hypothetically, {g} could be the answer, in a parallel universe.",
+"If only {g} had been the solution, we'd all be done by now.",
+"Judging by {g}, you're on the right track, but derailed.",
+"Keen observers might notice {g} bears a striking resemblance to success.",
+"Lacking only a spark of brilliance, {g} falls just short.",
+"Making a strong case for {g} requires a bit more evidence.",
+"Navigating the complexities of this puzzle, {g} serves as a useful landmark."
 ],
 "warmer": [
 "From {prev} to {g}. Now we're getting somewhere.",
@@ -192,7 +228,19 @@
 "Likely, the next guess will be {g}, or at least one can hope so after {prev}.",
 "Amazingly, the transition from {prev} to {g} was smoother than anticipated.",
 "Tentatively, one might suggest that {g} is the most reasonable guess so far, surpassing {prev}.",
-"Ultimately, {g} will be remembered as the guess that redeemed the debacle that was {prev}."
+"Ultimately, {g} will be remembered as the guess that redeemed the debacle that was {prev}.",
+"Following a lackluster {prev}, {g} shines.",
+"Now that {prev} is out of the way, {g} can take center stage.",
+"Apparently, {g} has some merit, a welcome change from earlier attempts like {prev}.",
+"Bridging the gap between confusion and clarity, {g} surpasses {prev} in every way.",
+"Certainly, a step in the right direction is {g}, far superior to the misguided {prev}.",
+"Doubtless, the improvement from {prev} to {g} is a testament to your perseverance.",
+"Evidently, {g} is a more thoughtful approach than the haphazard {prev}.",
+"Frankly, {g} is the kind of guess that makes one wonder what {prev} was thinking.",
+"Given this new information, {g} seems like a logical progression from the flawed {prev}.",
+"How {g} managed to follow {prev} is a mystery that may never be fully understood.",
+"Incredibly, {g} has single-handedly redeemed the guessing process after {prev}.",
+"Judging by the contrast between {g} and {prev}, you've been doing some serious reflecting."
 ],
 "colder": [
 "From {prev} to {g}. A bold step backwards.",
@@ -225,7 +273,9 @@
 "Precisely, the problem with {g} is that it disregards the insights from {prev}.",
 "Frankly, it's surprising how far {g} strayed from the reasonable guess of {prev}.",
 "Obviously, the strategy behind {g} diverges significantly from {prev}.",
-"Pondering the leap from {prev} to {g} leaves one questioning the approach entirely."
+"Pondering the leap from {prev} to {g} leaves one questioning the approach entirely.",
+"Painfully, it's clear that {g} took us off the scent from {prev}.",
+"Pursuing {g} with vigor, one might overlook the merits of a previous attempt, such as {prev}."
 ],
-"updated": "2026-10-12"
+"updated": "2026-10-13"
 }
