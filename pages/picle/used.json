@@ -47,7 +47,12 @@
 "walt disney",
 "tyrannosaurus",
 "hollywood, los angeles",
-"mango"
+"mango",
+"flamingo",
+"hilary swank",
+"palace of westminster",
+"halloween",
+"skateboarding"
 ],
 "files": [
 "https://upload.wikimedia.org/wikipedia/commons/4/42/The_Beatles_1963_Dezo_Hoffman_Capitol_Records_press_photo_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
@@ -97,6 +102,11 @@
 "https://upload.wikimedia.org/wikipedia/commons/5/50/Walt_Disney_1946_%28cropped2%29.JPG?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/94/Tyrannosaurus_Rex_Holotype.jpg/3840px-Tyrannosaurus_Rex_Holotype.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
 "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f7/View_from_behind_Hollywood_Sign_overlooking_LA.jpg/3840px-View_from_behind_Hollywood_Sign_overlooking_LA.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
-"https://thumb.wikimedia.org/wikipedia/commons/thumb/7/74/Mangos_-_single_and_halved.jpg/3840px-Mangos_-_single_and_halved.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail"
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/7/74/Mangos_-_single_and_halved.jpg/3840px-Mangos_-_single_and_halved.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://upload.wikimedia.org/wikipedia/commons/3/38/Flamingos_Laguna_Colorada.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/6/6e/Hilary_Swank_at_28th_Tokyo_International_Film_Festival.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/d/db/Palace_of_Westminster_as_seen_from_Westminster_Bridge.jpg/3840px-Palace_of_Westminster_as_seen_from_Westminster_Bridge.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://upload.wikimedia.org/wikipedia/commons/a/a2/Jack-o%27-Lantern_2003-10-31.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/c/c0/BackSmithGrind.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
 ]
 }
