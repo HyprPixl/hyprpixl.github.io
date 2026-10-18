@@ -52,7 +52,12 @@
 "hilary swank",
 "palace of westminster",
 "halloween",
-"skateboarding"
+"skateboarding",
+"international space station",
+"lufthansa",
+"julia stiles",
+"solar eclipse",
+"space shuttle atlantis"
 ],
 "files": [
 "https://upload.wikimedia.org/wikipedia/commons/4/42/The_Beatles_1963_Dezo_Hoffman_Capitol_Records_press_photo_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
@@ -107,6 +112,11 @@
 "https://upload.wikimedia.org/wikipedia/commons/6/6e/Hilary_Swank_at_28th_Tokyo_International_Film_Festival.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/db/Palace_of_Westminster_as_seen_from_Westminster_Bridge.jpg/3840px-Palace_of_Westminster_as_seen_from_Westminster_Bridge.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
 "https://upload.wikimedia.org/wikipedia/commons/a/a2/Jack-o%27-Lantern_2003-10-31.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
-"https://upload.wikimedia.org/wikipedia/commons/c/c0/BackSmithGrind.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
+"https://upload.wikimedia.org/wikipedia/commons/c/c0/BackSmithGrind.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/5/59/The_station_pictured_from_the_SpaceX_Crew_Dragon_5.jpg/3840px-The_station_pictured_from_the_SpaceX_Crew_Dragon_5.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6e/D-AIXO_Lufthansa_A359_MUC_%22Ulm%22_%2849033191421%29.jpg/3840px-D-AIXO_Lufthansa_A359_MUC_%22Ulm%22_%2849033191421%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://upload.wikimedia.org/wikipedia/commons/d/d5/Julia_Stiles_by_David_Shankbone_cropped.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/c/c7/Solar_eclipse_1999_4.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/0/0e/STS132_Atlantis_undocking2_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
 ]
 }
