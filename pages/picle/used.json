@@ -57,7 +57,12 @@
 "lufthansa",
 "julia stiles",
 "solar eclipse",
-"space shuttle atlantis"
+"space shuttle atlantis",
+"lightning",
+"pizza",
+"kite experiment",
+"benjamin franklin",
+"venus"
 ],
 "files": [
 "https://upload.wikimedia.org/wikipedia/commons/4/42/The_Beatles_1963_Dezo_Hoffman_Capitol_Records_press_photo_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
@@ -117,6 +122,11 @@
 "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6e/D-AIXO_Lufthansa_A359_MUC_%22Ulm%22_%2849033191421%29.jpg/3840px-D-AIXO_Lufthansa_A359_MUC_%22Ulm%22_%2849033191421%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
 "https://upload.wikimedia.org/wikipedia/commons/d/d5/Julia_Stiles_by_David_Shankbone_cropped.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://upload.wikimedia.org/wikipedia/commons/c/c7/Solar_eclipse_1999_4.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
-"https://upload.wikimedia.org/wikipedia/commons/0/0e/STS132_Atlantis_undocking2_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
+"https://upload.wikimedia.org/wikipedia/commons/0/0e/STS132_Atlantis_undocking2_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c2/Port_and_lighthouse_overnight_storm_with_lightning_in_Port-la-Nouvelle.jpg/3840px-Port_and_lighthouse_overnight_storm_with_lightning_in_Port-la-Nouvelle.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/9/91/Pizza-3007395.jpg/3840px-Pizza-3007395.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5f/Benjamin_West%2C_English_%28born_America%29_-_Benjamin_Franklin_Drawing_Electricity_from_the_Sky_-_Google_Art_Project.jpg/3840px-Benjamin_West%2C_English_%28born_America%29_-_Benjamin_Franklin_Drawing_Electricity_from_the_Sky_-_Google_Art_Project.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://upload.wikimedia.org/wikipedia/commons/8/87/Joseph_Siffrein_Duplessis_-_Benjamin_Franklin_-_Google_Art_Project.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/0/08/Venus_from_Mariner_10.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
 ]
 }
