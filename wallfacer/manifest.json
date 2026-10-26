@@ -32,6 +32,11 @@
     "1,6.png",
     "-2,-1.jpg",
     "-4,-1.png",
+    "-5,0.jpg",
+    "-1,2.png",
+    "-3,2.jpg",
+    "6,2.gif",
+    "-4,-2.gif",
     "1,3 \"memetic poisons exist\"",
     "0,0 \"don't get the wrong idea\"",
     "4,3 \"thoughts have no undo button\"",
@@ -44,6 +49,12 @@
     "-3,-1 \"no man crosses the same river twice\"",
     "3,0 \"a fear\"",
     "2,0 \"you cannot steer a ship that's not moving\"",
-    "1,4 \"everything comes in waves\""
+    "1,4 \"everything comes in waves\"",
+    "0,6 \"the map is not the territory\"",
+    "-3,3 \"Chesterton's fence\"",
+    "-1,3 \"when a measure becomes a target, it ceases to be a good measure\"",
+    "6,3 \"Meditations on Moloch\" https://slatestarcodex.com/2014/07/30/meditations-on-moloch/",
+    "-3,-2 \"Ship of Theseus\"",
+    "2,2 \"this is water\""
   ]
 }
