@@ -32,6 +32,7 @@
     "2,-4.jpg",
     "1,4.png",
     "-2,-1.jpg",
+    "-4,-1.png",
     "1,1 \"memetic poisons exist\"",
     "0,0 \"don't get the wrong idea\"",
     "4,1 \"thoughts have no undo button\"",
@@ -40,6 +41,7 @@
     "2,1 \"Solipsism\"",
     "3,1 \"Nonexistence of Free-will\"",
     "2,2 \"Cynicism\"",
-    "3,2 \"Nihilism\""
+    "3,2 \"Nihilism\"",
+    "-3,-1 \"no man crosses the same river twice\""
   ]
 }
