@@ -102,7 +102,12 @@
 "baltimore",
 "armadillo",
 "new york city subway",
-"candice swanepoel"
+"candice swanepoel",
+"mask of tutankhamun",
+"pillow",
+"george takei",
+"air france",
+"gateway arch"
 ],
 "files": [
 "https://upload.wikimedia.org/wikipedia/commons/4/42/The_Beatles_1963_Dezo_Hoffman_Capitol_Records_press_photo_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
@@ -207,6 +212,11 @@
 "https://upload.wikimedia.org/wikipedia/commons/2/26/Fell%27s_Point_Aerial_2022.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://upload.wikimedia.org/wikipedia/commons/b/b4/Nine-banded_Armadillo.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/Downtown_1_train_approaching_125th_Street_station_June_2026_2_%28cropped%29.jpg/3840px-Downtown_1_train_approaching_125th_Street_station_June_2026_2_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
-"https://upload.wikimedia.org/wikipedia/commons/0/06/Candice-Swanepoel_2010-03-31_VictoriasSecretStoreChicago_photo-by-Adam_Bielawski.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
+"https://upload.wikimedia.org/wikipedia/commons/0/06/Candice-Swanepoel_2010-03-31_VictoriasSecretStoreChicago_photo-by-Adam_Bielawski.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/2/27/CairoEgMuseumTaaMaskMostlyPhotographed.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/a/ad/Pillows_on_a_hotel_bed.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/e/e7/George_Takei_by_Gage_Skidmore_4.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bc/Air_France_Airbus_A350-900_F-HUVM_on_final_approach_to_Boston_July_2026_1_%28cropped%29.jpg/3840px-Air_France_Airbus_A350-900_F-HUVM_on_final_approach_to_Boston_July_2026_1_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://upload.wikimedia.org/wikipedia/commons/0/00/St_Louis_night_expblend_cropped.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
 ]
 }
