@@ -122,7 +122,12 @@
 "ian mckellen",
 "cat",
 "lower manhattan",
-"hubble space telescope"
+"hubble space telescope",
+"moonrise, hernandez, new mexico",
+"thomas edison",
+"hockey puck",
+"mount rushmore",
+"ice hockey"
 ],
 "files": [
 "https://upload.wikimedia.org/wikipedia/commons/4/42/The_Beatles_1963_Dezo_Hoffman_Capitol_Records_press_photo_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
@@ -247,6 +252,11 @@
 "https://upload.wikimedia.org/wikipedia/commons/1/15/SDCC13_-_Ian_McKellen.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://upload.wikimedia.org/wikipedia/commons/2/25/Siam_lilacpoint.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/69/Luchtfoto_van_Lower_Manhattan.jpg/3840px-Luchtfoto_van_Lower_Manhattan.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
-"https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4a/Hubble_2009_close-up_2.jpg/3840px-Hubble_2009_close-up_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail"
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4a/Hubble_2009_close-up_2.jpg/3840px-Hubble_2009_close-up_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/Moonrise%2C_Hernandez%2C_New_Mexico_%28cropped%29.jpg/3840px-Moonrise%2C_Hernandez%2C_New_Mexico_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://upload.wikimedia.org/wikipedia/commons/9/9d/Thomas_Edison2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/1/1f/Ice_hockey_puck_-_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/8/87/Mount_Rushmore_detail_view_%28100MP%29.jpg/3840px-Mount_Rushmore_detail_view_%28100MP%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/3/39/Pittsburgh_Penguins%2C_Washington_Capitals%2C_Bryan_Rust_%2833744033514%29.jpg/3840px-Pittsburgh_Penguins%2C_Washington_Capitals%2C_Bryan_Rust_%2833744033514%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail"
 ]
 }
