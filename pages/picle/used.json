@@ -162,7 +162,12 @@
 "louvre abu dhabi",
 "led zeppelin iv",
 "windmill",
-"jet aircraft"
+"jet aircraft",
+"giant panda",
+"shoe",
+"saturn v",
+"cape canaveral",
+"led zeppelin"
 ],
 "files": [
 "https://upload.wikimedia.org/wikipedia/commons/4/42/The_Beatles_1963_Dezo_Hoffman_Capitol_Records_press_photo_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
@@ -327,6 +332,11 @@
 "https://upload.wikimedia.org/wikipedia/en/5/55/LouvreAD_exterior.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://upload.wikimedia.org/wikipedia/commons/f/fa/Zeppelin_IV.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://upload.wikimedia.org/wikipedia/commons/f/fd/DK_Fanoe_Windmill01.JPG?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
-"https://upload.wikimedia.org/wikipedia/commons/5/5e/BEA_de_Havilland_DH-106_Comet_4B_Berlin.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
+"https://upload.wikimedia.org/wikipedia/commons/5/5e/BEA_de_Havilland_DH-106_Comet_4B_Berlin.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0f/Grosser_Panda.JPG/3840px-Grosser_Panda.JPG?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://upload.wikimedia.org/wikipedia/commons/0/00/Skor_fr%C3%A5n_1700-_till_1960-talet_-_Nordiska_Museet_-_NMA.0056302.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/1/16/Apollo_11_Launch_-_GPN-2000-000630.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cd/Cape_canaveral.jpg/3840px-Cape_canaveral.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://upload.wikimedia.org/wikipedia/commons/6/63/Led_Zeppelin_-_promotional_image_%281971%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
 ]
 }
