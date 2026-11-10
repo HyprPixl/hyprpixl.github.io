@@ -10,8 +10,11 @@ def gather_html_files(root="."):
         dirs[:] = [d for d in dirs if d not in exclude]
         for name in filenames:
             if name.endswith(".html"):
-                rel_path = os.path.relpath(os.path.join(dirpath, name), root)
-                files.append(rel_path)
+                path = os.path.join(dirpath, name)
+                with open(path, encoding="utf-8", errors="ignore") as fh:
+                    if 'name="robots" content="noindex"' in fh.read(4096):
+                        continue  # e.g. tools like the wallfacer editor
+                files.append(os.path.relpath(path, root))
     return sorted(files)
 
 

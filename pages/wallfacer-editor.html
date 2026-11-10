@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Wallfacer Editor</title>
+    <link rel="stylesheet" href="../assets/css/wallfacer-editor.css" />
+    <script src="../assets/js/wallfacer-core.js" defer></script>
+    <script src="../assets/js/wallfacer-editor.js" defer></script>
+  </head>
+  <body>
+    <header class="wfe-bar">
+      <a class="wfe-home" href="wallfacer.html">← Wallfacer</a>
+      <h1>Editor</h1>
+      <div class="wfe-group">
+        <button id="wfe-undo" type="button" title="Undo (Ctrl+Z)" disabled>Undo</button>
+        <button id="wfe-redo" type="button" title="Redo (Ctrl+Shift+Z)" disabled>Redo</button>
+      </div>
+      <div class="wfe-group">
+        <button id="wfe-add-text" type="button" title="Add a text tile at the centre of the view">+ Text</button>
+        <button id="wfe-add-image" type="button" title="Add image files">+ Image</button>
+        <input id="wfe-file-input" type="file" accept="image/*" multiple hidden />
+      </div>
+      <div class="wfe-group">
+        <button id="wfe-zoom-out" type="button" title="Zoom out (-)">−</button>
+        <button id="wfe-fit" type="button" title="Fit everything (0)">Fit</button>
+        <button id="wfe-zoom-in" type="button" title="Zoom in (+)">+</button>
+      </div>
+      <span class="wfe-spacer"></span>
+      <span id="wfe-status" class="wfe-status"></span>
+      <button id="wfe-preview" type="button" title="Open the real viewer with this layout (updates live)">Preview</button>
+      <button id="wfe-connect" type="button" title="Pick your local repo's wallfacer folder so Save can write files directly">Connect folder</button>
+      <button id="wfe-save" type="button" class="wfe-primary" title="Save (Ctrl+S)">Save</button>
+    </header>
+
+    <main class="wfe-main">
+      <div id="wfe-viewport" class="wfe-viewport" tabindex="0" aria-label="Wallfacer grid">
+        <div id="wfe-world" class="wfe-world">
+          <svg id="wfe-edges" class="wfe-edges" aria-hidden="true"></svg>
+          <div id="wfe-tiles"></div>
+        </div>
+        <div id="wfe-marquee" class="wfe-marquee" hidden></div>
+        <div id="wfe-drop-hint" class="wfe-drop-hint" hidden>Drop images to add them here</div>
+      </div>
+
+      <aside class="wfe-panel">
+        <section id="wfe-inspector">
+          <h2>Selection</h2>
+          <p id="wfe-empty-sel" class="wfe-muted">Nothing selected.</p>
+          <div id="wfe-sel-fields" hidden>
+            <div id="wfe-sel-preview" class="wfe-sel-preview"></div>
+            <div class="wfe-row">
+              <label>X <input id="wfe-x" type="number" step="1" /></label>
+              <label>Y <input id="wfe-y" type="number" step="1" /></label>
+            </div>
+            <label id="wfe-kind-wrap">Type
+              <select id="wfe-kind">
+                <option value="text">Text</option>
+                <option value="link">Link</option>
+              </select>
+            </label>
+            <label id="wfe-text-wrap">Text <textarea id="wfe-text" rows="3"></textarea></label>
+            <label id="wfe-href-wrap">URL <input id="wfe-href" type="url" placeholder="https://…" /></label>
+            <p id="wfe-file" class="wfe-muted"></p>
+            <div id="wfe-links"></div>
+          </div>
+          <p id="wfe-multi" class="wfe-muted" hidden></p>
+          <button id="wfe-delete" type="button" class="wfe-danger" hidden>Delete</button>
+        </section>
+
+        <section>
+          <h2>Changes</h2>
+          <ul id="wfe-changes" class="wfe-changes"><li class="wfe-muted">None yet.</li></ul>
+        </section>
+
+        <details class="wfe-help" open>
+          <summary>How to</summary>
+          <ul>
+            <li><b>Drag</b> a tile to move it. Dropping it on another tile swaps them.</li>
+            <li><b>Shift/Ctrl-click</b> or <b>Shift-drag</b> the background to select several; drag or use arrow keys to move them together.</li>
+            <li><b>Drag the background</b> to pan; <b>scroll</b> to zoom.</li>
+            <li><b>Double-click</b> an empty cell to add text there.</li>
+            <li><b>Drop image files</b> from your desktop onto a cell, or paste one with Ctrl+V.</li>
+            <li>Click the <b>dot between two tiles</b> to cut or restore that connection. Cut connections can't be traveled in the viewer.</li>
+            <li><b>Connect folder</b> → choose <code>wallfacer/</code> in your local repo clone. <b>Save</b> then renames, adds, and deletes files and writes <code>manifest.json</code>. You still commit them yourself.</li>
+          </ul>
+        </details>
+      </aside>
+    </main>
+
+    <dialog id="wfe-dialog" class="wfe-dialog">
+      <form method="dialog">
+        <h2 id="wfe-dialog-title"></h2>
+        <div id="wfe-dialog-body"></div>
+        <menu>
+          <button value="cancel" type="submit">Cancel</button>
+          <button id="wfe-dialog-ok" value="ok" type="submit" class="wfe-primary">OK</button>
+        </menu>
+      </form>
+    </dialog>
+    <div id="wfe-toast" class="wfe-toast" role="status" hidden></div>
+  </body>
+</html>

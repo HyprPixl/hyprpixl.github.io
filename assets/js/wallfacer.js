@@ -1,553 +1,424 @@
-const app = document.getElementById("wallfacer-app");
-const stage = document.getElementById("wallfacer-stage");
-const message = document.getElementById("wallfacer-message");
+(function () {
+  const Core = window.WallfacerCore;
+  const app = document.getElementById("wallfacer-app");
+  const stage = document.getElementById("wallfacer-stage");
+  const message = document.getElementById("wallfacer-message");
+  const BASE = new URL("../wallfacer/", window.location.href);
+  const SVG_NS = "http://www.w3.org/2000/svg";
 
-const state = {
-  spacing: 240,
-  offsetX: 0,
-  offsetY: 0,
-  targetOffsetX: 0,
-  targetOffsetY: 0,
-  tiles: [],
-  connections: [],
-  connectionLayer: null,
-  dragging: false,
-  dragStart: { x: 0, y: 0 },
-  dragOffset: { x: 0, y: 0 },
-  dragGridStart: { x: 0, y: 0 },
-};
+  // Fisheye: grid distance d (in cells) maps to a screen radius of
+  // d * (1 + K) / (1 + K * d). Distance 1 stays put, close tiles bulge
+  // out slightly, and the far wall compresses toward the rim. Raise K for
+  // a stronger lens.
+  const FISHEYE = 0.5;
+  const SPACING = 250; // px between cells at distance 1
+  const LOAD_RADIUS = 3.2; // cells; images load once they come this close
+  const DRAG_THRESHOLD = 6;
 
-const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 
-const imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "avif"];
-
-const hasImageExtension = (filename) =>
-  imageExtensions.some((extension) =>
-    filename.toLowerCase().endsWith(`.${extension}`)
-  );
-
-const parseImageData = (filename) => {
-  const baseName = filename.split("/").pop() || filename;
-  const nameWithoutExt = baseName.replace(/\.[^.]+$/, "");
-  const match = nameWithoutExt.match(/^(-?\d+)\s*[x,]\s*(-?\d+)(?:[ _-]+)?(.*)?$/);
-
-  if (match) {
-    const [, x, y, label] = match;
-    const caption = label ? label.trim() : "";
-    return {
-      kind: "image",
-      file: filename,
-      x: Number.parseInt(x, 10),
-      y: Number.parseInt(y, 10),
-      caption,
-      title: nameWithoutExt,
-    };
-  }
-
-  return {
-    kind: "image",
-    file: filename,
-    x: 0,
-    y: 0,
-    caption: nameWithoutExt,
-    title: nameWithoutExt,
+  const state = {
+    offsetX: 0, // camera position, in cells
+    offsetY: 0,
+    targetX: 0,
+    targetY: 0,
+    tiles: [],
+    byKey: new Map(),
+    cuts: new Set(),
+    connections: [],
+    svg: null,
+    pointer: null, // active pointer gesture
+    suppressClick: false,
+    raf: 0,
+    srcOverrides: {},
+    centerTile: null,
   };
-};
 
-const parseTextEntry = (entry) => {
-  const match = entry.match(/^(-?\d+)\s*[x,]\s*(-?\d+)\s+"(.+)"\s*$/);
-  if (!match) {
-    return null;
-  }
-  const [, x, y, text] = match;
-  return {
-    kind: "text",
-    x: Number.parseInt(x, 10),
-    y: Number.parseInt(y, 10),
-    text,
-    title: `${x},${y}`,
-  };
-};
+  const connected = (ax, ay, bx, by) =>
+    state.byKey.has(Core.key(bx, by)) && !state.cuts.has(Core.edgeKey(ax, ay, bx, by));
 
-const parseLinkEntry = (entry) => {
-  const match = entry.match(
-    /^(-?\d+)\s*[x,]\s*(-?\d+)\s+"(.+?)"\s+(https?:\/\/\S+)\s*$/
-  );
-  if (!match) {
-    return null;
-  }
-  const [, x, y, text, href] = match;
-  return {
-    kind: "link",
-    x: Number.parseInt(x, 10),
-    y: Number.parseInt(y, 10),
-    text,
-    href,
-    title: `${x},${y}`,
-  };
-};
-
-const parseManifestEntry = (entry) => {
-  if (typeof entry === "string") {
-    const linkEntry = parseLinkEntry(entry);
-    if (linkEntry) {
-      return linkEntry;
-    }
-    const textEntry = parseTextEntry(entry);
-    if (textEntry) {
-      return textEntry;
-    }
-    if (hasImageExtension(entry)) {
-      return parseImageData(entry);
-    }
-    return parseImageData(entry);
-  }
-
-  if (entry && typeof entry === "object") {
-    if (entry.type === "link" || entry.href) {
-      return {
-        kind: "link",
-        x: Number.parseInt(entry.x, 10) || 0,
-        y: Number.parseInt(entry.y, 10) || 0,
-        text: entry.text || entry.label || "",
-        href: entry.href || "",
-        title: `${entry.x ?? 0},${entry.y ?? 0}`,
-      };
-    }
-
-    if (entry.type === "text" || entry.text) {
-      return {
-        kind: "text",
-        x: Number.parseInt(entry.x, 10) || 0,
-        y: Number.parseInt(entry.y, 10) || 0,
-        text: entry.text || "",
-        title: `${entry.x ?? 0},${entry.y ?? 0}`,
-      };
-    }
-
-    if (entry.file) {
-      return parseImageData(entry.file);
-    }
-  }
-
-  return null;
-};
-
-const renderTiles = (entries) => {
-  stage.innerHTML = "";
-  state.tiles = entries
-    .map((entry) => {
-      if (!entry) {
-        return null;
-      }
-      const tile = document.createElement("div");
-      tile.className = "wallfacer-tile";
-      tile.dataset.x = String(entry.x);
-      tile.dataset.y = String(entry.y);
-
-      if (entry.kind === "text" || entry.kind === "link") {
-        const textBlock = document.createElement("div");
-        textBlock.className = "wallfacer-text-block";
-        if (entry.kind === "link") {
-          const link = document.createElement("a");
-          link.href = entry.href;
-          link.textContent = entry.text || entry.href;
-          link.target = "_blank";
-          link.rel = "noopener noreferrer";
-          textBlock.appendChild(link);
-        } else {
-          textBlock.textContent = entry.text;
-        }
-        tile.appendChild(textBlock);
-      } else {
-        if (entry.caption) {
-          const caption = document.createElement("div");
-          caption.className = "wallfacer-caption";
-          caption.textContent = entry.caption;
-          tile.appendChild(caption);
-        }
-
-        const imageFrame = document.createElement("div");
-        imageFrame.className = "wallfacer-image";
-        imageFrame.style.setProperty(
-          "--static-delay",
-          `${(Math.random() * -1.6).toFixed(2)}s`
-        );
-        imageFrame.style.setProperty(
-          "--static-speed",
-          `${(0.18 + Math.random() * 0.22).toFixed(2)}s`
-        );
-        imageFrame.style.setProperty(
-          "--static-size",
-          `${Math.round(84 + Math.random() * 56)}px`
-        );
-
-        const img = document.createElement("img");
-        img.dataset.src = `/wallfacer/${entry.file}`;
-        img.alt = entry.caption || entry.title;
-        img.title = entry.title;
-        img.loading = "lazy";
-        img.decoding = "async";
-        img.addEventListener("load", () => {
-          tile.classList.toggle("is-wide", img.naturalWidth >= img.naturalHeight);
-          tile.classList.toggle(
-            "is-tall",
-            img.naturalWidth < img.naturalHeight
-          );
-        });
-        imageFrame.appendChild(img);
-        tile.appendChild(imageFrame);
-      }
-
-      stage.appendChild(tile);
-      return tile;
-    })
-    .filter(Boolean);
-  buildConnections();
-};
-
-const hasTileAt = (gridX, gridY) =>
-  state.tiles.some((tile) => {
-    const x = Number.parseInt(tile.dataset.x, 10);
-    const y = Number.parseInt(tile.dataset.y, 10);
-    return x === gridX && y === gridY;
-  });
-
-const buildConnections = () => {
-  state.connections = [];
-  state.connectionLayer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  state.connectionLayer.setAttribute("class", "wallfacer-connections");
-  state.connectionLayer.setAttribute("aria-hidden", "true");
-  stage.appendChild(state.connectionLayer);
-
-  const tileMap = new Map();
-  state.tiles.forEach((tile) => {
-    const x = Number.parseInt(tile.dataset.x, 10);
-    const y = Number.parseInt(tile.dataset.y, 10);
-    tileMap.set(`${x},${y}`, { x, y });
-  });
-
-  const directions = [
-    { dx: 1, dy: 0 },
-    { dx: 0, dy: 1 },
-  ];
-
-  tileMap.forEach(({ x, y }) => {
-    directions.forEach(({ dx, dy }) => {
-      const neighborKey = `${x + dx},${y + dy}`;
-      if (!tileMap.has(neighborKey)) {
-        return;
-      }
-      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-      line.setAttribute("class", "wallfacer-connection");
-      state.connectionLayer.appendChild(line);
-      state.connections.push({
-        line,
-        from: { x, y },
-        to: { x: x + dx, y: y + dy },
-      });
-    });
-  });
-};
-
-const getNeighborOffsets = (gridX, gridY) => {
-  const candidates = [
+  const DIRS = [
     { dx: -1, dy: 0 },
     { dx: 1, dy: 0 },
     { dx: 0, dy: -1 },
     { dx: 0, dy: 1 },
   ];
 
-  return candidates
-    .filter(({ dx, dy }) => hasTileAt(gridX + dx, gridY + dy))
-    .map(({ dx, dy }) => ({
-      dx,
-      dy,
-      offsetX: -dx * state.spacing,
-      offsetY: -dy * state.spacing,
-    }));
-};
+  /* ---------- rendering ---------- */
 
-const updateTiles = () => {
-  let closestTile = null;
-  let closestDistance = Number.POSITIVE_INFINITY;
+  const imageSrc = (entry) => state.srcOverrides[Core.key(entry.x, entry.y)] || null;
 
-  const tileData = state.tiles.map((tile) => {
-    const gridX = Number.parseInt(tile.dataset.x, 10);
-    const gridY = Number.parseInt(tile.dataset.y, 10);
-    const worldX = gridX * state.spacing + state.offsetX;
-    const worldY = gridY * state.spacing + state.offsetY;
-    const distance = Math.hypot(worldX, worldY);
-    const viewDistance = distance / state.spacing;
-    if (distance < closestDistance) {
-      closestDistance = distance;
-      closestTile = tile;
-    }
-    return { tile, worldX, worldY, distance, viewDistance };
-  });
+  const createTile = (entry) => {
+    const el = document.createElement("div");
+    el.className = "wallfacer-tile";
+    const tile = { el, entry, x: entry.x, y: entry.y, img: null, loaded: false };
 
-  tileData.forEach(({ tile, worldX, worldY, distance, viewDistance }) => {
-    const depth = -distance * 0.18;
-    const baseScale = clamp(1.06 - distance * 0.0016, 0.45, 1.02);
-    const centerBoost = tile === closestTile ? 1.32 : 1;
-    const scale = clamp(baseScale * centerBoost, 0.45, 1.38);
-    const rotateX = clamp(-worldY * 0.0004, -10, 10);
-    const rotateY = clamp(worldX * 0.0004, -10, 10);
-    const baseOpacity = clamp(1 - distance * 0.0016, 0.22, 1);
-    const opacity = tile === closestTile ? baseOpacity : baseOpacity * 0.72;
-    const staticStrength = clamp(distance * 0.0032, 0.2, 0.9);
-    const dimOpacity = clamp(0.9 - distance * 0.0018, 0.2, 0.85);
-
-    tile.style.setProperty(
-      "--tile-transform",
-      `translate3d(${worldX}px, ${worldY}px, ${depth}px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(${scale})`
-    );
-    tile.style.opacity = `${opacity}`;
-    tile.style.setProperty("--static-opacity", `${staticStrength}`);
-    tile.style.setProperty("--dim-opacity", `${dimOpacity}`);
-    const isCenter = tile === closestTile;
-    const isFar = viewDistance > 1.1;
-    tile.classList.toggle("is-center", isCenter);
-    tile.classList.toggle("is-dim", !isCenter);
-    tile.classList.toggle("is-far", isFar);
-
-    const img = tile.querySelector("img");
-    if (img) {
-      const inRange = viewDistance <= 3;
-      const hasSrc = Boolean(img.getAttribute("src"));
-      if (inRange && !hasSrc && img.dataset.src) {
-        img.src = img.dataset.src;
-      } else if (!inRange && hasSrc) {
-        img.removeAttribute("src");
+    if (entry.kind === "text" || entry.kind === "link") {
+      const block = document.createElement("div");
+      block.className = "wallfacer-text-block";
+      if (entry.kind === "link") {
+        const a = document.createElement("a");
+        a.href = entry.href;
+        a.textContent = entry.text || entry.href;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.draggable = false;
+        block.appendChild(a);
+      } else {
+        block.textContent = entry.text;
       }
+      el.appendChild(block);
+    } else {
+      const frame = document.createElement("div");
+      frame.className = "wallfacer-image";
+      frame.style.setProperty("--static-delay", `${(Math.random() * -1.6).toFixed(2)}s`);
+      frame.style.setProperty("--static-speed", `${(0.18 + Math.random() * 0.22).toFixed(2)}s`);
+      const img = document.createElement("img");
+      img.alt = Core.stemOf(entry.file);
+      img.decoding = "async";
+      img.draggable = false;
+      img.addEventListener("load", () => {
+        const wide = img.naturalWidth >= img.naturalHeight;
+        el.classList.toggle("is-wide", wide);
+        el.classList.toggle("is-tall", !wide);
+        el.classList.add("is-loaded");
+      });
+      frame.appendChild(img);
+      el.appendChild(frame);
+      tile.img = img;
     }
-  });
-
-  if (state.connectionLayer && state.connections.length) {
-    state.connections.forEach(({ line, from, to }) => {
-      const x1 = from.x * state.spacing + state.offsetX;
-      const y1 = from.y * state.spacing + state.offsetY;
-      const x2 = to.x * state.spacing + state.offsetX;
-      const y2 = to.y * state.spacing + state.offsetY;
-      line.setAttribute("x1", x1);
-      line.setAttribute("y1", y1);
-      line.setAttribute("x2", x2);
-      line.setAttribute("y2", y2);
-    });
-  }
-};
-
-const animate = () => {
-  state.offsetX += (state.targetOffsetX - state.offsetX) * 0.12;
-  state.offsetY += (state.targetOffsetY - state.offsetY) * 0.12;
-  updateTiles();
-  requestAnimationFrame(animate);
-};
-
-const handleKeydown = (event) => {
-  if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
-    return;
-  }
-  event.preventDefault();
-
-  const step = state.spacing;
-  const currentGridX = Math.round(-state.targetOffsetX / step);
-  const currentGridY = Math.round(-state.targetOffsetY / step);
-  let nextGridX = currentGridX;
-  let nextGridY = currentGridY;
-
-  switch (event.key) {
-    case "ArrowLeft":
-      nextGridX -= 1;
-      break;
-    case "ArrowRight":
-      nextGridX += 1;
-      break;
-    case "ArrowUp":
-      nextGridY -= 1;
-      break;
-    case "ArrowDown":
-      nextGridY += 1;
-      break;
-    default:
-      break;
-  }
-
-  if (!hasTileAt(nextGridX, nextGridY)) {
-    return;
-  }
-
-  state.targetOffsetX = -nextGridX * step;
-  state.targetOffsetY = -nextGridY * step;
-};
-
-const handlePointerDown = (event) => {
-  state.dragging = true;
-  app.classList.add("is-dragging");
-  state.dragStart = { x: event.clientX, y: event.clientY };
-  state.dragOffset = { x: state.targetOffsetX, y: state.targetOffsetY };
-  state.dragGridStart = {
-    x: Math.round(-state.targetOffsetX / state.spacing),
-    y: Math.round(-state.targetOffsetY / state.spacing),
+    return tile;
   };
-  app.setPointerCapture(event.pointerId);
-};
 
-const handlePointerMove = (event) => {
-  if (!state.dragging) {
-    return;
-  }
-  const dragDx = event.clientX - state.dragStart.x;
-  const dragDy = event.clientY - state.dragStart.y;
-  const neighbors = getNeighborOffsets(
-    state.dragGridStart.x,
-    state.dragGridStart.y
-  );
-
-  if (!neighbors.length) {
-    state.targetOffsetX = state.dragOffset.x;
-    state.targetOffsetY = state.dragOffset.y;
-    return;
-  }
-
-  let best = null;
-  let bestDot = Number.NEGATIVE_INFINITY;
-  neighbors.forEach((neighbor) => {
-    const dot = dragDx * neighbor.offsetX + dragDy * neighbor.offsetY;
-    if (dot > bestDot) {
-      bestDot = dot;
-      best = neighbor;
-    }
-  });
-
-  if (!best || bestDot <= 0) {
-    state.targetOffsetX = state.dragOffset.x;
-    state.targetOffsetY = state.dragOffset.y;
-    return;
-  }
-
-  const dirX = best.offsetX;
-  const dirY = best.offsetY;
-  const dirLenSq = dirX * dirX + dirY * dirY || 1;
-  const tRaw = (dragDx * dirX + dragDy * dirY) / dirLenSq;
-  const t = clamp(tRaw, 0, 1);
-  const projX = dirX * t;
-  const projY = dirY * t;
-  let perpX = dragDx - projX;
-  let perpY = dragDy - projY;
-  const wiggleLimit = state.spacing * 0.12;
-  const perpLen = Math.hypot(perpX, perpY);
-  if (perpLen > wiggleLimit) {
-    const scale = wiggleLimit / perpLen;
-    perpX *= scale;
-    perpY *= scale;
-  }
-
-  state.targetOffsetX = state.dragOffset.x + projX + perpX;
-  state.targetOffsetY = state.dragOffset.y + projY + perpY;
-};
-
-const handlePointerUp = (event) => {
-  state.dragging = false;
-  app.classList.remove("is-dragging");
-  app.releasePointerCapture(event.pointerId);
-  const currentGridX = Math.round(-state.targetOffsetX / state.spacing);
-  const currentGridY = Math.round(-state.targetOffsetY / state.spacing);
-  if (!hasTileAt(currentGridX, currentGridY)) {
-    let closest = null;
-    let closestDistance = Number.POSITIVE_INFINITY;
-    state.tiles.forEach((tile) => {
-      const x = Number.parseInt(tile.dataset.x, 10);
-      const y = Number.parseInt(tile.dataset.y, 10);
-      const distance = Math.hypot(x - currentGridX, y - currentGridY);
-      if (distance < closestDistance) {
-        closestDistance = distance;
-        closest = { x, y };
-      }
-    });
-    if (closest) {
-      state.targetOffsetX = -closest.x * state.spacing;
-      state.targetOffsetY = -closest.y * state.spacing;
-    }
-  }
-};
-
-const loadImagesFromDirectoryListing = async () => {
-  const response = await fetch("../wallfacer/");
-  if (!response.ok) {
-    throw new Error("directory listing unavailable");
-  }
-
-  const text = await response.text();
-  const regex = new RegExp(
-    `href=["']([^"']+\\.(${imageExtensions.join("|")}))["']`,
-    "gi"
-  );
-
-  const files = new Set();
-  let match = regex.exec(text);
-  while (match) {
-    const href = match[1];
-    const file = decodeURIComponent(href.split("/").pop() || href);
-    files.add(file);
-    match = regex.exec(text);
-  }
-
-  return Array.from(files);
-};
-
-const loadEntriesFromManifest = async () => {
-  const response = await fetch("../wallfacer/manifest.json");
-  if (!response.ok) {
-    throw new Error("manifest not found");
-  }
-  const data = await response.json();
-  return Array.isArray(data.images) ? data.images : [];
-};
-
-const init = async () => {
-  try {
-    let entries = [];
-    try {
-      entries = await loadEntriesFromManifest();
-    } catch (manifestError) {
-      entries = [];
-    }
-
-    if (!entries.length) {
-      try {
-        entries = await loadImagesFromDirectoryListing();
-      } catch (listingError) {
-        entries = [];
-      }
-    }
-
-    if (!entries.length) {
-      message.textContent =
-        "No images yet. Add files to /wallfacer named with grid positions (e.g. 1,-1.jpg) or update wallfacer/manifest.json.";
+  const loadImage = (tile) => {
+    tile.loaded = true;
+    const override = imageSrc(tile.entry);
+    if (override) {
+      tile.img.src = override;
       return;
     }
+    const original = new URL(tile.entry.file, BASE).href;
+    tile.img.addEventListener(
+      "error",
+      () => {
+        if (tile.img.src !== original) tile.img.src = original;
+      },
+      { once: true }
+    );
+    tile.img.src = new URL(Core.optName(tile.entry.file), BASE).href;
+  };
 
+  const render = (tiles, cuts) => {
+    stage.textContent = "";
+    state.byKey.clear();
+    state.cuts = cuts;
+    state.tiles = tiles.map(createTile);
+
+    state.svg = document.createElementNS(SVG_NS, "svg");
+    state.svg.setAttribute("class", "wallfacer-connections");
+    state.svg.setAttribute("aria-hidden", "true");
+    stage.appendChild(state.svg);
+
+    const frag = document.createDocumentFragment();
+    state.tiles.forEach((t) => {
+      state.byKey.set(Core.key(t.x, t.y), t);
+      frag.appendChild(t.el);
+    });
+    stage.appendChild(frag);
+
+    state.connections = [];
+    state.tiles.forEach((t) => {
+      [
+        [1, 0],
+        [0, 1],
+      ].forEach(([dx, dy]) => {
+        const other = state.byKey.get(Core.key(t.x + dx, t.y + dy));
+        if (!other || state.cuts.has(Core.edgeKey(t.x, t.y, other.x, other.y))) return;
+        const line = document.createElementNS(SVG_NS, "line");
+        line.setAttribute("class", "wallfacer-connection");
+        state.svg.appendChild(line);
+        state.connections.push({ line, a: t, b: other });
+      });
+    });
+  };
+
+  const project = (gx, gy) => {
+    const dx = gx - state.offsetX;
+    const dy = gy - state.offsetY;
+    const d = Math.hypot(dx, dy);
+    if (d < 1e-6) return { sx: 0, sy: 0, d: 0, ux: 0, uy: 0, r: 0 };
+    const r = (d * (1 + FISHEYE)) / (1 + FISHEYE * d);
+    const ux = dx / d;
+    const uy = dy / d;
+    return { sx: ux * r * SPACING, sy: uy * r * SPACING, d, ux, uy, r };
+  };
+
+  const layout = () => {
+    let center = null;
+    let best = Infinity;
+
+    state.tiles.forEach((t) => {
+      const p = project(t.x, t.y);
+      t.p = p;
+      if (p.d < best) {
+        best = p.d;
+        center = t;
+      }
+    });
+
+    state.tiles.forEach((t) => {
+      const { sx, sy, d, ux, uy, r } = t.p;
+      const k = 1 + FISHEYE * d;
+      const scale = clamp(1.4 / (k * k), 0.16, 1.4);
+      const tilt = clamp(r * 16, 0, 38);
+      const opacity = clamp(1.05 - d * 0.2, 0.16, 1);
+      const isCenter = t === center;
+      const isFar = d > 1.15;
+
+      t.el.style.transform =
+        `translate(-50%, -50%) translate3d(${sx.toFixed(1)}px, ${sy.toFixed(1)}px, 0) ` +
+        `perspective(900px) rotateX(${(-uy * tilt).toFixed(2)}deg) rotateY(${(ux * tilt).toFixed(2)}deg) ` +
+        `scale(${scale.toFixed(3)})${isCenter ? " translateY(-10px)" : ""}`;
+      t.el.style.opacity = opacity.toFixed(3);
+      t.el.style.zIndex = String(1000 - Math.round(d * 20));
+      t.el.style.setProperty("--static-opacity", clamp(d * 0.55, 0.2, 0.9).toFixed(2));
+      t.el.style.setProperty("--dim-opacity", clamp(0.95 - d * 0.35, 0.2, 0.85).toFixed(2));
+
+      if (t.isCenter !== isCenter) {
+        t.el.classList.toggle("is-center", isCenter);
+        t.el.classList.toggle("is-dim", !isCenter);
+        t.isCenter = isCenter;
+      }
+      if (t.isFar !== isFar) {
+        t.el.classList.toggle("is-far", isFar);
+        t.isFar = isFar;
+      }
+      if (t.img && !t.loaded && d <= LOAD_RADIUS) loadImage(t);
+    });
+
+    state.connections.forEach(({ line, a, b }) => {
+      line.setAttribute("x1", a.p.sx.toFixed(1));
+      line.setAttribute("y1", a.p.sy.toFixed(1));
+      line.setAttribute("x2", b.p.sx.toFixed(1));
+      line.setAttribute("y2", b.p.sy.toFixed(1));
+    });
+
+    state.centerTile = center;
+  };
+
+  /* ---------- animation loop (runs only while something is moving) ---------- */
+
+  const tick = () => {
+    state.raf = 0;
+    const ease = reducedMotion ? 1 : 0.14;
+    state.offsetX += (state.targetX - state.offsetX) * ease;
+    state.offsetY += (state.targetY - state.offsetY) * ease;
+    const settled =
+      Math.abs(state.targetX - state.offsetX) < 0.0015 &&
+      Math.abs(state.targetY - state.offsetY) < 0.0015;
+    if (settled) {
+      state.offsetX = state.targetX;
+      state.offsetY = state.targetY;
+    }
+    layout();
+    if (!settled) {
+      state.raf = requestAnimationFrame(tick);
+    } else {
+      writeHash();
+    }
+  };
+
+  const wake = () => {
+    if (!state.raf) state.raf = requestAnimationFrame(tick);
+  };
+
+  const goTo = (x, y) => {
+    state.targetX = x;
+    state.targetY = y;
+    wake();
+  };
+
+  const currentCell = () => ({ x: Math.round(state.targetX), y: Math.round(state.targetY) });
+
+  /* ---------- deep links: #x,y ---------- */
+
+  const writeHash = () => {
+    const { x, y } = currentCell();
+    const hash = `#${x},${y}`;
+    if (location.hash !== hash) history.replaceState(null, "", hash);
+  };
+
+  const readHash = () => {
+    const m = location.hash.match(/^#(-?\d+),(-?\d+)$/);
+    if (!m) return null;
+    const x = Number(m[1]);
+    const y = Number(m[2]);
+    return state.byKey.has(Core.key(x, y)) ? { x, y } : null;
+  };
+
+  /* ---------- input ---------- */
+
+  const handleKeydown = (event) => {
+    const dir = {
+      ArrowLeft: [-1, 0],
+      ArrowRight: [1, 0],
+      ArrowUp: [0, -1],
+      ArrowDown: [0, 1],
+    }[event.key];
+    if (!dir) return;
+    event.preventDefault();
+    const { x, y } = currentCell();
+    const nx = x + dir[0];
+    const ny = y + dir[1];
+    if (connected(x, y, nx, ny)) goTo(nx, ny);
+  };
+
+  const onPointerDown = (event) => {
+    if (event.button !== 0 || state.pointer) return;
+    const { x, y } = currentCell();
+    state.pointer = {
+      id: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      from: { x, y },
+      dragging: false,
+      neighbors: DIRS.filter(({ dx, dy }) => connected(x, y, x + dx, y + dy)),
+    };
+  };
+
+  const onPointerMove = (event) => {
+    const p = state.pointer;
+    if (!p || p.id !== event.pointerId) return;
+    const ddx = event.clientX - p.startX;
+    const ddy = event.clientY - p.startY;
+    if (!p.dragging) {
+      if (Math.hypot(ddx, ddy) < DRAG_THRESHOLD) return;
+      p.dragging = true;
+      app.classList.add("is-dragging");
+      app.setPointerCapture(event.pointerId);
+    }
+
+    // Dragging the wall left moves the camera right, so flip the sign.
+    const mx = -ddx / SPACING;
+    const my = -ddy / SPACING;
+    let best = null;
+    let bestDot = 0;
+    p.neighbors.forEach((n) => {
+      const dot = mx * n.dx + my * n.dy;
+      if (dot > bestDot) {
+        bestDot = dot;
+        best = n;
+      }
+    });
+
+    let tx = p.from.x;
+    let ty = p.from.y;
+    if (best) {
+      const t = clamp(bestDot, 0, 1);
+      tx += best.dx * t;
+      ty += best.dy * t;
+    }
+    // A little wiggle off-axis so it feels physical.
+    const wiggle = 0.1;
+    const px = best ? (best.dx === 0 ? clamp(mx, -wiggle, wiggle) : 0) : clamp(mx, -wiggle, wiggle);
+    const py = best ? (best.dy === 0 ? clamp(my, -wiggle, wiggle) : 0) : clamp(my, -wiggle, wiggle);
+    state.targetX = tx + px;
+    state.targetY = ty + py;
+    wake();
+  };
+
+  const onPointerUp = (event) => {
+    const p = state.pointer;
+    if (!p || p.id !== event.pointerId) return;
+    state.pointer = null;
+    if (!p.dragging) return;
+    state.suppressClick = true;
+    setTimeout(() => (state.suppressClick = false), 0);
+    app.classList.remove("is-dragging");
+    if (app.hasPointerCapture(event.pointerId)) app.releasePointerCapture(event.pointerId);
+    const nx = Math.round(state.targetX);
+    const ny = Math.round(state.targetY);
+    const moved = nx !== p.from.x || ny !== p.from.y;
+    if (moved && connected(p.from.x, p.from.y, nx, ny)) goTo(nx, ny);
+    else goTo(p.from.x, p.from.y);
+  };
+
+  /* ---------- data ---------- */
+
+  const loadData = async () => {
+    const params = new URLSearchParams(location.search);
+    if (params.has("preview")) {
+      const raw = localStorage.getItem(Core.PREVIEW_KEY);
+      if (raw) {
+        const data = JSON.parse(raw);
+        state.srcOverrides = data.srcs || {};
+        document.title = "Wallfacer (preview)";
+        app.classList.add("is-preview");
+        return data.manifest;
+      }
+    }
+    const res = await fetch(new URL("manifest.json", BASE));
+    if (!res.ok) throw new Error(`manifest ${res.status}`);
+    return res.json();
+  };
+
+  const show = (manifest, keepPosition) => {
+    const { tiles, cuts } = Core.parseManifest(manifest);
+    if (!tiles.length) {
+      message.textContent = "No tiles yet. Add some with the Wallfacer editor.";
+      message.classList.remove("wallfacer-hidden");
+      return;
+    }
     message.classList.add("wallfacer-hidden");
-    const parsedEntries = entries
-      .map(parseManifestEntry)
-      .filter((entry) => entry);
-    renderTiles(parsedEntries);
-    animate();
-  } catch (error) {
-    message.textContent =
-      "Unable to load Wallfacer images. Ensure /wallfacer has images or update wallfacer/manifest.json.";
-  }
-};
+    render(tiles, cuts);
+    let start = keepPosition ? currentCell() : readHash() || { x: 0, y: 0 };
+    if (!state.byKey.has(Core.key(start.x, start.y))) {
+      start = tiles.reduce((a, b) => (Math.hypot(a.x, a.y) <= Math.hypot(b.x, b.y) ? a : b));
+    }
+    state.offsetX = state.targetX = start.x;
+    state.offsetY = state.targetY = start.y;
+    layout();
+    writeHash();
+  };
 
-window.addEventListener("keydown", handleKeydown);
-app.addEventListener("pointerdown", handlePointerDown);
-app.addEventListener("pointermove", handlePointerMove);
-app.addEventListener("pointerup", handlePointerUp);
-app.addEventListener("pointercancel", handlePointerUp);
-app.addEventListener("pointerleave", () => {
-  state.dragging = false;
-  app.classList.remove("is-dragging");
-});
+  const init = async () => {
+    try {
+      show(await loadData(), false);
+    } catch (error) {
+      console.error(error);
+      message.textContent = "Unable to load the Wallfacer manifest.";
+    }
+  };
 
-init();
+  // Live-reload while the editor's Preview tab is open.
+  window.addEventListener("storage", (event) => {
+    if (event.key !== Core.PREVIEW_KEY || !new URLSearchParams(location.search).has("preview")) return;
+    const data = JSON.parse(event.newValue || "null");
+    if (!data) return;
+    state.srcOverrides = data.srcs || {};
+    show(data.manifest, true);
+  });
+
+  window.addEventListener("hashchange", () => {
+    const h = readHash();
+    if (h) goTo(h.x, h.y);
+  });
+  window.addEventListener("keydown", handleKeydown);
+  app.addEventListener("pointerdown", onPointerDown);
+  app.addEventListener("pointermove", onPointerMove);
+  app.addEventListener("pointerup", onPointerUp);
+  app.addEventListener("pointercancel", onPointerUp);
+  app.addEventListener(
+    "click",
+    (event) => {
+      if (state.suppressClick) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    },
+    true
+  );
+
+  init();
+})();

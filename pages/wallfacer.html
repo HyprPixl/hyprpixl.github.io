@@ -4,7 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Wallfacer</title>
+    <link rel="preload" href="../wallfacer/manifest.json" as="fetch" crossorigin />
     <link rel="stylesheet" href="../assets/css/wallfacer.css" />
+    <script src="../assets/js/wallfacer-core.js" defer></script>
+    <script src="../assets/js/wallfacer.js" defer></script>
   </head>
   <body class="wallfacer-page">
     <div id="wallfacer-app" class="wallfacer-screen">
@@ -16,6 +19,5 @@
       <div id="wallfacer-stage" aria-live="polite"></div>
     </div>
     <noscript>Wallfacer needs JavaScript enabled to position images.</noscript>
-    <script src="../assets/js/wallfacer.js"></script>
   </body>
 </html>
