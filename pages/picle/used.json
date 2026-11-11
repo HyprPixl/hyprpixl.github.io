@@ -172,7 +172,12 @@
 "bill gates",
 "fixed-wing aircraft",
 "diwali",
-"telephone"
+"telephone",
+"albert einstein",
+"goose",
+"melbourne",
+"dragonfly",
+"gorilla"
 ],
 "files": [
 "https://upload.wikimedia.org/wikipedia/commons/4/42/The_Beatles_1963_Dezo_Hoffman_Capitol_Records_press_photo_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
@@ -347,6 +352,11 @@
 "https://upload.wikimedia.org/wikipedia/commons/d/d9/Bill_Gates_at_the_European_Commission_-_P067383-987995_%28cropped%29_5.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://upload.wikimedia.org/wikipedia/commons/f/fc/Tarom.b737-700.yr-bgg.arp.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://upload.wikimedia.org/wikipedia/commons/9/99/The_Rangoli_of_Lights.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
-"https://upload.wikimedia.org/wikipedia/commons/a/a6/Telefon_BW_2012-02-18_13-44-32.JPG?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
+"https://upload.wikimedia.org/wikipedia/commons/a/a6/Telefon_BW_2012-02-18_13-44-32.JPG?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/2/28/Albert_Einstein_Head_cleaned.jpg/3840px-Albert_Einstein_Head_cleaned.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://upload.wikimedia.org/wikipedia/commons/3/37/Anser_anser_1_%28Piotr_Kuczynski%29_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/7/74/Melbourne_skyline_sor.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/b/b4/Red_grasshawk_%28Neurothemis_fluctuans%29_male_Phuket_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/b/bb/Gorille_des_plaines_de_l%27ouest_%C3%A0_l%27Espace_Zoologique.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
 ]
 }
