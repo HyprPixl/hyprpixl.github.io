@@ -177,7 +177,12 @@
 "goose",
 "melbourne",
 "dragonfly",
-"gorilla"
+"gorilla",
+"montreal",
+"sperm whale",
+"adrian peterson",
+"comet",
+"ocean liner"
 ],
 "files": [
 "https://upload.wikimedia.org/wikipedia/commons/4/42/The_Beatles_1963_Dezo_Hoffman_Capitol_Records_press_photo_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
@@ -357,6 +362,11 @@
 "https://upload.wikimedia.org/wikipedia/commons/3/37/Anser_anser_1_%28Piotr_Kuczynski%29_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://upload.wikimedia.org/wikipedia/commons/7/74/Melbourne_skyline_sor.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://upload.wikimedia.org/wikipedia/commons/b/b4/Red_grasshawk_%28Neurothemis_fluctuans%29_male_Phuket_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
-"https://upload.wikimedia.org/wikipedia/commons/b/bb/Gorille_des_plaines_de_l%27ouest_%C3%A0_l%27Espace_Zoologique.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
+"https://upload.wikimedia.org/wikipedia/commons/b/bb/Gorille_des_plaines_de_l%27ouest_%C3%A0_l%27Espace_Zoologique.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9f/Montreal%2C_Quebec_skyline.jpg/3840px-Montreal%2C_Quebec_skyline.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/Mother_and_baby_sperm_whale.jpg/3840px-Mother_and_baby_sperm_whale.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://upload.wikimedia.org/wikipedia/commons/0/06/Adrian_Peterson_2026_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/b/ba/Comet_Hale-Bopp_1995O1.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e7/RMS_Queen_Mary.jpg/3840px-RMS_Queen_Mary.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail"
 ]
 }
