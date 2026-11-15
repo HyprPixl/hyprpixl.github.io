@@ -192,7 +192,12 @@
 "baseball",
 "sebastian vettel",
 "space shuttle endeavour",
-"apollo 12"
+"apollo 12",
+"arbor day",
+"avril lavigne",
+"denver",
+"microwave oven",
+"couch"
 ],
 "files": [
 "https://upload.wikimedia.org/wikipedia/commons/4/42/The_Beatles_1963_Dezo_Hoffman_Capitol_Records_press_photo_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
@@ -387,6 +392,11 @@
 "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e7/Tommy_Milone_gives_up_a_home_run_to_Mike_Trout_on_May_21%2C_2017.jpg/3840px-Tommy_Milone_gives_up_a_home_run_to_Mike_Trout_on_May_21%2C_2017.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
 "https://upload.wikimedia.org/wikipedia/commons/c/c5/Sebastian_Vettel_at_the_2026_Italian_Grand_Prix_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://upload.wikimedia.org/wikipedia/commons/6/65/STS-123_Dextre%26Kibo_ELM-PS_in_orbit_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
-"https://upload.wikimedia.org/wikipedia/commons/4/4e/Surveyor_3-Apollo_12.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
+"https://upload.wikimedia.org/wikipedia/commons/4/4e/Surveyor_3-Apollo_12.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/b/ba/ArborDay2009treeplanters.JPG?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/5/54/Glaston2024_2806_300624_%28129_of_173%29_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/3/37/Denver%2C_Colorado_skyline_%28cropped_3x5%29.jpg/3840px-Denver%2C_Colorado_skyline_%28cropped_3x5%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://upload.wikimedia.org/wikipedia/commons/0/08/Panasonic_NN-SD69LS_20220410.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c2/2009-05-16_Main_office_lobby_at_Hampton_Forest_Apartments.jpg/3840px-2009-05-16_Main_office_lobby_at_Hampton_Forest_Apartments.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail"
 ]
 }
