@@ -202,7 +202,12 @@
 "broadway theatre",
 "qantas",
 "atlanta",
-"the temptations"
+"the temptations",
+"sushi",
+"moon",
+"softball",
+"tornado",
+"phil collins"
 ],
 "files": [
 "https://upload.wikimedia.org/wikipedia/commons/4/42/The_Beatles_1963_Dezo_Hoffman_Capitol_Records_press_photo_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
@@ -407,6 +412,11 @@
 "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cd/Various_Pictures_from_New_York_City_-_September%2C_2025.jpg/3840px-Various_Pictures_from_New_York_City_-_September%2C_2025.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
 "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d1/Qantas_%28VH-ZNN%29_Boeing_787-9_Dreamliner_on_final_at_Melbourne_Airport_%281%29.jpg/3840px-Qantas_%28VH-ZNN%29_Boeing_787-9_Dreamliner_on_final_at_Melbourne_Airport_%281%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
 "https://upload.wikimedia.org/wikipedia/commons/c/c8/A2ATL20250614-0721_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
-"https://upload.wikimedia.org/wikipedia/commons/5/50/The-Temptations_%281964_publicity_photo_by_Kriegsmann%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
+"https://upload.wikimedia.org/wikipedia/commons/5/50/The-Temptations_%281964_publicity_photo_by_Kriegsmann%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/6/60/Sushi_platter.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/e/e1/FullMoon2010.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/0/06/Australia_v_Japan_Game_7_034.JPG?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/9/98/F5_tornado_Elie_Manitoba_2007.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/0/0f/Phil_Collins%2C_2025_for_%22Eras%22_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
 ]
 }
