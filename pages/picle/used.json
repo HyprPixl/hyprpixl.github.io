@@ -217,7 +217,12 @@
 "bus",
 "king's cross st pancras tube station",
 "sean connery",
-"oil tanker"
+"oil tanker",
+"boeing 747",
+"anne hathaway",
+"calculator",
+"istanbul",
+"van"
 ],
 "files": [
 "https://upload.wikimedia.org/wikipedia/commons/4/42/The_Beatles_1963_Dezo_Hoffman_Capitol_Records_press_photo_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
@@ -437,6 +442,11 @@
 "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/84/LTZ1328-19-20241030-160332.jpg/3840px-LTZ1328-19-20241030-160332.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
 "https://upload.wikimedia.org/wikipedia/commons/c/cd/Entrance_to_King%27s_Cross_%5E_St_Pancras_Underground_Station%2C_London_N1_-_geograph.org.uk_-_4955807.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://upload.wikimedia.org/wikipedia/commons/d/d9/Sean_Connery_as_James_Bond_at_Switzerland_1964_%28two_thirds_crop%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
-"https://upload.wikimedia.org/wikipedia/commons/7/75/Supertanker_AbQaiq.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
+"https://upload.wikimedia.org/wikipedia/commons/7/75/Supertanker_AbQaiq.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/b/b8/B-747_Iberia.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a5/AnneHathaway-byPhilipRomano-Crop.jpg/3840px-AnneHathaway-byPhilipRomano-Crop.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://upload.wikimedia.org/wikipedia/commons/c/cf/Casio_calculator_JS-20WK_in_201901_002.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/c/cb/Historical_peninsula_and_modern_skyline_of_Istanbul.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1a/2018_Ford_Transit_Custom_300_Base_2.0_facelift.jpg/3840px-2018_Ford_Transit_Custom_300_Base_2.0_facelift.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail"
 ]
 }
