@@ -247,7 +247,12 @@
 "anteater",
 "banff national park",
 "one direction",
-"great white shark"
+"great white shark",
+"packhorse",
+"curiosity",
+"thanksgiving",
+"phoenix, arizona",
+"robert pattinson"
 ],
 "files": [
 "https://upload.wikimedia.org/wikipedia/commons/4/42/The_Beatles_1963_Dezo_Hoffman_Capitol_Records_press_photo_2.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
@@ -497,6 +502,11 @@
 "https://upload.wikimedia.org/wikipedia/commons/6/6f/Tamandu%C3%A1-bandeira_no_Parque_Nacional_da_Serra_da_Canastra_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://upload.wikimedia.org/wikipedia/commons/c/c5/Moraine_Lake_17092005.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
 "https://upload.wikimedia.org/wikipedia/commons/3/3a/One_Direction_Sydney_4.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
-"https://upload.wikimedia.org/wikipedia/commons/5/56/White_shark.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=original"
+"https://upload.wikimedia.org/wikipedia/commons/5/56/White_shark.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=original",
+"https://upload.wikimedia.org/wikipedia/commons/b/b8/Pack_Horse.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f3/Curiosity_Self-Portrait_at_%27Big_Sky%27_Drilling_Site.jpg/3840px-Curiosity_Self-Portrait_at_%27Big_Sky%27_Drilling_Site.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+"https://upload.wikimedia.org/wikipedia/commons/c/c4/Thanksgiving_at_Plymouth%2C_1925%2C_Brownscombe.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/b/b9/Downtown_Phoenix_Aerial_Looking_Northeast.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+"https://upload.wikimedia.org/wikipedia/commons/a/a4/Robert_Pattinson_Venice_Film_Festival_%283x4_cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
 ]
 }
